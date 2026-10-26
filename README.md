@@ -1,15 +1,15 @@
 # Hexlands
 
-A multiplayer island-settling game for 2–4 players in the browser. Gather lumber, brick, wool, grain and ore, trade, build, and race to the points target.
+A multiplayer island-settling game for 2–4 players in the browser. Gather wood, brick, sheep, hay and ore, trade, build, and race to the points target.
 
 - Join with a 5-character room code or an invite link (`/room/ABCDE`)
-- Bots fill empty seats (up to 4 players total), each set to Easy, Medium or Hard
-- Beat themes when a game starts and finishes, plus sound for every click, resource card, dice roll and build
-- Leaderboard at the end: ranking, points breakdown, game stats and a dice chart
-- 8 maps: Classic Island, India, United States, United Kingdom, Australia, Japan, Italy, Brazil
-- Map editor: paint terrain, place numbers, save your design, play it
-- Full rules: snake-order setup, robber and discards on 7, development cards, Longest Road, Largest Army, harbors, bank and player trades
-- Works on phones (pinch and drag to zoom) and desktops
+- 8 maps (Classic Island, India, United States, United Kingdom, Australia, Japan, Italy, Brazil) plus a map editor
+- Bots (Easy, Medium, Hard) can fill any empty seat, up to 4 players in total
+- Host options before each game: points to win, discard limit and amount, move timer, friendly robber, balanced dice
+- Animated board: moving sea, windmills, chimney smoke, flying resource cards, confetti on a win
+- Beat themes at the start and finish, a click on every button, and a note for each resource card
+- Leaderboard at the end with points breakdown, stats and a dice chart
+- Tap the gold **i** on the start page (or **Rules** in a game) for a short rules guide
 - No dependencies: plain Node.js, no database
 
 ## Run locally
@@ -18,21 +18,23 @@ Requires Node.js 18 or newer.
 
 ```bash
 npm start            # http://localhost:3000
-npm test             # 32 tests, including full bot-vs-bot games and a live server game
+npm test             # 47 tests, including full simulated games
 ```
 
 Open two browser windows (or a phone on the same network at `http://<your-ip>:3000`) to play against yourself.
 
 ## Put it on GitHub
 
-This version is **flat**: all 16 files sit side by side at the top level of `main`, with no folders. Upload them all at once.
+All 17 files sit side by side at the top level of `main`, with no folders. Upload them all at once.
 
 1. On github.com, create a new empty repository.
 2. Click **uploading an existing file**.
 3. Unzip the download, select every file inside, and drag them onto the upload area.
 4. Keep **Commit directly to the main branch** selected and click **Commit changes**.
 
-The repo front page should list: `app.js`, `art.js`, `bots.js`, `bots.test.js`, `engine.test.js`, `game.js`, `index.html`, `maps.js`, `package.json`, `README.md`, `render.yaml`, `server.js`, `server.test.js`, `sound.js`, `style.css` (and `.gitignore` if your file browser shows hidden files; it is optional).
+To update an existing repo, do the same: files with the same name are replaced, and the new ones (`rules.test.js`) are added. Render redeploys automatically.
+
+The repo front page should list: `app.js`, `art.js`, `bots.js`, `bots.test.js`, `engine.test.js`, `game.js`, `index.html`, `maps.js`, `package.json`, `README.md`, `render.yaml`, `rules.test.js`, `server.js`, `server.test.js`, `sound.js`, `style.css` (and `.gitignore` if your file browser shows hidden files; it is optional).
 
 Only `index.html`, `app.js`, `art.js`, `sound.js` and `style.css` are sent to browsers. The server code, tests and config are never served.
 
@@ -40,42 +42,64 @@ Only `index.html`, `app.js`, `art.js`, `sound.js` and `style.css` are sent to br
 
 **Option A: Blueprint (uses `render.yaml`)**
 1. Render dashboard → **New** → **Blueprint**
-2. Connect your GitHub account and pick the `hexlands` repo
+2. Connect your GitHub account and pick the repo
 3. Click **Apply**. Render builds and gives you a URL like `https://hexlands.onrender.com`
 
 **Option B: Web Service by hand**
 1. Render dashboard → **New** → **Web Service** → pick the repo
 2. Runtime: **Node**, Build command: `npm install`, Start command: `npm start`
 3. Health check path: `/healthz`
-4. Create the service
-
-Every push to `main` redeploys automatically.
 
 ### Things to know about hosting
 
 - Games live in server memory. A redeploy or restart ends running games; players see a message and return to the home screen.
-- Render's free plan sleeps after about 15 minutes with no traffic. The first visit after that takes 30–60 seconds to wake up, and any idle rooms are gone. A paid instance stays awake.
+- Render's free plan sleeps after about 15 minutes with no traffic. The first visit after that takes 30–60 seconds, and idle rooms are gone. A paid instance stays awake.
 - Idle rooms are cleaned up automatically (30 minutes with nobody connected, or 6 hours total).
 - Live updates use Server-Sent Events over normal HTTPS, which Render supports with no extra setup.
 
 ## How to play
 
-1. One player creates a room, picks a map and a points target, and shares the code.
-2. Others enter their name and the code, then the host starts. Turn order is random.
-3. **Setup:** each player places a settlement and a road, then again in reverse order. The second settlement collects one of each neighboring resource.
-4. **Your turn:** roll the dice. Every tile with that number pays its resource to adjacent settlements (1) and cities (2). Then build, trade, play a development card, and end your turn.
-5. **Rolling a 7:** anyone holding more than 7 cards discards half; the roller moves the robber (which blocks that tile) and steals a card from a neighbor.
+1. One player creates a room and picks a map. In the waiting room the host sets the game options, adds bots if wanted, and shares the code.
+2. Others enter their name and the code. The host starts; turn order is random.
+3. **Setup:** players place a settlement and a connected road in turn order (1, 2, 3, 4), then again in reverse (4, 3, 2, 1). The last player therefore places two settlements back to back. The second settlement collects one card for each neighboring tile. A strip at the top of the board shows the order and whose placement is next.
+4. **Your turn:** roll. Every tile with that number pays 1 card to each adjacent settlement and 2 to each city. Then trade, build, play a development card, and end your turn.
+5. **Rolling a 7:** nobody collects. Players over the discard limit discard; the roller moves the robber and steals a card from a neighbor.
+
+| Resource | Tile |
+|---|---|
+| Wood | Forest |
+| Brick | Hills |
+| Sheep | Pasture |
+| Hay | Fields |
+| Ore | Mountains |
 
 | Build | Cost | Notes |
 |---|---|---|
-| Road | lumber, brick | Connects to your roads or towns |
-| Settlement | lumber, brick, wool, grain | 1 point, needs a road, two edges from any town |
-| City | 2 grain, 3 ore | 2 points, replaces a settlement, doubles its harvest |
-| Development card | wool, grain, ore | Knight, Road Building, Year of Plenty, Monopoly, or a hidden point |
+| Road | wood, brick | Connects to your own roads, settlements or cities |
+| Settlement | wood, brick, sheep, hay | 1 point; touches your road; two roads from any other settlement or city |
+| City | 2 hay, 3 ore | 2 points; replaces a settlement and pays double |
+| Development card | sheep, hay, ore | One of 25 cards (below) |
 
-Longest Road (5+) and Largest Army (3+ knights) are worth 2 points each. Harbors let you trade 3:1 (any) or 2:1 (one resource) with the bank instead of 4:1. You win when you reach the target on your own turn.
+**Road placement.** A new road must connect to one of your own roads, settlements or cities. It may continue from the end of another road, so a settlement is not needed at its far end. It can never start on the far side of a corner holding another player's settlement or city. During setup, the road must touch the settlement you just placed. (The dotted white lines leading to the round harbor signs are harbor piers, not roads.)
 
-If a player drops out, the host sees **Skip offline player** on their card and can keep the game moving; the player can rejoin from the same browser and pick up where they left off.
+**Development cards** (25 on the classic board): 14 Knights, 5 Victory Points, 2 Road Building, 2 Year of Plenty, 2 Monopoly. One per turn, never on the turn you bought it. Knights move the robber; Victory Point cards stay hidden until you win.
+
+**Bonuses:** Longest Road (5 or more connected roads) and Largest Army (3 or more Knights) are worth 2 points each, and you must beat the holder to take them. An opponent's settlement built in the middle of a road cuts it.
+
+Harbors let you trade 3:1 (any) or 2:1 (one resource) with the bank instead of 4:1. You win when you reach the target on your own turn.
+
+## Game options
+
+The host chooses these in the waiting room, before pressing Start. Everyone can see them.
+
+| Option | Choices | What it does |
+|---|---|---|
+| Points to win | 5–20 (default 10) | First to reach it on their own turn wins |
+| Discard limit | 7–15 (default 7) | On a 7, players holding more than this many cards must discard |
+| Cards discarded | Half, or 4 | Half of the hand rounded down (official: nine cards means discard four), or exactly 4 |
+| Move timer | Off, 15s, 30s, 60s | The clock restarts after each action. When it runs out, the game plays that step for the player: rolls the dice, moves the robber, discards, or ends the turn. Setup placements always get 60 seconds. Bots are never timed. |
+| Friendly robber | On / Off | The robber can't be placed next to a player with 2 points or fewer, and such players can't be robbed. If no tile qualifies, it goes to the desert. |
+| Balanced dice | On / Off | Rolls come from a shuffled deck of all 36 combinations, reshuffled when 12 are left, with a 30% chance of skipping a card that repeats the previous total |
 
 ## Bots
 
@@ -87,29 +111,15 @@ In the waiting room, the host picks a difficulty and presses **Add bot**. Bots t
 | Medium | Picks strong spots, builds cities and settlements first, trades with the bank toward its next build. |
 | Hard | Weighs scarce resources and harbors, chases Largest Army and Longest Road, aims the robber at the leader, and refuses trades that would help a player close to winning. |
 
-In testing, medium beat easy in 99% of games, and hard beat medium in about 60% (200 games each).
-
-Bots only use information a human could see: public points, card counts and the bank. They respond to your trade offers, discard on 7s and move the robber on their own. Each bot move has a short pause so you can follow along, and bots pause while no human is connected.
+In testing, medium beat easy in 99% of games, and hard beat medium in about 60% (200 games each). Bots only use information a human could see. They follow every option above, including the friendly robber.
 
 ## Sound
 
-All sound is generated in the browser, so there are no audio files.
-
-- A beat theme plays when a game starts and a victory theme when it finishes.
-- Buttons click; tapping a resource card plays its own note; dice rattle; builds, steals, the robber, new cards and your turn each have a sound.
-- Use the speaker and music-note buttons in the waiting room or the top bar to switch sound effects and music on or off. The choice is remembered.
-
-Browsers only allow sound after your first tap, so sound starts once you've clicked anything on the page.
+All sound is generated in the browser, so there are no audio files. A beat theme plays when a game starts and a victory theme when it finishes. Buttons click, each resource card has its own note, and dice, builds, steals, the robber, new cards, the last 5 seconds of your clock, and your turn have sounds. Use the speaker and music buttons to switch effects and music on or off; the choice is remembered. Browsers only allow sound after your first tap.
 
 ## Leaderboard
 
-When someone wins, the leaderboard shows every player ranked, with:
-- a points breakdown (settlements, cities, Longest Road, Largest Army, hidden point cards)
-- stats: resources harvested, cards stolen, trades, knights, development cards bought
-- a chart of how often each dice number came up versus fair odds
-- your win record on this device
-
-Press **Results** to reopen it after closing.
+When someone wins, the leaderboard ranks every player with a points breakdown (settlements, cities, Longest Road, Largest Army, hidden point cards), stats (resources harvested, cards stolen, trades, knights, development cards bought), a dice chart against fair odds, and your win record on this device. Press **Results** to reopen it.
 
 ## Map editor
 
@@ -123,18 +133,19 @@ From **Create a room**, choose **Your own map** (or **Copy into editor** on any 
 ## Project layout
 
 ```
-server.js         HTTP server, rooms, live updates (SSE), bot timing
+server.js         HTTP server, rooms, live updates (SSE), bot and move-clock timing
 game.js           Rules engine; the server is the only authority on game state
 bots.js           Bot decisions for easy, medium and hard
 maps.js           Country maps, board generation, custom map validation
 index.html        Page shell              } sent to browsers
-app.js            Screens, board, input, map editor, leaderboard
+app.js            Screens, board, input, map editor, lobby options, leaderboard
 art.js            Vector artwork
 sound.js          Synthesized effects and beat themes
 style.css         Styles
-engine.test.js    Rules tests and full simulated games
+engine.test.js    Core rules and full simulated games
+rules.test.js     Setup order, host options, discard limit, friendly robber, balanced dice, timer, road rule
 bots.test.js      Bot games at every level and strength checks
-server.test.js    HTTP, live updates and a full human-vs-bots game
+server.test.js    HTTP, live updates, options and timer over the wire, a full human-vs-bots game
 render.yaml       Render blueprint
 package.json
 ```
@@ -145,4 +156,4 @@ Add an entry to `PRESETS` in `maps.js`. The `mask` is rows of `X` (land) and `.`
 
 ## Credits
 
-Original code and artwork. Game rules are inspired by classic hex-tile trading board games; no trademarked names or artwork are used.
+Original code and artwork. Game rules follow the standard hex-tile trading board game rules plus common online options; no trademarked names or artwork are used.

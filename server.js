@@ -64,6 +64,22 @@ function broadcast(room) {
     for (const r of set) r.write(msg);
   }
   scheduleBots(room);
+  scheduleClock(room);
+}
+
+// The move clock: when time runs out the server plays one step for the idle player.
+function scheduleClock(room) {
+  clearTimeout(room.clockTimer); room.clockTimer = null;
+  const g = room.game;
+  const lim = g.clockLimit();
+  if (!lim || !rooms.has(g.code) || !g.players.some(p => !p.bot && p.connected)) return;
+  const ms = Math.max(0, g.clockAt + lim * 1000 - Date.now()) + 40;
+  room.clockTimer = setTimeout(() => {
+    room.clockTimer = null;
+    if (!rooms.has(g.code)) return;
+    try { g.timeout(); } catch (e) { console.error('timer error', e); }
+    broadcast(room);
+  }, ms);
 }
 
 // Bots act one move at a time on a timer so people can follow along.
@@ -130,7 +146,7 @@ async function api(req, res, url) {
       const pi = room.game.indexOf(body.token);
       if (pi >= 0 && room.game.phase === 'lobby') {
         room.game.removePlayer(pi);
-        if (!room.game.players.some(p => !p.bot)) { clearTimeout(room.botTimer); rooms.delete(room.game.code); } else broadcast(room);
+        if (!room.game.players.some(p => !p.bot)) { clearTimeout(room.botTimer); clearTimeout(room.clockTimer); rooms.delete(room.game.code); } else broadcast(room);
       }
     }
     return sendJson(res, 200, { ok: true });
@@ -199,7 +215,7 @@ setInterval(() => {
   const now = Date.now();
   for (const [code, room] of rooms) {
     const idle = now - room.touched;
-    if ((room.clients.size === 0 && idle > 30 * 60e3) || idle > 6 * 3600e3) { clearTimeout(room.botTimer); rooms.delete(code); }
+    if ((room.clients.size === 0 && idle > 30 * 60e3) || idle > 6 * 3600e3) { clearTimeout(room.botTimer); clearTimeout(room.clockTimer); rooms.delete(code); }
   }
 }, 60e3).unref();
 

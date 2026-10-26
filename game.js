@@ -10,7 +10,7 @@ const COST = {
 };
 const COLORS = ['#d8432f', '#2f6fd8', '#e8a21c', '#3f9b4f'];
 const COLOR_NAMES = ['Red', 'Blue', 'Gold', 'Green'];
-const LABEL = { wood: 'lumber', brick: 'brick', sheep: 'wool', wheat: 'grain', ore: 'ore' };
+const LABEL = { wood: 'wood', brick: 'brick', sheep: 'sheep', wheat: 'hay', ore: 'ore' };
 const DEV_NAMES = { knight: 'Knight', vp: 'Victory Point', roadBuilding: 'Road Building', yearOfPlenty: 'Year of Plenty', monopoly: 'Monopoly' };
 const MAX_PLAYERS = 4;
 const SQ3 = Math.sqrt(3);
@@ -97,6 +97,8 @@ class Game {
     const desert = geo.tiles.findIndex(t => t.terrain === 'desert');
     this.robber = desert >= 0 ? desert : 0;
     this.vpTarget = Math.max(5, Math.min(20, vpTarget | 0 || 10));
+    this.opts = { discardLimit: 7, discardMode: 'half', timer: 0, friendlyRobber: false, balancedDice: false };
+    this.diceDeck = []; this.lastSum = null; this.clockAt = Date.now();
     const land = geo.tiles.length;
     this.bank = {}; RES.forEach(k => { this.bank[k] = Math.max(19, land); });
     const dev = [];
@@ -170,6 +172,106 @@ class Game {
     p.bot = a.level;
   }
   isBot(i) { return !!(this.players[i] && this.players[i].bot); }
+
+  // ----- host options, dice, friendly robber, move clock -----
+  do_setOptions(pi, a) {
+    if (this.phase !== 'lobby') fail('Options can only change before the game starts.');
+    if (!this.isHost(pi)) fail('Only the host can change game options.');
+    const o = a.opts || {}, next = { ...this.opts };
+    let vp = this.vpTarget;
+    if (o.vpTarget !== undefined) { vp = Number(o.vpTarget); if (!Number.isInteger(vp) || vp < 5 || vp > 20) fail('Points to win must be between 5 and 20.'); }
+    if (o.discardLimit !== undefined) { const v = Number(o.discardLimit); if (!Number.isInteger(v) || v < 7 || v > 15) fail('The discard limit must be between 7 and 15 cards.'); next.discardLimit = v; }
+    if (o.discardMode !== undefined) { if (!['half', 'four'].includes(o.discardMode)) fail('Discard amount must be half or 4 cards.'); next.discardMode = o.discardMode; }
+    if (o.timer !== undefined) { const v = Number(o.timer); if (![0, 15, 30, 60].includes(v)) fail('The move timer can be off, 15, 30 or 60 seconds.'); next.timer = v; }
+    if (o.friendlyRobber !== undefined) next.friendlyRobber = !!o.friendlyRobber;
+    if (o.balancedDice !== undefined) next.balancedDice = !!o.balancedDice;
+    this.vpTarget = vp; this.opts = next;
+  }
+  discardAmount(t) { return this.opts.discardMode === 'four' ? 4 : Math.floor(t / 2); }
+
+  rollDice() {
+    if (this.forcedDice) { const d = this.forcedDice.shift(); if (!this.forcedDice.length) this.forcedDice = null; return d; }
+    const die = () => 1 + Math.floor(this.rng() * 6);
+    if (!this.opts.balancedDice) return [die(), die()];
+    // Same idea as colonist.io: one 36-roll deck, reshuffled when 12 remain,
+    // and a 30% chance of skipping a card that repeats the previous total.
+    if (this.diceDeck.length <= 12) {
+      const deck = [];
+      for (let x = 1; x <= 6; x++) for (let y = 1; y <= 6; y++) deck.push([x, y]);
+      this.diceDeck = shuffle(deck, this.rng);
+    }
+    let i = this.diceDeck.length - 1;
+    const c = this.diceDeck[i];
+    if (this.lastSum !== null && c[0] + c[1] === this.lastSum && this.rng() < 0.3) {
+      const alt = this.diceDeck.findIndex(k => k[0] + k[1] !== this.lastSum);
+      if (alt >= 0) i = alt;
+    }
+    const d = this.diceDeck.splice(i, 1)[0];
+    this.lastSum = d[0] + d[1];
+    return d;
+  }
+
+  // Friendly robber: players with 2 or fewer public points are protected.
+  isProtected(p) { return this.opts.friendlyRobber && this.vp(p, false) < 3; }
+  tileHasProtected(tile, pi) {
+    return this.board.tiles[tile].vertices.some(v => { const b = this.buildings[v]; return b && b.p !== pi && this.isProtected(b.p); });
+  }
+  legalRobberTiles(pi) {
+    const all = this.board.tiles.map(t => t.id).filter(id => id !== this.robber);
+    if (!this.opts.friendlyRobber) return all;
+    const ok = all.filter(id => !this.tileHasProtected(id, pi));
+    if (ok.length) return ok;
+    const desert = this.board.tiles.filter(t => t.terrain === 'desert').map(t => t.id);
+    return desert.length ? desert : [this.robber];
+  }
+  autoRobber(pi) {
+    const pips = t => (t.number ? 6 - Math.abs(7 - t.number) : 0);
+    let bestT = null, bestS = -Infinity;
+    for (const id of this.legalRobberTiles(pi)) {
+      const t = this.board.tiles[id]; let s = this.rng() * 0.1;
+      for (const v of t.vertices) {
+        const b = this.buildings[v]; if (!b) continue;
+        const w = pips(t) * (b.type === 'city' ? 2 : 1);
+        s += b.p === pi ? -2 * w : (this.isProtected(b.p) ? 0 : w);
+      }
+      if (s > bestS) { bestS = s; bestT = id; }
+    }
+    this.do_robber(pi, { tile: bestT, victim: this.robberVictims(pi, bestT)[0] });
+  }
+
+  clockSig() {
+    return [this.phase, this.turn, this.turnNumber, this.subphase, this.setup ? this.setup.step + this.setup.expect : '', this.rolled, Object.keys(this.pendingDiscards).join(','), this.freeRoads].join('|');
+  }
+  // Seconds the current step is allowed to take; 0 means no clock (off, or a bot is acting).
+  clockLimit() {
+    const T = this.opts.timer;
+    if (!T) return 0;
+    if (this.phase === 'setup') return this.isBot(this.turn) ? 0 : 60;
+    if (this.phase !== 'main') return 0;
+    if (this.subphase === 'discard') return Object.keys(this.pendingDiscards).some(k => !this.isBot(+k)) ? Math.max(T, 20) : 0;
+    return this.isBot(this.turn) ? 0 : T;
+  }
+  timerView() {
+    const lim = this.clockLimit();
+    return { setting: this.opts.timer, limit: lim, left: lim ? Math.max(0, this.clockAt + lim * 1000 - Date.now()) : null };
+  }
+  // Called by the server when the clock runs out: plays one step for the player who ran out of time.
+  timeout() {
+    const lim = this.clockLimit();
+    if (!lim || Date.now() < this.clockAt + lim * 1000 - 25) return false;
+    const who = this.players[this.turn];
+    if (this.phase === 'setup') this.autoTurn(this.turn);
+    else if (this.subphase === 'discard') {
+      Object.keys(this.pendingDiscards).map(Number).filter(k => !this.isBot(k)).forEach(k => this.autoDiscard(k));
+      this.addLog('Time ran out: cards were discarded automatically.');
+    } else if (this.subphase === 'robber') { this.addLog(`${who.name} ran out of time; the robber moved automatically.`); this.autoRobber(this.turn); }
+    else if (this.subphase === 'roadBuilding') { this.subphase = null; this.freeRoads = 0; this.addLog(`${who.name} ran out of time; the free roads were skipped.`); }
+    else if (!this.rolled) { this.addLog(`${who.name} ran out of time; the dice rolled automatically.`); this.do_roll(this.turn); }
+    else { this.addLog(`${who.name} ran out of time. Turn ended.`); this.do_endTurn(this.turn); }
+    this.checkWin();
+    this.clockAt = Date.now(); this.version++;
+    return true;
+  }
   assignColors() { this.players.forEach((p, i) => { p.color = COLORS[i]; p.colorName = COLOR_NAMES[i]; }); }
   isHost(pi) { return !!this.players[pi] && this.players[pi].token === this.hostToken; }
   indexOf(token) { return this.players.findIndex(p => p.token === token); }
@@ -281,8 +383,10 @@ class Game {
     if (this.phase === 'ended' && a.type !== 'chat') fail('The game is over.');
     const fn = this['do_' + a.type];
     if (!fn) fail('Unknown action.');
+    const sigBefore = this.clockSig();
     const out = fn.call(this, pi, a);
     this.checkWin();
+    if (this.clockSig() !== sigBefore || (pi === this.turn && !['chat', 'offer', 'cancelTrade', 'respond'].includes(a.type))) this.clockAt = Date.now();
     this.version++;
     return out;
   }
@@ -396,8 +500,7 @@ class Game {
     this.mustBeTurn(pi);
     if (this.rolled) fail('You already rolled this turn.');
     if (this.subphase) fail(this.subphaseHint());
-    const d = this.forcedDice ? this.forcedDice.shift() : [1 + Math.floor(this.rng() * 6), 1 + Math.floor(this.rng() * 6)];
-    if (this.forcedDice && !this.forcedDice.length) this.forcedDice = null;
+    const d = this.rollDice();
     this.dice = d; this.rolled = true;
     const sum = d[0] + d[1];
     this.diceCounts[sum]++;
@@ -406,9 +509,10 @@ class Game {
     this.addLog(`${this.players[pi].name} rolled ${sum}.`);
     if (sum === 7) {
       this.pendingDiscards = {};
-      this.players.forEach((p, i) => { const t = total(p.res); if (t > 7) this.pendingDiscards[i] = Math.floor(t / 2); });
+      const limit = this.opts.discardLimit;
+      this.players.forEach((p, i) => { const t = total(p.res); if (t > limit) this.pendingDiscards[i] = this.discardAmount(t); });
       this.subphase = Object.keys(this.pendingDiscards).length ? 'discard' : 'robber';
-      if (this.subphase === 'discard') this.addLog('Players with more than 7 cards must discard half.');
+      if (this.subphase === 'discard') this.addLog(`Players with more than ${limit} cards must discard ${this.opts.discardMode === 'four' ? '4' : 'half'}.`);
     } else this.produce(sum, gains);
     this.lastRoll = { dice: d, gains, seq: (this.lastRoll ? this.lastRoll.seq : 0) + 1 };
   }
@@ -452,7 +556,7 @@ class Game {
     const set = new Set();
     for (const v of this.board.tiles[tile].vertices) {
       const b = this.buildings[v];
-      if (b && b.p !== pi && total(this.players[b.p].res) > 0) set.add(b.p);
+      if (b && b.p !== pi && total(this.players[b.p].res) > 0 && !this.isProtected(b.p)) set.add(b.p);
     }
     return [...set];
   }
@@ -462,7 +566,7 @@ class Game {
     if (this.subphase !== 'robber') fail('You cannot move the robber now.');
     const t = a.tile | 0;
     if (!this.board.tiles[t]) fail('Pick a land tile.');
-    if (t === this.robber) fail('The robber must move to a different tile.');
+    if (!this.legalRobberTiles(pi).includes(t)) fail(this.opts.friendlyRobber && t !== this.robber ? 'Friendly robber: players with 2 points or fewer are protected. Pick another tile.' : 'The robber must move to a different tile.');
     const victims = this.robberVictims(pi, t);
     let victim = a.victim;
     if (victims.length && !victims.includes(victim)) {
@@ -609,8 +713,9 @@ class Game {
   autoTurn(i) {
     if (this.phase === 'setup') {
       if (this.setup.expect === 'settlement') {
-        const opts = this.validSettlements(i, false);
-        this.do_settle(i, { vertex: opts[Math.floor(this.rng() * opts.length)] });
+        const pipsAt = v => this.board.vertices[v].hexes.reduce((n, h) => { const t = this.board.tiles[h]; return n + (PRODUCES[t.terrain] ? 6 - Math.abs(7 - t.number) : 0); }, 0);
+        const opts = this.validSettlements(i, false).sort((a, b) => pipsAt(b) - pipsAt(a));
+        this.do_settle(i, { vertex: opts[0] });
       }
       const roads = this.board.vertices[this.setup.last].edges.filter(e => this.roads[e] === undefined);
       this.do_road(i, { edge: roads[0] });
@@ -621,10 +726,7 @@ class Game {
     if (!this.rolled && !this.subphase) this.do_roll(i);
     if (this.subphase === 'discard') Object.keys(this.pendingDiscards).forEach(k => { if (!this.players[k].connected) this.autoDiscard(+k); });
     if (this.subphase === 'discard') { this.addLog('Waiting on discards before skipping.'); return; }
-    if (this.subphase === 'robber') {
-      const t = this.board.tiles.findIndex((_, ti) => ti !== this.robber && this.robberVictims(i, ti).length === 0);
-      this.do_robber(i, { tile: t >= 0 ? t : (this.robber + 1) % this.board.tiles.length });
-    }
+    if (this.subphase === 'robber') this.autoRobber(i);
     if (this.subphase === 'roadBuilding') { this.subphase = null; this.freeRoads = 0; }
     this.addLog(`${this.players[i].name}'s turn was skipped.`);
     this.do_endTurn(i);
@@ -655,6 +757,8 @@ class Game {
     const me = this.players[pi];
     return {
       code: this.code, phase: this.phase, you: pi, version: this.version, vpTarget: this.vpTarget, mapName: this.board.name,
+      opts: this.opts, timer: this.timerView(),
+      robberOptions: this.subphase === 'robber' && pi === this.turn ? this.legalRobberTiles(pi) : null,
       players: this.players.map((p, i) => ({
         name: p.name, host: p.token === this.hostToken, bot: p.bot, stats: p.stats, color: p.color, colorName: p.colorName, connected: p.connected,
         cards: total(p.res), devCount: p.dev.length, knights: p.knights, pieces: p.pieces,
@@ -666,7 +770,7 @@ class Game {
       buildings: this.buildings, roads: this.roads, robber: this.robber,
       turn: this.turn, turnNumber: this.turnNumber, rolled: this.rolled, dice: this.dice,
       subphase: this.subphase, pendingDiscards: this.pendingDiscards, freeRoads: this.freeRoads, devPlayed: this.devPlayed,
-      setup: this.setup ? { expect: this.setup.expect, last: this.setup.last, round: this.setup.step < this.players.length ? 1 : 2 } : null,
+      setup: this.setup ? { expect: this.setup.expect, last: this.setup.last, round: this.setup.step < this.players.length ? 1 : 2, order: this.setup.order, step: this.setup.step } : null,
       trade: this.trade, largestArmy: this.largestArmy, longestRoad: this.longestRoad,
       bank: this.bank, devLeft: this.devDeck.length, diceCounts: this.diceCounts, log: this.log.slice(-40), winner: this.winner,
       lastRoll: this.lastRoll, lastSteal: this.lastSteal && (this.lastSteal.from === pi || this.lastSteal.to === pi) ? this.lastSteal : (this.lastSteal ? { ...this.lastSteal, card: null } : null),

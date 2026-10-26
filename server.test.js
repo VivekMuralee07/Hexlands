@@ -202,3 +202,33 @@ test('host leaving a lobby with only bots closes the room', async () => {
   await post('/api/leave', { code: c.body.code, token: c.body.token });
   assert.equal(rooms.has(c.body.code), false);
 });
+
+test('host sets options in the waiting room; the move timer plays for an idle human', async () => {
+  const c = await post('/api/create', { name: 'Host', map: { preset: 'classic' }, seed: 5 });
+  const { code, token } = c.body;
+  const send = action => post('/api/action', { code, token, action });
+  const h = listen(code, token);
+  await h.waitFor(s => s.players.length === 1);
+  assert.equal((await send({ type: 'addBot', level: 'easy' })).status, 200);
+  assert.equal((await send({ type: 'setOptions', opts: { timer: 20 } })).status, 400);
+  const want = { discardLimit: 9, discardMode: 'four', timer: 30, friendlyRobber: true, balancedDice: true };
+  assert.equal((await send({ type: 'setOptions', opts: { vpTarget: 12, ...want } })).status, 200);
+  const lobby = await h.waitFor(s => s.vpTarget === 12);
+  assert.deepEqual(lobby.opts, want);
+  const guest = await post('/api/join', { code, name: 'Guest' });
+  const denied = await post('/api/action', { code, token: guest.body.token, action: { type: 'setOptions', opts: { timer: 15 } } });
+  assert.equal(denied.status, 400); assert.match(denied.body.error, /host/);
+  await send({ type: 'start' });
+  const g = rooms.get(code).game;
+  for (let i = 0; i < 300 && !(g.phase === 'setup' && !g.isBot(g.turn)); i++) await new Promise(r => setTimeout(r, 10));
+  assert.equal(g.phase, 'setup');
+  const st = await h.waitFor(s => s.phase === 'setup');
+  assert.equal(st.timer.limit, 60, 'setup placements are timed at 60 seconds');
+  const before = Object.keys(g.buildings).length;
+  g.clockAt = Date.now() - 61000;
+  await send({ type: 'chat', text: 'hurry up' }); // a broadcast re-arms the server timer
+  for (let i = 0; i < 100 && Object.keys(g.buildings).length <= before; i++) await new Promise(r => setTimeout(r, 20));
+  assert.ok(Object.keys(g.buildings).length > before, 'the server placed a settlement for the idle player');
+  assert.ok(g.log.some(l => /placed automatically/.test(l.text)));
+  h.close();
+});

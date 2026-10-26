@@ -179,7 +179,7 @@ function devAction(g, pi, level, beforeRoll) {
 }
 
 function robberAction(g, pi, level) {
-  const tiles = g.board.tiles.filter(t => t.id !== g.robber);
+  const tiles = g.legalRobberTiles(pi).map(id => g.board.tiles[id]);
   const mine = t => t.vertices.some(v => g.buildings[v] && g.buildings[v].p === pi);
   let tile;
   if (level === 'easy') {
@@ -314,7 +314,7 @@ function rescue(g, pi) {
     [() => g.subphase === 'discard' && g.pendingDiscards[pi], () => g.autoDiscard(pi)],
     [() => g.trade && g.trade.from !== pi && g.turn !== pi, () => g.act(pi, { type: 'respond', accept: false })],
     [() => g.phase === 'setup' && g.turn === pi, () => g.autoTurn(pi)],
-    [() => g.subphase === 'robber' && g.turn === pi, () => g.act(pi, { type: 'robber', tile: nextTile, victim: g.robberVictims(pi, nextTile)[0] })],
+    [() => g.subphase === 'robber' && g.turn === pi, () => g.autoRobber(pi)],
     [() => g.subphase === 'roadBuilding' && g.turn === pi, () => { g.subphase = null; g.freeRoads = 0; g.version++; }],
     [() => g.phase === 'main' && g.turn === pi && !g.rolled && !g.subphase, () => g.act(pi, { type: 'roll' })],
     [() => g.phase === 'main' && g.turn === pi && g.rolled && !g.subphase, () => g.act(pi, { type: 'endTurn' })],

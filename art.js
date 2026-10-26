@@ -94,6 +94,9 @@
     <ellipse cx="26" cy="-34" rx="6" ry="3.5" fill="#a5814a"/><ellipse cx="-30" cy="36" rx="5" ry="3" fill="#a5814a"/>
     <circle cx="40" cy="-42" r="6" fill="#ffe08a" opacity=".5"/>`;
 
+  t.fields += `<g transform="translate(-37 -20)"><ellipse cx="0" cy="17" rx="12" ry="3" fill="#7a5a1a" opacity=".4"/><path d="M-7,17 L-4,-6 L4,-6 L7,17Z" fill="#fff4d6" stroke="#8a6a3a" stroke-width="1"/><path d="M-6,-6 L0,-15 L6,-6Z" fill="#e0392b" stroke="#7a1d14" stroke-width=".8"/><rect x="-2" y="8" width="4" height="9" fill="#7a4d24"/>
+    <g transform="translate(0 -7)"><g><animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="8s" repeatCount="indefinite"/>${[0, 90, 180, 270].map(r => `<g transform="rotate(${r})"><rect x="-.9" y="-16" width="1.8" height="16" fill="#6b4a12"/><path d="M1,-15 h7 v7 h-7z" fill="#fff" stroke="#b9a070" stroke-width=".5"/></g>`).join('')}</g><circle r="1.8" fill="#4a3210"/></g></g>`;
+  t.pasture += `<g transform="translate(40 6)"><ellipse rx="14" ry="6.5" fill="#1d86b8"/><ellipse rx="12.5" ry="5.4" fill="#45c8f0"/><path d="M-8,-1 q4,-2 8,0" stroke="#fff" stroke-opacity=".7" stroke-width="1" fill="none"/><circle cx="6" cy="1" r="2.2" fill="#5fcf5f"/></g>`;
   const symbols = Object.keys(t).map(k => `<symbol id="t-${k}" viewBox="-60 -60 120 120" overflow="visible">${t[k]}</symbol>`).join('');
 
   const icons = {
@@ -131,17 +134,20 @@
     music: `<g fill="currentColor"><path d="M12,24 V8 l14,-3 v16" stroke="currentColor" stroke-width="2.2" fill="none"/><ellipse cx="9" cy="24" rx="4" ry="3"/><ellipse cx="23" cy="21" rx="4" ry="3"/></g>`,
     musicoff: `<g fill="currentColor" opacity=".9"><path d="M12,24 V8 l14,-3 v16" stroke="currentColor" stroke-width="2.2" fill="none"/><ellipse cx="9" cy="24" rx="4" ry="3"/><ellipse cx="23" cy="21" rx="4" ry="3"/><path d="M4,4 L28,28" stroke="#e0664f" stroke-width="2.6" stroke-linecap="round"/></g>`,
     trophy: `<g><path d="M9,4 h14 v6 c0,6 -3,10 -7,10 c-4,0 -7,-4 -7,-10z" fill="#e3b448" stroke="#7a5512" stroke-width="1.2"/><path d="M9,7 h-4 c0,5 2,7 5,7 M23,7 h4 c0,5 -2,7 -5,7" stroke="#7a5512" stroke-width="1.6" fill="none"/><rect x="14" y="19" width="4" height="5" fill="#c99a2c"/><rect x="9" y="24" width="14" height="4" rx="1" fill="#8a6a1c"/><path d="M13,8 l1,3 h3 l-2.5,2 l1,3 l-2.5,-2 l-2.5,2 l1,-3 l-2.5,-2 h3z" fill="#fff3c4" transform="translate(2.5 -1)"/></g>`,
-    robber: `<g><ellipse cx="16" cy="29" rx="8" ry="2" fill="#000" opacity=".3"/><path d="M8,29 C8,18 11,13 16,13 C21,13 24,18 24,29Z" fill="#3a3a3f"/><circle cx="16" cy="9" r="5.5" fill="#4a4a50"/><path d="M12,9 h8" stroke="#d9d9d9" stroke-width="1"/></g>`,
+    robber: `<g><ellipse cx="16" cy="29.5" rx="9" ry="2.2" fill="#000" opacity=".4"/><path d="M6,29 C6,17 10,11 16,11 C22,11 26,17 26,29Z" fill="#23232b"/><path d="M6,29 C6,17 10,11 16,11 L16,29Z" fill="#3a3a46"/><circle cx="16" cy="8.5" r="6" fill="#2b2b34"/><path d="M10.5,9 C10.5,4 13,2.5 16,2.5 C19,2.5 21.5,4 21.5,9 C21.5,12 19,13 16,13 C13,13 10.5,12 10.5,9Z" fill="#15151b"/><ellipse cx="13.6" cy="9" rx="1.6" ry="1.1" fill="#ff4a3d"/><ellipse cx="18.4" cy="9" rx="1.6" ry="1.1" fill="#ff4a3d"/></g>`,
   };
   const iconSymbols = Object.keys(icons).map(k => `<symbol id="ic-${k}" viewBox="0 0 32 32">${icons[k]}</symbol>`).join('');
 
   const defs = `<defs>
-    ${grad('g-forest', '#3c7d44', '#1c4626')}${grad('g-hills', '#c7774a', '#8a4526')}${grad('g-pasture', '#9fd166', '#5c9a3a')}
-    ${grad('g-fields', '#f0cf68', '#c9962b')}${grad('g-mountains', '#9ca5af', '#59626d')}${grad('g-desert', '#f1dca6', '#d2ad68')}
+    ${grad('g-forest', '#4fc25a', '#1b7a3b')}${grad('g-hills', '#ff9a62', '#c8582a')}${grad('g-pasture', '#c4f77a', '#6fd13f')}
+    ${grad('g-fields', '#ffe873', '#f5b81c')}${grad('g-mountains', '#cfd9e6', '#7d8ba0')}${grad('g-desert', '#fff0b8', '#f4c46c')}
     ${rgrad('g-sea', '#1f6a80', '#0b2d3d')}${rgrad('g-token', '#fffaf0', '#e6d6b0')}${rgrad('g-brass', '#f3d27e', '#a87a22')}
-    <pattern id="p-waves" width="80" height="34" patternUnits="userSpaceOnUse"><path d="M0,17 q10,-8 20,0 t20,0 t20,0 t20,0" stroke="#bfe6ec" stroke-opacity=".10" stroke-width="2" fill="none"/></pattern>
+    <pattern id="p-waves" width="120" height="48" patternUnits="userSpaceOnUse"><path d="M0,24 q15,-12 30,0 t30,0 t30,0 t30,0" stroke="#e2fcff" stroke-opacity=".26" stroke-width="2.6" fill="none"/><path d="M0,44 q15,-9 30,0 t30,0 t30,0 t30,0" stroke="#fff" stroke-opacity=".14" stroke-width="2" fill="none"/><animateTransform attributeName="patternTransform" type="translate" from="0 0" to="120 0" dur="16s" repeatCount="indefinite"/></pattern>
     <filter id="f-shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="2.5" stdDeviation="2.5" flood-color="#000" flood-opacity=".45"/></filter>
     <filter id="f-glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <linearGradient id="g-shine" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".34"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#001a40" stop-opacity=".2"/></linearGradient>
+    <filter id="f-blur" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="14"/></filter>
+    <filter id="f-blur2" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="6"/></filter>
     <clipPath id="c-hex"><polygon points="${HEX}"/></clipPath>
     ${pine}${oak}${bricks}${sheep}${tuft}${wheat}${cactus}${ore}
   </defs>${symbols}${iconSymbols}`;

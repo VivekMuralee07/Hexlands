@@ -66,6 +66,7 @@
     card(t) { const s = ctx.createBufferSource(); s.buffer = noiseBuf; const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 2; f.frequency.setValueAtTime(800, t); f.frequency.exponentialRampToValueAtTime(5000, t + 0.18); s.connect(f); f.connect(envGain(sfxBus, t, 0.25, 0.02, 0.18)); s.start(t); s.stop(t + 0.25); },
     turn(t) { tone(sfxBus, 'sine', 880, t, 0.25, 0.005, 0.5); tone(sfxBus, 'sine', 1318.5, t + 0.12, 0.2, 0.005, 0.6); },
     error(t) { tone(sfxBus, 'square', 150, t, 0.12, 0.004, 0.09, { filter: 900 }); tone(sfxBus, 'square', 120, t + 0.11, 0.12, 0.004, 0.12, { filter: 900 }); },
+    tick(t) { tone(sfxBus, 'square', 1500, t, 0.1, 0.002, 0.03, { filter: 3000 }); },
     robber(t) { tone(sfxBus, 'sawtooth', 110, t, 0.18, 0.02, 0.5, { to: 70, filter: 600 }); },
   };
 
