@@ -1,4 +1,5 @@
 'use strict';
+process.env.BOT_DELAY_MS = '0';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('http');
@@ -161,4 +162,43 @@ test('custom map room', async () => {
   assert.ok(g.board.tiles.every(t => t.terrain === 'desert' ? t.number === null : t.number >= 2));
   const bad = await post('/api/create', { name: 'Maker', map: { tiles: tiles.map(t => ({ ...t, number: 7 })) } });
   assert.equal(bad.status, 400);
+});
+
+test('bots play live through the server while a human plays over HTTP', async () => {
+  const bots = require('./bots');
+  const c = await post('/api/create', { name: 'Vivek', map: { preset: 'classic' }, seed: 31, vpTarget: 8 });
+  const code = c.body.code, token = c.body.token;
+  const h = listen(code, token);
+  await h.waitFor(s => s.players.length === 1);
+  for (const level of ['easy', 'medium', 'hard']) assert.equal((await post('/api/action', { code, token, action: { type: 'addBot', level } })).status, 200);
+  assert.match((await post('/api/action', { code, token, action: { type: 'addBot', level: 'easy' } })).body.error, /seats/);
+  const lobby = await h.waitFor(s => s.players.length === 4);
+  assert.deepEqual(lobby.players.map(p => p.bot), [null, 'easy', 'medium', 'hard']);
+  assert.match((await post('/api/join', { code, name: 'Late' })).body.error, /full/);
+  await post('/api/action', { code, token, action: { type: 'start' } });
+  const g = rooms.get(code).game;
+  const me = () => g.indexOf(token);
+  // The human uses the medium brain over HTTP; bots run on the server's own timers.
+  const deadline = Date.now() + 60000;
+  while (g.phase !== 'ended' && Date.now() < deadline) {
+    const mine = (g.turn === me() && g.phase !== 'lobby') || (g.subphase === 'discard' && g.pendingDiscards[me()]);
+    const waitingOnBots = bots.nextActor(g);
+    if (mine && !(g.subphase === 'discard' && !g.pendingDiscards[me()]) && !(g.trade && waitingOnBots)) {
+      if (g.trade && g.trade.from === me()) { await post('/api/action', { code, token, action: { type: 'cancelTrade' } }); continue; }
+      const r = await post('/api/action', { code, token, action: bots.decide(g, me(), 'medium') });
+      assert.equal(r.status, 200, r.body.error);
+    } else await new Promise(r => setTimeout(r, 5));
+  }
+  assert.equal(g.phase, 'ended', 'game finished');
+  const end = await h.waitFor(s => s.phase === 'ended');
+  assert.ok(end.players.every(p => p.stats && p.res), 'final stats and hands revealed');
+  assert.equal(end.diceCounts.length, 13);
+  h.close();
+});
+
+test('host leaving a lobby with only bots closes the room', async () => {
+  const c = await post('/api/create', { name: 'Solo', map: { preset: 'classic' } });
+  await post('/api/action', { code: c.body.code, token: c.body.token, action: { type: 'addBot', level: 'easy' } });
+  await post('/api/leave', { code: c.body.code, token: c.body.token });
+  assert.equal(rooms.has(c.body.code), false);
 });

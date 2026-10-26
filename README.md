@@ -3,6 +3,9 @@
 A multiplayer island-settling game for 2–4 players in the browser. Gather lumber, brick, wool, grain and ore, trade, build, and race to the points target.
 
 - Join with a 5-character room code or an invite link (`/room/ABCDE`)
+- Bots fill empty seats (up to 4 players total), each set to Easy, Medium or Hard
+- Beat themes when a game starts and finishes, plus sound for every click, resource card, dice roll and build
+- Leaderboard at the end: ranking, points breakdown, game stats and a dice chart
 - 8 maps: Classic Island, India, United States, United Kingdom, Australia, Japan, Italy, Brazil
 - Map editor: paint terrain, place numbers, save your design, play it
 - Full rules: snake-order setup, robber and discards on 7, development cards, Longest Road, Largest Army, harbors, bank and player trades
@@ -15,23 +18,23 @@ Requires Node.js 18 or newer.
 
 ```bash
 npm start            # http://localhost:3000
-npm test             # 23 tests, including 96 full simulated games
+npm test             # 32 tests, including full bot-vs-bot games and a live server game
 ```
 
 Open two browser windows (or a phone on the same network at `http://<your-ip>:3000`) to play against yourself.
 
 ## Put it on GitHub
 
-This version is **flat**: all 13 files sit side by side at the top level of `main`, with no folders. Upload them all at once.
+This version is **flat**: all 16 files sit side by side at the top level of `main`, with no folders. Upload them all at once.
 
 1. On github.com, create a new empty repository.
 2. Click **uploading an existing file**.
 3. Unzip the download, select every file inside, and drag them onto the upload area.
 4. Keep **Commit directly to the main branch** selected and click **Commit changes**.
 
-The repo front page should list: `app.js`, `art.js`, `engine.test.js`, `game.js`, `index.html`, `maps.js`, `package.json`, `README.md`, `render.yaml`, `server.js`, `server.test.js`, `style.css` (and `.gitignore` if your file browser shows hidden files; it is optional).
+The repo front page should list: `app.js`, `art.js`, `bots.js`, `bots.test.js`, `engine.test.js`, `game.js`, `index.html`, `maps.js`, `package.json`, `README.md`, `render.yaml`, `server.js`, `server.test.js`, `sound.js`, `style.css` (and `.gitignore` if your file browser shows hidden files; it is optional).
 
-Only `index.html`, `app.js`, `art.js` and `style.css` are sent to browsers. The server code, tests and config are never served.
+Only `index.html`, `app.js`, `art.js`, `sound.js` and `style.css` are sent to browsers. The server code, tests and config are never served.
 
 ## Deploy on Render
 
@@ -74,6 +77,40 @@ Longest Road (5+) and Largest Army (3+ knights) are worth 2 points each. Harbors
 
 If a player drops out, the host sees **Skip offline player** on their card and can keep the game moving; the player can rejoin from the same browser and pick up where they left off.
 
+## Bots
+
+In the waiting room, the host picks a difficulty and presses **Add bot**. Bots take open seats, so a table can be any mix of people and bots up to 4. The host can change a bot's difficulty or remove it until the game starts.
+
+| Level | How it plays |
+|---|---|
+| Easy | Places settlements loosely, builds in random order, rarely trades. Good for learning. |
+| Medium | Picks strong spots, builds cities and settlements first, trades with the bank toward its next build. |
+| Hard | Weighs scarce resources and harbors, chases Largest Army and Longest Road, aims the robber at the leader, and refuses trades that would help a player close to winning. |
+
+In testing, medium beat easy in 99% of games, and hard beat medium in about 60% (200 games each).
+
+Bots only use information a human could see: public points, card counts and the bank. They respond to your trade offers, discard on 7s and move the robber on their own. Each bot move has a short pause so you can follow along, and bots pause while no human is connected.
+
+## Sound
+
+All sound is generated in the browser, so there are no audio files.
+
+- A beat theme plays when a game starts and a victory theme when it finishes.
+- Buttons click; tapping a resource card plays its own note; dice rattle; builds, steals, the robber, new cards and your turn each have a sound.
+- Use the speaker and music-note buttons in the waiting room or the top bar to switch sound effects and music on or off. The choice is remembered.
+
+Browsers only allow sound after your first tap, so sound starts once you've clicked anything on the page.
+
+## Leaderboard
+
+When someone wins, the leaderboard shows every player ranked, with:
+- a points breakdown (settlements, cities, Longest Road, Largest Army, hidden point cards)
+- stats: resources harvested, cards stolen, trades, knights, development cards bought
+- a chart of how often each dice number came up versus fair odds
+- your win record on this device
+
+Press **Results** to reopen it after closing.
+
 ## Map editor
 
 From **Create a room**, choose **Your own map** (or **Copy into editor** on any preset).
@@ -86,15 +123,18 @@ From **Create a room**, choose **Your own map** (or **Copy into editor** on any 
 ## Project layout
 
 ```
-server.js         HTTP server, rooms, live updates (SSE)
+server.js         HTTP server, rooms, live updates (SSE), bot timing
 game.js           Rules engine; the server is the only authority on game state
+bots.js           Bot decisions for easy, medium and hard
 maps.js           Country maps, board generation, custom map validation
-index.html        Page shell            } sent to browsers
-app.js            Screens, board, input, map editor   }
-art.js            Vector artwork        }
-style.css         Styles                }
+index.html        Page shell              } sent to browsers
+app.js            Screens, board, input, map editor, leaderboard
+art.js            Vector artwork
+sound.js          Synthesized effects and beat themes
+style.css         Styles
 engine.test.js    Rules tests and full simulated games
-server.test.js    HTTP and live-update tests
+bots.test.js      Bot games at every level and strength checks
+server.test.js    HTTP, live updates and a full human-vs-bots game
 render.yaml       Render blueprint
 package.json
 ```

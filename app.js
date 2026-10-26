@@ -29,7 +29,7 @@ const S = {
   screen: 'home', name: store.get('name', ''), session: store.get('session', null),
   maps: [], mapKey: 'classic', seed: null, previewBoard: null, vpTarget: 10,
   custom: store.get('custom', null), board: null, state: null, mode: null, vb: null, base: null,
-  es: null, error: null, hot: null, modal: null, shellReady: false, editor: { tool: 'forest', num: null }, joinCode: '',
+  es: null, error: null, hot: null, modal: null, shellReady: false, editor: { tool: 'forest', num: null }, joinCode: '', botLevel: store.get('botLevel', 'medium'),
 };
 const m = location.pathname.match(/^\/room\/([A-Za-z0-9]{5})/);
 if (m) S.joinCode = m[1].toUpperCase();
@@ -44,12 +44,16 @@ const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.f
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
 function toast(msg, kind = '', html = false) {
+  const box = $('#toasts'), last = box.lastElementChild;
+  if (last && last.dataset.msg === msg) return;
   const el = document.createElement('div');
+  el.dataset.msg = msg;
   el.className = 'toast ' + kind;
+  if (kind === 'err') Sound.play('error');
   el[html ? 'innerHTML' : 'textContent'] = msg;
   $('#toasts').append(el);
   setTimeout(() => el.remove(), kind === 'err' ? 3600 : 2800);
-  while ($('#toasts').children.length > 4) $('#toasts').firstChild.remove();
+  while ($('#toasts').children.length > 3) $('#toasts').firstChild.remove();
 }
 async function post(path, body) {
   let r;
@@ -63,6 +67,31 @@ async function act(action) {
   try { const j = await post('/api/action', { code: S.session.code, token: S.session.token, action }); return { ok: true, result: j.result }; }
   catch (e) { toast(e.message, 'err'); return { ok: false }; }
 }
+
+// ---------- sound ----------
+// Every button press gets the base click; resource cards get their own pitched click.
+document.addEventListener('click', e => {
+  const b = e.target.closest('button, [data-res]');
+  if (!b || b.disabled) return;
+  if (b.dataset.res) { Sound.play('res', b.dataset.res); bump(b); }
+  else Sound.play('click');
+}, true);
+function bump(el) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
+function soundButtons() {
+  return `<button class="btn small icon-only" id="sfxbtn" aria-pressed="${Sound.sfx}" aria-label="${Sound.sfx ? 'Mute sound effects' : 'Turn on sound effects'}" title="Sound effects">${icon(Sound.sfx ? 'sound' : 'soundoff')}</button>`
+    + `<button class="btn small icon-only" id="musbtn" aria-pressed="${Sound.music}" aria-label="${Sound.music ? 'Turn off music' : 'Turn on music'}" title="Start and finish music">${icon(Sound.music ? 'music' : 'musicoff')}</button>`;
+}
+function bindSoundButtons() {
+  const sb = $('#sfxbtn'), mb = $('#musbtn');
+  const paint = () => {
+    if (sb) { sb.innerHTML = icon(Sound.sfx ? 'sound' : 'soundoff'); sb.setAttribute('aria-pressed', Sound.sfx); sb.setAttribute('aria-label', Sound.sfx ? 'Mute sound effects' : 'Turn on sound effects'); }
+    if (mb) { mb.innerHTML = icon(Sound.music ? 'music' : 'musicoff'); mb.setAttribute('aria-pressed', Sound.music); mb.setAttribute('aria-label', Sound.music ? 'Turn off music' : 'Turn on music'); }
+  };
+  if (sb) sb.onclick = () => { Sound.setSfx(!Sound.sfx); paint(); };
+  if (mb) mb.onclick = () => { const on = !Sound.music; Sound.setMusic(on); if (on) Sound.theme('start'); paint(); };
+}
+const LEVEL_LABEL = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
+const botTag = p => p.bot ? `<span class="botbadge lvl-${p.bot}" title="${LEVEL_LABEL[p.bot]} bot">${icon('bot')}${LEVEL_LABEL[p.bot]}</span>` : '';
 
 // ---------- board drawing ----------
 function bounds(b, pad = 70) {
@@ -389,8 +418,17 @@ function onState(st) {
     if (s.to === me) toast(`${icon(s.card)} You took ${RES_LABEL[s.card]} from ${esc(st.players[s.from].name)}`, 'gain', true);
     else if (s.from === me) toast(`${icon(s.card)} ${esc(st.players[s.to].name)} took your ${RES_LABEL[s.card]}`, 'err', true);
   }
-  if (prev && prev.turn !== st.turn && st.turn === st.you && st.phase === 'main') { toast('Your turn'); if (navigator.vibrate) navigator.vibrate(50); }
-  if (prev && prev.phase !== 'ended' && st.phase === 'ended') setTimeout(openVictory, 600);
+  if (prev && prev.turn !== st.turn && st.turn === st.you && st.phase === 'main') { toast('Your turn'); Sound.play('turn'); if (navigator.vibrate) navigator.vibrate(50); }
+  if (prev && prev.phase === 'lobby' && st.phase === 'setup') Sound.theme('start');
+  if (prev && prev.phase !== 'ended' && st.phase === 'ended') { Sound.theme('finish'); recordResult(st); setTimeout(openLeaderboard, 700); }
+  if (prev) {
+    const built = x => Object.keys(x.roads).length + Object.values(x.buildings).reduce((a, b) => a + (b.type === 'city' ? 2 : 1), 0);
+    if (built(st) > built(prev)) Sound.play('place');
+    if (st.lastSteal && (!prev.lastSteal || prev.lastSteal.seq !== st.lastSteal.seq)) Sound.play('card');
+    if (st.robber !== prev.robber) Sound.play('robber');
+    const devs = x => x.players.reduce((a, p) => a + p.devCount, 0);
+    if (devs(st) > devs(prev)) Sound.play('card');
+  }
   if (st.turn !== st.you || st.subphase || !st.rolled || (S.mode && !modePossible(S.mode))) S.mode = null;
   renderGame($('#app'));
 }
@@ -398,10 +436,12 @@ function onState(st) {
 function onRoll(st) {
   const d = st.lastRoll.dice, total = d[0] + d[1];
   drawDice(d, true);
+  Sound.play('dice');
   if (total !== 7) { S.hot = { sum: total, until: Date.now() + 2600 }; setTimeout(() => { if (S.screen === 'game') drawDyn(); }, 2700); }
   const g = st.lastRoll.gains[st.you];
   if (g && sum(g)) {
     toast(RES.filter(k => g[k]).map(k => `${icon(k)} +${g[k]}`).join(' '), 'gain', true);
+    setTimeout(() => Sound.play('gain'), 480);
     setTimeout(() => RES.filter(k => g[k]).forEach(k => { const c = $(`.card.${k}`); if (c) { c.classList.remove('bump'); void c.offsetWidth; c.classList.add('bump'); } }), 50);
   }
   if (total === 7) toast(st.turn === st.you ? 'Seven! Move the robber.' : 'Seven! The robber strikes.');
@@ -422,8 +462,14 @@ function renderLobby(app) {
       <div class="panel stack">
         <div><div class="muted">Room code</div><div class="room-code">${st.code}</div></div>
         <div class="row"><button class="btn" id="copy">Copy invite link</button>${navigator.share ? '<button class="btn" id="share">Share</button>' : ''}</div>
-        <ul class="plist">${st.players.map((p, i) => `<li><span class="chip" style="background:${p.color}"></span><b class="grow">${esc(p.name)}${i === me ? ' (you)' : ''}</b>${p.host ? '<span class="badge">Host</span>' : ''}<span class="dot ${p.connected ? '' : 'off'}" title="${p.connected ? 'Connected' : 'Offline'}"></span></li>`).join('')}</ul>
-        <p class="muted">${st.players.length} of 4 seats taken. ${host ? (st.players.length < 2 ? 'Share the code; you need at least one more player.' : 'Start when everyone is in.') : 'The host starts the game.'}</p>
+        <ul class="plist">${st.players.map((p, i) => `<li><span class="chip" style="background:${p.color}"></span>${p.bot ? icon('bot', 'boticon') : ''}<b class="grow">${esc(p.name)}${i === me ? ' (you)' : ''}</b>${p.host ? '<span class="badge">Host</span>' : ''}
+          ${p.bot ? (host ? `<select class="lvlsel" data-seat="${i}" aria-label="Difficulty for ${esc(p.name)}">${['easy', 'medium', 'hard'].map(l => `<option value="${l}" ${p.bot === l ? 'selected' : ''}>${LEVEL_LABEL[l]}</option>`).join('')}</select><button class="btn small icon-only" data-rmbot="${i}" aria-label="Remove ${esc(p.name)}">✕</button>` : botTag(p)) : `<span class="dot ${p.connected ? '' : 'off'}" title="${p.connected ? 'Connected' : 'Offline'}"></span>`}</li>`).join('')}</ul>
+        ${host && st.players.length < 4 ? `<div class="botadd"><b>Add a bot</b>
+          <div class="seg" role="group" aria-label="Bot difficulty">${['easy', 'medium', 'hard'].map(l => `<button data-lvl="${l}" aria-pressed="${S.botLevel === l}">${LEVEL_LABEL[l]}</button>`).join('')}</div>
+          <button class="btn" id="addbot">${icon('bot')} Add ${LEVEL_LABEL[S.botLevel].toLowerCase()} bot</button>
+          <p class="help">${{ easy: 'Easy bots place loosely and rarely trade. Good for learning.', medium: 'Medium bots build steadily and trade toward their next build.', hard: 'Hard bots read the board, target the leader with the robber and refuse to feed a near winner.' }[S.botLevel]}</p></div>` : ''}
+        <p class="muted">${st.players.length} of 4 seats taken. ${host ? (st.players.length < 2 ? 'Add a bot or share the code; you need at least one more player.' : 'Start when everyone is in.') : 'The host starts the game.'}</p>
+        <div class="row">${soundButtons()}<span class="muted" style="font-size:.88em">Sound effects and music</span></div>
         ${host ? `<button class="btn primary" id="start" ${st.players.length < 2 ? 'disabled' : ''}>Start game</button>` : ''}
       </div>
     </div></div>`;
@@ -433,6 +479,11 @@ function renderLobby(app) {
   $('#copy').onclick = async () => { try { await navigator.clipboard.writeText(link); toast('Invite link copied'); } catch { prompt('Copy this link', link); } };
   if ($('#share')) $('#share').onclick = () => navigator.share({ title: 'Join my Hexlands game', text: `Room code ${st.code}`, url: link }).catch(() => {});
   if ($('#start')) $('#start').onclick = () => act({ type: 'start' });
+  $$('[data-lvl]').forEach(b => b.onclick = () => { S.botLevel = b.dataset.lvl; store.set('botLevel', S.botLevel); renderLobby(app); });
+  if ($('#addbot')) $('#addbot').onclick = () => act({ type: 'addBot', level: S.botLevel });
+  $$('[data-rmbot]').forEach(b => b.onclick = () => act({ type: 'removeBot', seat: +b.dataset.rmbot }));
+  $$('.lvlsel').forEach(sel => sel.onchange = () => act({ type: 'setBotLevel', seat: +sel.dataset.seat, level: sel.value }));
+  bindSoundButtons();
 }
 
 // ---------- game ----------
@@ -446,6 +497,7 @@ function buildShell(app) {
     <header class="topbar">
       <span class="brand">Hexlands</span>
       <span class="meta" id="meta"></span><span class="spacer"></span>
+      <span id="sndbtns" class="row" style="gap:.3rem;flex-wrap:nowrap">${soundButtons()}</span>
       <button class="btn small" id="rules">Costs</button>
       <button class="btn small drawer-toggle" id="logbtn">Log</button>
       <button class="btn small" id="quit">Leave</button>
@@ -474,6 +526,7 @@ function buildShell(app) {
   $('#zfit').onclick = () => { S.vb = { ...S.base }; applyVB(); };
   $('#logbtn').onclick = () => $('#side').classList.toggle('open');
   $('#rules').onclick = openCosts;
+  bindSoundButtons();
   $('#quit').onclick = () => { if (confirm('Leave this game? You can rejoin with the room code while it is running.')) { if (S.es) S.es.close(); S.es = null; S.state = null; history.replaceState(null, '', '/'); go('home'); } };
   $('#chat').onsubmit = e => { e.preventDefault(); const v = $('#chatin').value.trim(); if (v) { act({ type: 'chat', text: v }); $('#chatin').value = ''; } };
   if (S.state.dice) drawDice(S.state.dice, false);
@@ -644,7 +697,8 @@ function drawPlayers() {
     if (st.largestArmy && st.largestArmy.p === i) badges.push(`<span class="badge">${icon('knight')} Largest Army</span>`);
     const skippable = st.players[me()].host && i !== me() && !p.connected && (st.turn === i || (st.subphase === 'discard' && st.pendingDiscards[i]));
     return `<div class="pcard ${st.turn === i && st.phase !== 'ended' ? 'turn' : ''}" style="--pc:${p.color}">
-      <div class="name"><span class="dot ${p.connected ? '' : 'off'}"></span><span>${esc(p.name)}${i === me() ? ' (you)' : ''}</span></div>
+      <div class="name">${p.bot ? icon('bot', 'boticon') : `<span class="dot ${p.connected ? '' : 'off'}"></span>`}<span>${esc(p.name)}${i === me() ? ' (you)' : ''}</span></div>
+      ${p.bot ? `<div class="lvl lvl-${p.bot}">${LEVEL_LABEL[p.bot]} bot</div>` : ''}
       <div class="vp" title="Victory points">${p.vp}<small>/${st.vpTarget}</small></div>
       <div class="stats"><span title="Resource cards">${icon('cards')}${p.cards}</span><span title="Development cards">${icon('dev')}${p.devCount}</span><span title="Knights played">${icon('knight')}${p.knights}</span><span title="Longest road">${icon('road')}${p.roadLen}</span></div>
       ${badges.length ? `<div class="row badges" style="margin-top:.35rem;gap:.3rem">${badges.join('')}</div>` : ''}
@@ -662,7 +716,7 @@ function drawBanner() {
   else if (st.phase === 'setup') {
     const which = st.setup.round === 1 ? 'first' : 'second';
     t = mine ? (st.setup.expect === 'settlement' ? `Place your ${which} settlement on a glowing corner` : 'Place a road touching that settlement') + (st.setup.round === 2 && st.setup.expect === 'settlement' ? '. It collects starting resources.' : '')
-      : `${p.name} is placing a ${st.setup.expect}`;
+      : p.bot ? `${p.name} is choosing a spot…` : `${p.name} is placing a ${st.setup.expect}`;
   } else if (st.subphase === 'discard') {
     const mineN = st.pendingDiscards[me()];
     t = mineN ? `Discard ${mineN} cards` : `Waiting for ${Object.keys(st.pendingDiscards).map(i => st.players[i].name).join(', ')} to discard`;
@@ -671,14 +725,14 @@ function drawBanner() {
   else if (mine) {
     const m = currentMode();
     t = !st.rolled ? 'Your turn: roll the dice' : m === 'road' ? 'Tap a glowing edge to build a road' : m === 'settle' ? 'Tap a glowing corner to settle' : m === 'city' ? 'Tap one of your settlements to upgrade it' : 'Build, trade, or end your turn';
-  } else t = `${p.name}'s turn`;
+  } else t = p.bot ? `${p.name} is thinking…` : `${p.name}'s turn`;
   b.textContent = t; b.classList.toggle('you', mine || !!st.pendingDiscards[me()]);
 }
 
 function drawHand() {
   const st = S.state, r = st.me.res;
   const devs = st.me.dev.length;
-  $('#hand').innerHTML = RES.map(k => `<div class="card ${k} ${r[k] ? '' : 'zero'}" title="${RES_LABEL[k]}">${icon(k)}<span class="lbl">${RES_LABEL[k]}</span>${r[k] ? `<span class="n">${r[k]}</span>` : ''}</div>`).join('')
+  $('#hand').innerHTML = RES.map(k => `<div class="card ${k} ${r[k] ? '' : 'zero'}" data-res="${k}" role="button" tabindex="0" title="${RES_LABEL[k]}: ${r[k]}">${icon(k)}<span class="lbl">${RES_LABEL[k]}</span>${r[k] ? `<span class="n">${r[k]}</span>` : ''}</div>`).join('')
     + `<button class="card devc ${devs ? '' : 'zero'}" id="devhand" title="Development cards" style="border-style:solid">${icon('dev')}<span class="lbl">Dev</span>${devs ? `<span class="n">${devs}</span>` : ''}</button>`;
   $('#devhand').onclick = () => { if (S.mode) { S.mode = null; updateGame(); } openDev(); };
 }
@@ -686,8 +740,8 @@ function drawHand() {
 function costIcons(c) { return `<span class="cost">${Object.entries(c).flatMap(([k, n]) => Array(n).fill(icon(k))).join('')}</span>`; }
 function drawActions() {
   const st = S.state, box = $('#actions'), mine = myTurn(), P = st.players[me()];
-  if (st.phase === 'ended') { box.innerHTML = `<button class="act go" id="res">${icon('vp')}Results</button><button class="act" id="home">${icon('settlement')}New game</button>`; $('#res').onclick = openVictory; $('#home').onclick = () => leaveToHome(); return; }
-  if (st.phase === 'setup' || !mine) { box.innerHTML = `<span class="waiting">${st.phase === 'setup' ? (mine ? '' : 'Setup in progress') : `Waiting for ${esc(st.players[st.turn].name)}`}</span>`; return; }
+  if (st.phase === 'ended') { box.innerHTML = `<button class="act go" id="res">${icon('vp')}Results</button><button class="act" id="home">${icon('settlement')}New game</button>`; $('#res').onclick = openLeaderboard; $('#home').onclick = () => leaveToHome(); return; }
+  if (st.phase === 'setup' || !mine) { box.innerHTML = `<span class="waiting">${st.phase === 'setup' ? (mine ? '' : 'Setup in progress') : (st.players[st.turn].bot ? `${esc(st.players[st.turn].name)} is playing` : `Waiting for ${esc(st.players[st.turn].name)}`)}</span>`; return; }
   if (st.subphase) { box.innerHTML = ''; return; }
   const m = S.mode;
   const btn = (id, label, ic, cost, enabled, pressed) => `<button class="act" id="${id}" ${enabled ? '' : 'disabled'} aria-pressed="${!!pressed}">${icon(ic)}${label}${cost ? costIcons(cost) : ''}</button>`;
@@ -886,16 +940,57 @@ function openCosts() {
     <div class="foot"><button class="btn primary" id="cclose">Got it</button></div>`, () => { $('#cclose').onclick = closeModal; });
 }
 
-function openVictory() {
+function recordResult(st) {
+  const rec = store.get('record', { games: 0, wins: 0, seen: [] });
+  const key = st.code + ':' + st.turnNumber;
+  if (rec.seen.includes(key)) return;
+  rec.seen = [...rec.seen.slice(-30), key]; rec.games++;
+  if (st.winner === st.you) rec.wins++;
+  store.set('record', rec);
+}
+function standings(st) {
+  const count = (i, type) => Object.values(st.buildings).filter(b => b.p === i && b.type === type).length;
+  return st.players.map((p, i) => ({
+    p, i, settlements: count(i, 'settlement'), cities: count(i, 'city'),
+    hidden: (p.devReveal || []).filter(d => d === 'vp').length,
+    road: st.longestRoad && st.longestRoad.p === i, army: st.largestArmy && st.largestArmy.p === i,
+  })).sort((a, b) => (b.i === st.winner) - (a.i === st.winner) || b.p.vp - a.p.vp || b.cities - a.cities || b.p.stats.collected - a.p.stats.collected);
+}
+function diceChart(counts) {
+  const rolls = counts.reduce((a, b) => a + b, 0) || 1, max = Math.max(...counts.slice(2), 1);
+  const W = 300, H = 110, bw = W / 11;
+  let bars = '';
+  for (let n = 2; n <= 12; n++) {
+    const x = (n - 2) * bw, h = (counts[n] / max) * (H - 26), exp = ((6 - Math.abs(7 - n)) / 36) * rolls / max * (H - 26);
+    const col = n === 7 ? '#e0664f' : (n === 6 || n === 8) ? '#f0cd78' : '#7fb3c2';
+    bars += `<rect x="${x + 3}" y="${H - 16 - h}" width="${bw - 6}" height="${h}" rx="2" fill="${col}"><title>${n}: rolled ${counts[n]} times</title></rect>`
+      + `<circle cx="${x + bw / 2}" cy="${H - 16 - exp}" r="2" fill="#e3f0ec" opacity=".7"/>`
+      + `<text x="${x + bw / 2}" y="${H - 3}" text-anchor="middle" font-size="10" fill="#a9c4c4">${n}</text>`
+      + (counts[n] ? `<text x="${x + bw / 2}" y="${H - 19 - h}" text-anchor="middle" font-size="9" fill="#e3f0ec">${counts[n]}</text>` : '');
+  }
+  return `<svg viewBox="0 0 ${W} ${H}" class="dicechart" role="img" aria-label="Dice rolls this game">${bars}</svg>`;
+}
+function openLeaderboard() {
   const st = S.state; if (!st || st.phase !== 'ended') return;
-  const w = st.players[st.winner];
-  const rows = st.players.map((p, i) => ({ p, i })).sort((a, b) => b.p.vp - a.p.vp).map(({ p, i }) => {
-    const hidden = (p.devReveal || []).filter(d => d === 'vp').length;
-    return `<tr><td><span class="chip" style="background:${p.color};display:inline-block;vertical-align:middle"></span> ${esc(p.name)}</td><td>${p.vp} points</td><td class="muted">${hidden ? `${plural(hidden, 'hidden point')}` : ''}${st.longestRoad && st.longestRoad.p === i ? ' Longest Road' : ''}${st.largestArmy && st.largestArmy.p === i ? ' Largest Army' : ''}</td></tr>`;
+  const w = st.players[st.winner], rows = standings(st), rec = store.get('record', { games: 0, wins: 0 });
+  const medal = r => r < 3 ? `<span class="medal m${r + 1}">${r + 1}</span>` : `<span class="medal">${r + 1}</span>`;
+  const chip = (n, label) => n ? `<span class="pts">${label}</span>` : '';
+  const list = rows.map((x, r) => {
+    const s = x.p.stats;
+    return `<li class="lrow ${x.i === st.winner ? 'champ' : ''}" style="--pc:${x.p.color}">
+      ${medal(r)}
+      <div class="who"><b>${esc(x.p.name)}${x.i === me() ? ' (you)' : ''}</b> ${botTag(x.p)}
+        <div class="ptsrow">${chip(x.settlements, `${x.settlements} settlement${x.settlements > 1 ? 's' : ''} +${x.settlements}`)}${chip(x.cities, `${x.cities} cit${x.cities > 1 ? 'ies' : 'y'} +${x.cities * 2}`)}${chip(x.road, 'Longest Road +2')}${chip(x.army, 'Largest Army +2')}${chip(x.hidden, `${x.hidden} hidden +${x.hidden}`)}</div>
+        <div class="statrow"><span>${icon('cards')}${s.collected} harvested</span><span>${icon('robber')}${s.stolen} stolen</span><span>${icon('any')}${s.bankTrades + s.playerTrades} trades</span><span>${icon('knight')}${x.p.knights} knights</span><span>${icon('dev')}${s.devBought} dev bought</span></div>
+      </div>
+      <div class="score">${x.p.vp}<small>pts</small></div></li>`;
   }).join('');
-  openModal('victory', `<div class="victor"><svg class="crown" viewBox="0 0 32 32" style="color:${w.color}"><use href="#ic-monopoly"/></svg>
-    <h3 style="color:${w.color}">${esc(w.name)} wins</h3><p>${st.winner === me() ? 'Your island, your victory.' : 'Well played. Rematch?'}</p></div>
-    <table class="score-table">${rows}</table>
+  openModal('victory', `<div class="victor"><svg class="crown" viewBox="0 0 32 32"><use href="#ic-trophy"/></svg>
+    <h3 style="color:${w.color}">${esc(w.name)} wins${w.bot ? ` <span class="muted" style="font-size:.6em">${LEVEL_LABEL[w.bot]} bot</span>` : ''}</h3>
+    <p>${st.winner === me() ? 'Your island, your victory.' : w.bot ? 'The bot takes it this time. Rematch?' : 'Well played. Rematch?'} ${plural(st.turnNumber, 'turn')} on ${esc(st.mapName)}.</p></div>
+    <h4 class="lb-title">Leaderboard</h4><ol class="leaderboard">${list}</ol>
+    <h4 class="lb-title">Dice this game</h4>${diceChart(st.diceCounts)}<p class="help">Bars show how often each number came up; dots show what fair dice would average.</p>
+    <p class="record">${icon('trophy')} Your record on this device: ${plural(rec.wins, 'win')} in ${plural(rec.games, 'game')}.</p>
     <div class="foot"><button class="btn" id="vclose">View board</button><button class="btn primary" id="vnew">New game</button></div>`, () => {
     $('#vclose').onclick = closeModal; $('#vnew').onclick = () => leaveToHome();
   });

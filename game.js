@@ -16,6 +16,9 @@ const MAX_PLAYERS = 4;
 const SQ3 = Math.sqrt(3);
 
 const emptyRes = () => ({ wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 0 });
+const newStats = () => ({ collected: 0, stolen: 0, lostToRobber: 0, discarded: 0, bankTrades: 0, playerTrades: 0, devBought: 0, devPlayed: 0, sevens: 0 });
+const BOT_LEVELS = ['easy', 'medium', 'hard'];
+const BOT_NAMES = ['Ada', 'Bram', 'Cora', 'Dax', 'Elin', 'Finn', 'Gus', 'Hana', 'Ivo', 'Juno'];
 const total = r => RES.reduce((a, k) => a + (r[k] || 0), 0);
 const r3 = n => Math.round(n * 1000) / 1000;
 
@@ -112,6 +115,7 @@ class Game {
     this.trade = null; this.largestArmy = null; this.longestRoad = null;
     this.setup = null; this.winner = null; this.log = []; this.lastRoll = null; this.version = 0;
     this.forcedDice = null;
+    this.diceCounts = Array(13).fill(0);
   }
 
   // ----- players -----
@@ -121,7 +125,7 @@ class Game {
     name = String(name || '').trim().slice(0, 16) || 'Player ' + (this.players.length + 1);
     if (this.players.some(p => p.name.toLowerCase() === name.toLowerCase())) fail('That name is taken in this room.');
     const p = { name, token, connected: false, res: emptyRes(), dev: [], knights: 0,
-      pieces: { road: 15, settlement: 5, city: 4 }, color: null, colorName: null };
+      pieces: { road: 15, settlement: 5, city: 4 }, color: null, colorName: null, bot: null, stats: newStats() };
     if (!this.players.length) this.hostToken = token;
     this.players.push(p);
     this.assignColors();
@@ -132,11 +136,40 @@ class Game {
   removePlayer(pi) {
     if (this.phase !== 'lobby') return;
     const [p] = this.players.splice(pi, 1);
-    if (p && p.token === this.hostToken) this.hostToken = this.players[0] ? this.players[0].token : null;
+    if (p && p.token === this.hostToken) { const h = this.players.find(x => !x.bot); this.hostToken = h ? h.token : null; }
     this.assignColors();
     if (p) this.addLog(`${p.name} left.`);
     this.version++;
   }
+  do_addBot(pi, a) {
+    if (this.phase !== 'lobby') fail('Bots can only join before the game starts.');
+    if (!this.isHost(pi)) fail('Only the host can add bots.');
+    if (this.players.length >= MAX_PLAYERS) fail('All 4 seats are taken.');
+    const level = BOT_LEVELS.includes(a.level) ? a.level : 'medium';
+    const taken = new Set(this.players.map(p => p.name.toLowerCase()));
+    const name = BOT_NAMES.find(n => !taken.has(n.toLowerCase())) || 'Bot ' + (this.players.length + 1);
+    const token = 'bot:' + Math.floor(this.rng() * 1e12).toString(36) + this.players.length;
+    this.addPlayer(name, token);
+    const p = this.players[this.players.length - 1];
+    p.bot = level; p.connected = true;
+    this.log[this.log.length - 1].text = `${name} (${level} bot) joined.`;
+  }
+  do_removeBot(pi, a) {
+    if (this.phase !== 'lobby') fail('Bots can only be removed before the game starts.');
+    if (!this.isHost(pi)) fail('Only the host can remove bots.');
+    const seat = a.seat | 0;
+    if (!this.players[seat] || !this.players[seat].bot) fail('That seat is not a bot.');
+    this.removePlayer(seat);
+  }
+  do_setBotLevel(pi, a) {
+    if (this.phase !== 'lobby') fail('Change bot difficulty before the game starts.');
+    if (!this.isHost(pi)) fail('Only the host can change bots.');
+    const p = this.players[a.seat | 0];
+    if (!p || !p.bot) fail('That seat is not a bot.');
+    if (!BOT_LEVELS.includes(a.level)) fail('Pick easy, medium or hard.');
+    p.bot = a.level;
+  }
+  isBot(i) { return !!(this.players[i] && this.players[i].bot); }
   assignColors() { this.players.forEach((p, i) => { p.color = COLORS[i]; p.colorName = COLOR_NAMES[i]; }); }
   isHost(pi) { return !!this.players[pi] && this.players[pi].token === this.hostToken; }
   indexOf(token) { return this.players.findIndex(p => p.token === token); }
@@ -367,6 +400,8 @@ class Game {
     if (this.forcedDice && !this.forcedDice.length) this.forcedDice = null;
     this.dice = d; this.rolled = true;
     const sum = d[0] + d[1];
+    this.diceCounts[sum]++;
+    if (sum === 7) this.players[pi].stats.sevens++;
     const gains = this.players.map(() => emptyRes());
     this.addLog(`${this.players[pi].name} rolled ${sum}.`);
     if (sum === 7) {
@@ -390,7 +425,7 @@ class Game {
       if (!need) continue;
       const who = owed.map((o, i) => o[res] ? i : -1).filter(i => i >= 0);
       if (need > this.bank[res] && who.length > 1) { this.addLog(`The bank ran out of ${LABEL[res]}; nobody receives it.`); continue; }
-      who.forEach(i => { gains[i][res] = this.giveFromBank(i, res, owed[i][res]); });
+      who.forEach(i => { gains[i][res] = this.giveFromBank(i, res, owed[i][res]); this.players[i].stats.collected += gains[i][res]; });
     }
     this.players.forEach((p, i) => {
       const g = RES.filter(k => gains[i][k]).map(k => `${gains[i][k]} ${LABEL[k]}`);
@@ -407,6 +442,7 @@ class Game {
     if (total(r) !== need) fail(`Choose exactly ${need} cards to discard.`);
     if (!this.has(pi, r)) fail('You do not have those cards.');
     this.pay(pi, r);
+    this.players[pi].stats.discarded += need;
     delete this.pendingDiscards[pi];
     this.addLog(`${this.players[pi].name} discarded ${need} cards.`);
     if (!Object.keys(this.pendingDiscards).length) this.subphase = 'robber';
@@ -439,6 +475,7 @@ class Game {
       RES.forEach(k => { for (let i = 0; i < this.players[victim].res[k]; i++) pool.push(k); });
       const card = pool[Math.floor(this.rng() * pool.length)];
       this.players[victim].res[card]--; this.players[pi].res[card]++;
+      this.players[pi].stats.stolen++; this.players[victim].stats.lostToRobber++;
       msg += ` and stole a card from ${this.players[victim].name}`;
       this.lastSteal = { from: victim, to: pi, card, seq: (this.lastSteal ? this.lastSteal.seq : 0) + 1 };
     }
@@ -451,6 +488,7 @@ class Game {
     this.pay(pi, COST.dev);
     const type = this.devDeck.pop();
     this.players[pi].dev.push({ type, turn: this.turnNumber });
+    this.players[pi].stats.devBought++;
     this.addLog(`${this.players[pi].name} bought a development card.`);
     return { card: type };
   }
@@ -472,7 +510,7 @@ class Game {
     }
     if (type === 'monopoly' && !RES.includes(a.res)) fail('Pick a resource.');
     if (!['knight', 'roadBuilding', 'yearOfPlenty', 'monopoly'].includes(type)) fail('Unknown card.');
-    p.dev.splice(idx, 1); this.devPlayed = true;
+    p.dev.splice(idx, 1); this.devPlayed = true; p.stats.devPlayed++;
     if (type === 'knight') {
       p.knights++; this.updateLargestArmy(pi); this.subphase = 'robber';
       this.addLog(`${p.name} played a Knight.`);
@@ -497,6 +535,7 @@ class Game {
     if (this.bank[a.get] < 1) fail(`The bank is out of ${LABEL[a.get]}.`);
     this.pay(pi, { [a.give]: ratio });
     this.giveFromBank(pi, a.get, 1);
+    this.players[pi].stats.bankTrades++;
     this.addLog(`${this.players[pi].name} traded ${ratio} ${LABEL[a.give]} for 1 ${LABEL[a.get]} with the bank.`);
   }
 
@@ -534,6 +573,7 @@ class Game {
     if (!this.has(w, get)) { this.trade.accepted = this.trade.accepted.filter(i => i !== w); fail('That player no longer has the cards.'); }
     const A = this.players[pi].res, B = this.players[w].res;
     RES.forEach(k => { A[k] += get[k] - give[k]; B[k] += give[k] - get[k]; });
+    this.players[pi].stats.playerTrades++; this.players[w].stats.playerTrades++;
     this.addLog(`${this.players[pi].name} traded with ${this.players[w].name}.`);
     this.trade = null;
   }
@@ -616,7 +656,7 @@ class Game {
     return {
       code: this.code, phase: this.phase, you: pi, version: this.version, vpTarget: this.vpTarget, mapName: this.board.name,
       players: this.players.map((p, i) => ({
-        name: p.name, host: p.token === this.hostToken, color: p.color, colorName: p.colorName, connected: p.connected,
+        name: p.name, host: p.token === this.hostToken, bot: p.bot, stats: p.stats, color: p.color, colorName: p.colorName, connected: p.connected,
         cards: total(p.res), devCount: p.dev.length, knights: p.knights, pieces: p.pieces,
         vp: this.vp(i, ended || i === pi), roadLen: this.roadLens ? this.roadLens[i] : 0,
         res: ended ? p.res : undefined, devReveal: ended ? p.dev.map(d => d.type) : undefined,
@@ -628,10 +668,10 @@ class Game {
       subphase: this.subphase, pendingDiscards: this.pendingDiscards, freeRoads: this.freeRoads, devPlayed: this.devPlayed,
       setup: this.setup ? { expect: this.setup.expect, last: this.setup.last, round: this.setup.step < this.players.length ? 1 : 2 } : null,
       trade: this.trade, largestArmy: this.largestArmy, longestRoad: this.longestRoad,
-      bank: this.bank, devLeft: this.devDeck.length, log: this.log.slice(-40), winner: this.winner,
+      bank: this.bank, devLeft: this.devDeck.length, diceCounts: this.diceCounts, log: this.log.slice(-40), winner: this.winner,
       lastRoll: this.lastRoll, lastSteal: this.lastSteal && (this.lastSteal.from === pi || this.lastSteal.to === pi) ? this.lastSteal : (this.lastSteal ? { ...this.lastSteal, card: null } : null),
     };
   }
 }
 
-module.exports = { Game, GameError, RES, COST, buildGeometry, MAX_PLAYERS, DEV_NAMES };
+module.exports = { Game, GameError, RES, COST, buildGeometry, MAX_PLAYERS, DEV_NAMES, BOT_LEVELS };

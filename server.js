@@ -6,10 +6,11 @@ const path = require('path');
 const crypto = require('crypto');
 const { Game, GameError } = require('./game');
 const maps = require('./maps');
+const bots = require('./bots');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC = __dirname;
-const PUBLIC_FILES = new Set(['/index.html', '/app.js', '/art.js', '/style.css']);
+const PUBLIC_FILES = new Set(['/index.html', '/app.js', '/art.js', '/sound.js', '/style.css']);
 const rooms = new Map(); // code -> { game, clients: Map<token, Set<res>>, touched }
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -62,6 +63,25 @@ function broadcast(room) {
     const msg = `event: state\ndata: ${JSON.stringify(room.game.view(pi))}\n\n`;
     for (const r of set) r.write(msg);
   }
+  scheduleBots(room);
+}
+
+// Bots act one move at a time on a timer so people can follow along.
+// They pause while no human is connected and resume when someone returns.
+function scheduleBots(room) {
+  if (room.botTimer || !rooms.has(room.game.code)) return;
+  const g = room.game;
+  if (!g.players.some(p => !p.bot && p.connected)) return;
+  const next = bots.nextActor(g);
+  if (!next) return;
+  room.botTimer = setTimeout(() => {
+    room.botTimer = null;
+    if (!rooms.has(g.code)) return;
+    const cur = bots.nextActor(g); // state may have changed while waiting
+    if (!cur) return;
+    try { bots.step(g, cur.pi); } catch (e) { console.error('bot error', e); bots.rescue(g, cur.pi); }
+    broadcast(room);
+  }, bots.delay(g, next));
 }
 function setConnected(room, token) {
   const pi = room.game.indexOf(token);
@@ -110,7 +130,7 @@ async function api(req, res, url) {
       const pi = room.game.indexOf(body.token);
       if (pi >= 0 && room.game.phase === 'lobby') {
         room.game.removePlayer(pi);
-        if (!room.game.players.length) rooms.delete(room.game.code); else broadcast(room);
+        if (!room.game.players.some(p => !p.bot)) { clearTimeout(room.botTimer); rooms.delete(room.game.code); } else broadcast(room);
       }
     }
     return sendJson(res, 200, { ok: true });
@@ -179,7 +199,7 @@ setInterval(() => {
   const now = Date.now();
   for (const [code, room] of rooms) {
     const idle = now - room.touched;
-    if ((room.clients.size === 0 && idle > 30 * 60e3) || idle > 6 * 3600e3) rooms.delete(code);
+    if ((room.clients.size === 0 && idle > 30 * 60e3) || idle > 6 * 3600e3) { clearTimeout(room.botTimer); rooms.delete(code); }
   }
 }, 60e3).unref();
 
