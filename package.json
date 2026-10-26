@@ -1,0 +1,13 @@
+{
+  "name": "hexlands",
+  "version": "1.0.0",
+  "description": "Multiplayer hex-island trading and building game. Room codes, country maps, custom map editor.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test engine.test.js server.test.js"
+  },
+  "engines": { "node": ">=18" },
+  "license": "MIT",
+  "private": true
+}
