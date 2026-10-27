@@ -3,9 +3,18 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-  <meta name="theme-color" content="#0b2d3d">
+  <meta name="theme-color" content="#0b3a7a">
+  <meta name="description" content="Settle an island with friends. Trade, build and race to victory. Play with room codes, bots and country maps.">
+  <meta name="application-name" content="Hexlands">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Hexlands">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Hexlands — settle, trade, build</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><polygon points='50,4 90,27 90,73 50,96 10,73 10,27' fill='%23d9a441' stroke='%230b2d3d' stroke-width='6'/></svg>">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Alegreya+SC:wght@500;700;800&family=Alegreya+Sans:wght@400;500;700;800&display=swap" rel="stylesheet">
@@ -18,5 +27,6 @@
   <script src="/art.js"></script>
   <script src="/sound.js"></script>
   <script src="/app.js"></script>
+  <script>if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));</script>
 </body>
 </html>

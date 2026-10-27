@@ -10,7 +10,7 @@ const bots = require('./bots');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC = __dirname;
-const PUBLIC_FILES = new Set(['/index.html', '/app.js', '/art.js', '/sound.js', '/style.css']);
+const PUBLIC_FILES = new Set(['/index.html', '/app.js', '/art.js', '/sound.js', '/style.css', '/sw.js', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png', '/icon-maskable-512.png', '/apple-touch-icon.png', '/screenshot-home.png', '/screenshot-game.png', '/screenshot-game-wide.png']);
 const rooms = new Map(); // code -> { game, clients: Map<token, Set<res>>, touched }
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -187,6 +187,9 @@ async function api(req, res, url) {
 
 function serveStatic(req, res, url) {
   let p = url.pathname;
+  if (p === '/.well-known/assetlinks.json') {   // Android app verification; the file sits flat in the repo as assetlinks.json
+    return fs.readFile(path.join(PUBLIC, 'assetlinks.json'), (err, data) => { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' }); res.end(err ? '[]' : data); });
+  }
   if (p === '/' || /^\/room\//.test(p)) p = '/index.html';
   if (!PUBLIC_FILES.has(p)) { res.writeHead(404, { 'Content-Type': 'text/plain' }); return res.end('Not found'); }
   fs.readFile(path.join(PUBLIC, p), (err, data) => {

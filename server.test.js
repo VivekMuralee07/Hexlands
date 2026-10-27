@@ -232,3 +232,32 @@ test('host sets options in the waiting room; the move timer plays for an idle hu
   assert.ok(g.log.some(l => /placed automatically/.test(l.text)));
   h.close();
 });
+
+test('PWA: manifest, service worker, icons, screenshots and the Android verification route', async () => {
+  const mr = await fetch(base + '/manifest.webmanifest');
+  assert.equal(mr.status, 200); assert.match(mr.headers.get('content-type'), /manifest\+json/);
+  const m = await mr.json();
+  for (const k of ['id', 'name', 'short_name', 'start_url', 'scope', 'display', 'theme_color', 'background_color']) assert.ok(m[k], k);
+  assert.equal(m.display, 'standalone');
+  const png = async src => {
+    const r = await fetch(base + src); assert.equal(r.status, 200, src);
+    const b = Buffer.from(await r.arrayBuffer()); assert.equal(b.readUInt32BE(0), 0x89504e47, src + ' is a PNG');
+    return `${b.readUInt32BE(16)}x${b.readUInt32BE(20)}`;
+  };
+  const have = {};
+  for (const i of m.icons.filter(i => i.type === 'image/png')) { assert.equal(await png(i.src), i.sizes, i.src); have[i.sizes + ':' + i.purpose] = true; }
+  assert.ok(have['192x192:any'] && have['512x512:any'] && have['512x512:maskable'], 'icon sizes PWABuilder looks for');
+  assert.ok(m.icons.some(i => i.type === 'image/svg+xml'));
+  assert.ok(m.screenshots.length >= 2);
+  for (const s of m.screenshots) assert.equal(await png(s.src), s.sizes, s.src);
+  assert.equal(await png('/apple-touch-icon.png'), '180x180');
+  const sw = await fetch(base + '/sw.js'), code = await sw.text();
+  assert.equal(sw.status, 200); assert.match(sw.headers.get('cache-control'), /no-cache/);
+  assert.match(code, /addEventListener\('fetch'/, 'has a fetch handler'); assert.match(code, /\/api\//, 'leaves game traffic alone');
+  const al = await fetch(base + '/.well-known/assetlinks.json');
+  assert.equal(al.status, 200); assert.ok(Array.isArray(await al.json()));
+  assert.equal((await fetch(base + '/assetlinks.json')).status, 404, 'only served at the well-known path');
+  const html = await (await fetch(base + '/')).text();
+  assert.match(html, /rel="manifest"/); assert.match(html, /serviceWorker\.register/); assert.match(html, /apple-touch-icon/);
+  assert.ok(!html.includes('</svg>'), 'no leftover markup in the page head');
+});

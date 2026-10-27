@@ -19,6 +19,7 @@ A multiplayer island-settling game for 2–4 players in the browser. Gather wood
 - Beat themes at the start and finish, a click on every button, and a note for each resource card
 - Leaderboard at the end with points breakdown, stats and a dice chart
 - Tap the gold **i** on the start page (or **Rules** in a game) for a short rules guide
+- Installable as an app (PWA): manifest, service worker, a miniature-island icon, home-screen shortcuts and an Install button; ready for PWABuilder
 - No dependencies: plain Node.js, no database
 
 ## Run locally
@@ -34,7 +35,7 @@ Open two browser windows (or a phone on the same network at `http://<your-ip>:30
 
 ## Put it on GitHub
 
-All 17 files sit side by side at the top level of `main`, with no folders. Upload them all at once.
+All 28 files sit side by side at the top level of `main`, with no folders. Upload them all at once.
 
 1. On github.com, create a new empty repository.
 2. Click **uploading an existing file**.
@@ -43,9 +44,9 @@ All 17 files sit side by side at the top level of `main`, with no folders. Uploa
 
 To update an existing repo, do the same: files with the same name are replaced, and the new ones (`rules.test.js`) are added. Render redeploys automatically.
 
-The repo front page should list: `app.js`, `art.js`, `bots.js`, `bots.test.js`, `engine.test.js`, `game.js`, `index.html`, `maps.js`, `package.json`, `README.md`, `render.yaml`, `rules.test.js`, `server.js`, `server.test.js`, `sound.js`, `style.css` (and `.gitignore` if your file browser shows hidden files; it is optional).
+The repo front page should list the 28 files: `app.js`, `art.js`, `assetlinks.json`, `apple-touch-icon.png`, `bots.js`, `bots.test.js`, `engine.test.js`, `game.js`, `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `icon.svg`, `index.html`, `manifest.webmanifest`, `maps.js`, `package.json`, `README.md`, `render.yaml`, `rules.test.js`, `screenshot-game-wide.png`, `screenshot-game.png`, `screenshot-home.png`, `server.js`, `server.test.js`, `sound.js`, `style.css`, `sw.js` (and `.gitignore` if your file browser shows hidden files; it is optional).
 
-Only `index.html`, `app.js`, `art.js`, `sound.js` and `style.css` are sent to browsers. The server code, tests and config are never served.
+Only the web app itself is sent to browsers: the page, scripts, styles, icons, screenshots, the manifest and the service worker. The server code, tests and config are never served.
 
 ## Deploy on Render
 
@@ -139,6 +140,23 @@ From **Create a room**, choose **Your own map** (or **Copy into editor** on any 
 - Tiles without a number get one when the game starts. Harbors are placed automatically.
 - 7 to 60 tiles; separate islands are allowed. Your map is saved in your browser.
 
+## Make an Android app (APK) with PWABuilder
+
+The game is a Progressive Web App, so PWABuilder can wrap it as an Android app. The icon is a miniature island of seven hexes with all five resources and a number token.
+
+1. Deploy to Render first. PWABuilder needs your public HTTPS address, such as `https://hexlands.onrender.com`.
+2. Open pwabuilder.com, paste the address and press **Start**. The report should show a valid manifest, a service worker and HTTPS.
+3. Choose **Package for stores**, then **Android**. Suggested options: package ID like `com.yourname.hexlands`, app name `Hexlands`, display mode `Standalone`, status bar color `#0b3a7a`, splash color `#0a68a6`, and let PWABuilder create a **new signing key**.
+4. Download the zip. It holds the signed APK (install it on a phone), an `.aab` file (for Google Play), the signing key and its password file (keep these safe: you need them for every update), and an `assetlinks.json`.
+5. Replace the `assetlinks.json` in this repo with the one from the zip and commit. Render redeploys, and the file is then served at `/.well-known/assetlinks.json` (open that address to check). Until this is done, the app shows a browser address bar at the top. Afterwards it runs full screen.
+6. Install the APK: copy it to the phone, allow "install unknown apps" for your file manager, then open the file.
+
+Notes:
+- Updating the game never needs a new APK. The app loads your live site, so a push to GitHub is enough.
+- On Render's free plan the server sleeps when idle, so the first launch after a quiet spell can take up to a minute.
+- Without the internet the app opens its shell but cannot start a game, because games run on the server.
+- Browsers that support installing also show an **Install the app** button on the home screen.
+
 ## Project layout
 
 ```
@@ -155,6 +173,10 @@ engine.test.js    Core rules and full simulated games
 rules.test.js     Setup order, host options, discard limit, friendly robber, balanced dice, timer, road rule
 bots.test.js      Bot games at every level and strength checks
 server.test.js    HTTP, live updates, options and timer over the wire, a full human-vs-bots game
+sw.js             Service worker (offline shell; never touches game traffic)
+manifest.webmanifest  App name, colors, icons, screenshots and shortcuts
+icon*.png, icon.svg, apple-touch-icon.png, screenshot-*.png  App icons and store images
+assetlinks.json   Android app verification (replace with PWABuilder's file)
 render.yaml       Render blueprint
 package.json
 ```

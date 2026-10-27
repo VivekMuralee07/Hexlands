@@ -1,0 +1,100 @@
+{
+  "id": "/",
+  "name": "Hexlands",
+  "short_name": "Hexlands",
+  "description": "Settle an island with friends. Gather wood, brick, sheep, hay and ore, trade, build and race to victory. Play with room codes, bots of three difficulties, and maps of eight countries.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "any",
+  "background_color": "#0a68a6",
+  "theme_color": "#0b3a7a",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": [
+    "games",
+    "entertainment"
+  ],
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-home.png",
+      "sizes": "540x960",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Create a room or join a friend with a code"
+    },
+    {
+      "src": "/screenshot-game.png",
+      "sizes": "540x960",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Build roads, settlements and cities"
+    },
+    {
+      "src": "/screenshot-game-wide.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Race to the points target on a hex island"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Create a room",
+      "short_name": "New room",
+      "description": "Start a new game room",
+      "url": "/?action=create",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "How to play",
+      "short_name": "Rules",
+      "description": "Read the rules",
+      "url": "/?action=rules",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
+}

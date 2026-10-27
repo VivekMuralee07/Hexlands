@@ -31,6 +31,7 @@ const S = {
   custom: store.get('custom', null), board: null, state: null, mode: null, vb: null, base: null,
   es: null, error: null, hot: null, modal: null, shellReady: false, editor: { tool: 'forest', num: null }, joinCode: '', botLevel: store.get('botLevel', 'medium'),
 };
+const LAUNCH_ACTION = new URLSearchParams(location.search).get('action');   // home-screen shortcut, read before the address bar is rewritten
 const m = location.pathname.match(/^\/room\/([A-Za-z0-9]{5})/);
 if (m) S.joinCode = m[1].toUpperCase();
 
@@ -209,6 +210,7 @@ function renderHome(app) {
   S.error = null;
   fetch('/api/preview?map=classic').then(r => r.json()).then(j => { const h = $('#hero'); if (h) h.innerHTML = boardPreviewSvg(j.board); }).catch(() => {});
   $('#info').onclick = openRules;
+  showInstall();
   const nameOk = () => { const n = $('#name').value.trim(); if (!n) { toast('Enter your name first.', 'err'); $('#name').focus(); return null; } S.name = n; store.set('name', n); return n; };
   $('#go-create').onclick = () => { if (nameOk()) go('create'); };
   const join = async () => {
@@ -1317,6 +1319,17 @@ function soundReactions(prev, st) {
   S.logAt = newest;
 }
 
+// ---------- install as an app ----------
+function showInstall() {
+  if (!S.installEvt || S.screen !== 'home' || $('#install')) return;
+  const panel = $('.home .panel'); if (!panel) return;
+  const b = document.createElement('button'); b.className = 'btn'; b.id = 'install'; b.textContent = 'Install the app';
+  b.onclick = async () => { const ev = S.installEvt; S.installEvt = null; b.remove(); try { await ev.prompt(); } catch {} };
+  panel.append(b);
+}
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); S.installEvt = e; showInstall(); });
+addEventListener('appinstalled', () => { S.installEvt = null; const b = $('#install'); if (b) b.remove(); });
+
 // ---------- boot ----------
 setInterval(tickClock, 250);
 addEventListener('pagehide', () => { S.unloading = true; });
@@ -1324,4 +1337,7 @@ addEventListener('pageshow', () => { S.unloading = false; });
 fetch('/api/maps').then(r => r.json()).then(j => { S.maps = j.maps; }).catch(() => {});
 if (S.session && (!S.joinCode || S.joinCode === S.session.code)) startSession(S.session);
 render();
+{ // home-screen shortcuts from the installed app
+  if (LAUNCH_ACTION === 'rules') openRules(); else if (LAUNCH_ACTION === 'create' && S.name && S.screen === 'home') go('create');
+}
 })();
