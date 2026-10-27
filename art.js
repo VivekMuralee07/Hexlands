@@ -7,15 +7,15 @@
   const pine = `<g id="pine">
     <ellipse cx="2" cy="16" rx="11" ry="3" fill="#0d2a16" opacity=".45"/>
     <rect x="-2" y="6" width="4" height="10" rx="1" fill="#5b3a1f"/>
-    <path d="M0,-24 L11,-8 L-11,-8Z" fill="#2f7d3f"/><path d="M0,-24 L-11,-8 L0,-8Z" fill="#46a05a"/>
-    <path d="M0,-15 L14,2 L-14,2Z" fill="#27703a"/><path d="M0,-15 L-14,2 L0,2Z" fill="#3c9150"/>
-    <path d="M0,-6 L16,10 L-16,10Z" fill="#1f6131"/><path d="M0,-6 L-16,10 L0,10Z" fill="#348546"/>
+    <path d="M0,-24 L11,-8 L-11,-8Z" fill="#0f7a32"/><path d="M0,-24 L-11,-8 L0,-8Z" fill="#33b25a"/>
+    <path d="M0,-15 L14,2 L-14,2Z" fill="#0c6a2b"/><path d="M0,-15 L-14,2 L0,2Z" fill="#2ca24f"/>
+    <path d="M0,-6 L16,10 L-16,10Z" fill="#0a5a25"/><path d="M0,-6 L-16,10 L0,10Z" fill="#239443"/>
   </g>`;
   const oak = `<g id="oak">
     <ellipse cx="2" cy="15" rx="10" ry="3" fill="#0d2a16" opacity=".45"/>
     <rect x="-2" y="2" width="4" height="13" fill="#6b4524"/>
-    <circle cx="-6" cy="-2" r="8" fill="#2d7a3a"/><circle cx="6" cy="-3" r="8" fill="#24692f"/>
-    <circle cx="0" cy="-10" r="9" fill="#3a9149"/><circle cx="-3" cy="-12" r="3.5" fill="#5bb066" opacity=".8"/>
+    <circle cx="-6" cy="-2" r="8" fill="#0f7a32"/><circle cx="6" cy="-3" r="8" fill="#0c6a2b"/>
+    <circle cx="0" cy="-10" r="9" fill="#2ca24f"/><circle cx="-3" cy="-12" r="3.5" fill="#4cc472" opacity=".8"/>
   </g>`;
   const bricks = `<g id="bricks">
     <ellipse cx="0" cy="11" rx="16" ry="3.5" fill="#4a1d0c" opacity=".4"/>
@@ -33,7 +33,7 @@
     <ellipse cx="-13.6" cy="-3" rx="2" ry="1" fill="#2f2a26" transform="rotate(-25 -13.6 -3)"/>
     <circle cx="-11.8" cy="-2" r=".8" fill="#fff"/>
   </g>`;
-  const tuft = `<path id="tuft" d="M-4,0 L-2,-6 L-1,0 M0,0 L1,-8 L2,0 M3,0 L5,-5 L5.5,0" stroke="#3f7d2a" stroke-width="1.2" fill="none" stroke-linecap="round"/>`;
+  const tuft = `<path id="tuft" d="M-4,0 L-2,-6 L-1,0 M0,0 L1,-8 L2,0 M3,0 L5,-5 L5.5,0" stroke="#586c06" stroke-width="1.2" fill="none" stroke-linecap="round"/>`;
   const wheat = `<g id="wheat">
     <path d="M0,14 Q1,0 0,-14" stroke="#a87a22" stroke-width="1.2" fill="none"/>
     ${[-12, -8, -4, 0, 4].map((y, i) => `<ellipse cx="${i % 2 ? 2.2 : -2.2}" cy="${y}" rx="2" ry="3.4" fill="#f4d675" stroke="#b98a28" stroke-width=".6" transform="rotate(${i % 2 ? 25 : -25} ${i % 2 ? 2.2 : -2.2} ${y})"/>`).join('')}
@@ -55,19 +55,19 @@
 
   const t = {};
   t.forest = `<rect x="-60" y="-60" width="120" height="120" fill="url(#g-forest)"/>
-    <ellipse cx="-20" cy="10" rx="30" ry="14" fill="#1a4524" opacity=".5"/><ellipse cx="25" cy="-15" rx="24" ry="10" fill="#1a4524" opacity=".4"/>
+    <ellipse cx="-20" cy="10" rx="30" ry="14" fill="#0a4a1d" opacity=".5"/><ellipse cx="25" cy="-15" rx="24" ry="10" fill="#0a4a1d" opacity=".4"/>
     ${[[-6, -46, .85, 'pine'], [22, -40, .95, 'pine'], [-30, -30, 1, 'pine'], [40, -14, .9, 'oak'], [-42, 0, .95, 'pine'], [34, 16, 1.05, 'pine'], [-30, 26, 1, 'oak'], [4, 40, 1, 'pine'], [-10, 30, .8, 'pine'], [26, 42, .8, 'oak'], [-46, 22, .75, 'pine']]
       .map(([x, y, s, k]) => `<use href="#${k}" transform="translate(${x} ${y}) scale(${s})"/>`).join('')}`;
   t.hills = `<rect x="-60" y="-60" width="120" height="120" fill="url(#g-hills)"/>
-    <path d="M-60,-10 Q-30,-40 0,-18 T60,-24 V60 H-60Z" fill="#a85b33"/>
-    <path d="M-60,20 Q-25,-6 10,16 T60,10 V60 H-60Z" fill="#934a27"/>
-    <path d="M-50,-14 q8,-4 16,0 M18,-20 q8,-3 14,0 M-20,12 q8,-4 16,0 M24,22 q6,-3 12,0" stroke="#d98a5c" stroke-width="1.4" fill="none" opacity=".7"/>
+    <path d="M-60,-10 Q-30,-40 0,-18 T60,-24 V60 H-60Z" fill="#d86029"/>
+    <path d="M-60,20 Q-25,-6 10,16 T60,10 V60 H-60Z" fill="#cf5c27"/>
+    <path d="M-50,-14 q8,-4 16,0 M18,-20 q8,-3 14,0 M-20,12 q8,-4 16,0 M24,22 q6,-3 12,0" stroke="#eb936b" stroke-width="1.4" fill="none" opacity=".7"/>
     <ellipse cx="-30" cy="38" rx="12" ry="5" fill="#5a2a13" opacity=".7"/><ellipse cx="-30" cy="37" rx="9" ry="3.4" fill="#7a3a1c"/>
     <use href="#bricks" transform="translate(-28 -32) scale(1.05)"/><use href="#bricks" transform="translate(30 28) scale(1.15)"/>
     <use href="#bricks" transform="translate(32 -30) scale(.8)"/>
     <path d="M10,44 l6,-10 l6,10z" fill="#6e3518"/><rect x="13" y="38" width="6" height="6" fill="#c97a3e"/>`;
   t.pasture = `<rect x="-60" y="-60" width="120" height="120" fill="url(#g-pasture)"/>
-    <path d="M-60,-20 Q0,-36 60,-22 M-60,24 Q0,8 60,22" stroke="#9ed06a" stroke-width="10" fill="none" opacity=".35"/>
+    <path d="M-60,-20 Q0,-36 60,-22 M-60,24 Q0,8 60,22" stroke="#b3ca54" stroke-width="10" fill="none" opacity=".35"/>
     ${[[-40, -40], [-14, -50], [10, -30], [40, -40], [-48, 10], [-20, 18], [44, 6], [18, 48], [-34, 44], [0, 52], [36, 32], [-4, -40]].map(([x, y]) => `<use href="#tuft" transform="translate(${x} ${y})"/>`).join('')}
     <circle cx="-40" cy="-20" r="2" fill="#f2e86a"/><circle cx="30" cy="-10" r="1.6" fill="#fff"/><circle cx="-14" cy="44" r="1.8" fill="#f2e86a"/><circle cx="44" cy="26" r="1.6" fill="#fff"/>
     <path d="M14,54 L56,30" stroke="#7a5a33" stroke-width="1.6"/><path d="M14,49 L56,25" stroke="#7a5a33" stroke-width="1.6"/>
@@ -75,23 +75,23 @@
     <use href="#sheep" transform="translate(-28 -26)"/><use href="#sheep" transform="translate(30 -24) scale(-.9 .9)"/>
     <use href="#sheep" transform="translate(-30 28) scale(1.05)"/><use href="#sheep" transform="translate(-4 -44) scale(.7)"/>`;
   t.fields = `<rect x="-60" y="-60" width="120" height="120" fill="url(#g-fields)"/>
-    ${[-48, -36, -24, 24, 36, 48].map(y => `<path d="M-60,${y} Q0,${y - 8} 60,${y}" stroke="#c4952e" stroke-width="2" fill="none" opacity=".55"/>`).join('')}
+    ${[-48, -36, -24, 24, 36, 48].map(y => `<path d="M-60,${y} Q0,${y - 8} 60,${y}" stroke="#c2961c" stroke-width="2" fill="none" opacity=".55"/>`).join('')}
     ${[[-36, -36], [-26, -40], [-16, -36], [16, -38], [26, -42], [36, -36], [-40, 2], [-32, -2], [36, 0], [44, 4], [-26, 34], [-16, 38], [-6, 42], [14, 36], [24, 40], [34, 34]]
       .map(([x, y], i) => `<use href="#wheat" transform="translate(${x} ${y}) rotate(${(i % 3 - 1) * 6}) scale(.95)"/>`).join('')}
     <g transform="translate(38 -14)"><ellipse cx="0" cy="8" rx="9" ry="2.5" fill="#7a5a1a" opacity=".4"/><path d="M-8,8 Q-8,-8 0,-10 Q8,-8 8,8Z" fill="#e2b84a" stroke="#a5781e" stroke-width=".8"/><path d="M-6,0 h12 M-7,4 h14" stroke="#b88a2a" stroke-width=".7"/></g>`;
   t.mountains = `<rect x="-60" y="-60" width="120" height="120" fill="url(#g-mountains)"/>
-    <path d="M-60,30 L-34,-34 L-16,0 L6,-50 L34,4 L48,-20 L60,0 V60 H-60Z" fill="#6c7680"/>
-    <path d="M-34,-34 L-48,30 L-22,14Z" fill="#a3acb5"/><path d="M6,-50 L-10,20 L14,8Z" fill="#a9b2bb"/><path d="M48,-20 L38,20 L56,8Z" fill="#9aa3ad"/>
+    <path d="M-60,30 L-34,-34 L-16,0 L6,-50 L34,4 L48,-20 L60,0 V60 H-60Z" fill="#a3a5a2"/>
+    <path d="M-34,-34 L-48,30 L-22,14Z" fill="#afb1ae"/><path d="M6,-50 L-10,20 L14,8Z" fill="#b1b3b0"/><path d="M48,-20 L38,20 L56,8Z" fill="#adaeac"/>
     <path d="M-34,-34 L-41,-17 L-36,-20 L-32,-14 L-27,-20Z" fill="#f4f7fb"/>
     <path d="M6,-50 L-3,-30 L3,-33 L7,-26 L13,-32 L17,-30Z" fill="#f4f7fb"/>
     <path d="M48,-20 L44,-10 L48,-12 L52,-8 L53,-13Z" fill="#eef2f7"/>
-    <path d="M-60,40 L-20,22 L20,30 L60,18 V60 H-60Z" fill="#555e68"/>
+    <path d="M-60,40 L-20,22 L20,30 L60,18 V60 H-60Z" fill="#999b98"/>
     <use href="#orechunk" transform="translate(-30 40) scale(1.1)"/><use href="#orechunk" transform="translate(30 38) scale(.9)"/><use href="#orechunk" transform="translate(42 -2) scale(.6)"/>`;
   t.desert = `<rect x="-60" y="-60" width="120" height="120" fill="url(#g-desert)"/>
-    <path d="M-60,-24 Q-20,-44 20,-26 T60,-30" stroke="#c99d55" stroke-width="2" fill="none"/><path d="M-60,-6 Q-10,-26 30,-6 T60,-10" stroke="#d8b06a" stroke-width="1.5" fill="none"/>
-    <path d="M-60,30 Q-20,10 20,30 T60,24 V60 H-60Z" fill="#d9b26c"/>
+    <path d="M-60,-24 Q-20,-44 20,-26 T60,-30" stroke="#bdb67e" stroke-width="2" fill="none"/><path d="M-60,-6 Q-10,-26 30,-6 T60,-10" stroke="#c8c085" stroke-width="1.5" fill="none"/>
+    <path d="M-60,30 Q-20,10 20,30 T60,24 V60 H-60Z" fill="#ccc488"/>
     <use href="#cactus" transform="translate(-32 -24) scale(.9)"/><use href="#cactus" transform="translate(34 18) scale(1.1)"/>
-    <ellipse cx="26" cy="-34" rx="6" ry="3.5" fill="#a5814a"/><ellipse cx="-30" cy="36" rx="5" ry="3" fill="#a5814a"/>
+    <ellipse cx="26" cy="-34" rx="6" ry="3.5" fill="#938d62"/><ellipse cx="-30" cy="36" rx="5" ry="3" fill="#938d62"/>
     <circle cx="40" cy="-42" r="6" fill="#ffe08a" opacity=".5"/>`;
 
   t.fields += `<g transform="translate(-37 -20)"><ellipse cx="0" cy="17" rx="12" ry="3" fill="#7a5a1a" opacity=".4"/><path d="M-7,17 L-4,-6 L4,-6 L7,17Z" fill="#fff4d6" stroke="#8a6a3a" stroke-width="1"/><path d="M-6,-6 L0,-15 L6,-6Z" fill="#e0392b" stroke="#7a1d14" stroke-width=".8"/><rect x="-2" y="8" width="4" height="9" fill="#7a4d24"/>
@@ -139,13 +139,13 @@
   const iconSymbols = Object.keys(icons).map(k => `<symbol id="ic-${k}" viewBox="0 0 32 32">${icons[k]}</symbol>`).join('');
 
   const defs = `<defs>
-    ${grad('g-forest', '#46b657', '#2a8a3c')}${grad('g-hills', '#f59350', '#e0662a')}${grad('g-pasture', '#b0e456', '#86c93a')}
-    ${grad('g-fields', '#fbd04e', '#f0b126')}${grad('g-mountains', '#c9cfd6', '#a3abb4')}${grad('g-desert', '#f6e5ae', '#ecd08c')}
+    ${grad('g-forest', '#13943a', '#13943a')}${grad('g-hills', '#e3652b', '#e3652b')}${grad('g-pasture', '#93b40a', '#93b40a')}
+    ${grad('g-fields', '#f3bb23', '#f3bb23')}${grad('g-mountains', '#aaaca9', '#aaaca9')}${grad('g-desert', '#d2ca8c', '#d2ca8c')}
     ${rgrad('g-sea', '#1f6a80', '#0b2d3d')}${rgrad('g-token', '#fffaf0', '#e6d6b0')}${rgrad('g-brass', '#f3d27e', '#a87a22')}
-    <pattern id="p-waves" width="120" height="48" patternUnits="userSpaceOnUse"><path d="M0,24 q15,-12 30,0 t30,0 t30,0 t30,0" stroke="#e2fcff" stroke-opacity=".26" stroke-width="2.6" fill="none"/><path d="M0,44 q15,-9 30,0 t30,0 t30,0 t30,0" stroke="#fff" stroke-opacity=".14" stroke-width="2" fill="none"/><animateTransform attributeName="patternTransform" type="translate" from="0 0" to="120 0" dur="16s" repeatCount="indefinite"/></pattern>
+    <pattern id="p-waves" width="120" height="48" patternUnits="userSpaceOnUse"><path d="M0,24 q15,-12 30,0 t30,0 t30,0 t30,0" stroke="#e2fcff" stroke-opacity=".07" stroke-width="2.6" fill="none"/><path d="M0,44 q15,-9 30,0 t30,0 t30,0 t30,0" stroke="#fff" stroke-opacity=".04" stroke-width="2" fill="none"/><animateTransform attributeName="patternTransform" type="translate" from="0 0" to="120 0" dur="16s" repeatCount="indefinite"/></pattern>
     <filter id="f-shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="2.5" stdDeviation="2.5" flood-color="#000" flood-opacity=".45"/></filter>
     <filter id="f-glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-    <linearGradient id="g-shine" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".12"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#001a40" stop-opacity=".08"/></linearGradient>
+    <linearGradient id="g-shine" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".04"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#001a40" stop-opacity=".03"/></linearGradient>
     <filter id="f-blur" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="14"/></filter>
     <filter id="f-blur2" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="6"/></filter>
     <linearGradient id="g-wood" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d99d58"/><stop offset=".5" stop-color="#9a6030"/><stop offset="1" stop-color="#5f3716"/></linearGradient>

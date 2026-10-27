@@ -101,7 +101,7 @@ function bounds(b, pad = 70) {
   (b.ports || []).forEach(p => { add(p.x * U, p.y * U, 34); add(p.x * U + 27, p.y * U - 46, 6); });   // plate, plus the boat above it
   return { x: x0 - pad, y: y0 - pad, w: x1 - x0 + 2 * pad, h: y1 - y0 + 2 * pad };
 }
-const SIDE = { forest: '#14542a', hills: '#8f3d1d', pasture: '#3f8a26', fields: '#b8860f', mountains: '#4c5663', desert: '#b88a45' };
+const SIDE = { forest: '#0c5c24', hills: '#8d3f1b', pasture: '#5b7006', fields: '#977416', mountains: '#696b69', desert: '#827d57' };
 function shade(hex, f) {
   const n = parseInt(hex.slice(1), 16);
   const ch = [n >> 16, (n >> 8) & 255, n & 255].map(c => Math.max(0, Math.min(255, Math.round(f < 0 ? c * (1 + f) : c + (255 - c) * f))));
@@ -121,7 +121,7 @@ function tokenSvg(n, x, y) {
   return `<g transform="translate(${x} ${y})" pointer-events="none">${red ? '<circle r="29" fill="#ff5a3c" opacity=".35" filter="url(#f-blur2)"/>' : ''}<circle r="23" fill="url(#g-token)" stroke="${red ? '#b3261e' : '#8a6a3a'}" stroke-width="2" filter="url(#f-shadow)"/>`
     + `<circle r="19.5" fill="none" stroke="#c9b48a" stroke-width=".9"/><text y="${n >= 10 ? 4 : 5.5}" text-anchor="middle" font-family="Alegreya SC, Georgia, serif" font-weight="800" font-size="${n >= 10 ? 20 : 25}" fill="${col}">${n}</text>${dots}</g>`;
 }
-const RES_COLOR = { wood: '#2f9e44', brick: '#e8532a', sheep: '#8bdc3a', wheat: '#f5c518', ore: '#6f95c4' };
+const RES_COLOR = { wood: '#13943a', brick: '#e3652b', sheep: '#93b40a', wheat: '#f3bb23', ore: '#aaaca9' };
 function portSvg(p) {
   const px = p.x * U, py = p.y * U, any = p.type === 'any', col = any ? '#c4d0de' : RES_COLOR[p.type];
   const pier = p.vx.map(([x, y]) => `<line x1="${px}" y1="${py}" x2="${x * U}" y2="${y * U}" stroke="#fff" stroke-opacity=".92" stroke-width="3.6" stroke-linecap="round" stroke-dasharray="0.1 7"/>`
@@ -141,7 +141,7 @@ function frameSvg(b) {
   const f = bounds(b, FRAME_PAD), o = bounds(b, 6000), r = 30, { x, y, w, h } = f;
   const ring = inset => rrPath(x + inset, y + inset, w - 2 * inset, h - 2 * inset, Math.max(4, r - inset));
   const name = String(b.name || '').toUpperCase(), pw = Math.max(150, name.length * 10 + 40);
-  return `<path fill-rule="evenodd" fill="#0c4a86" d="M${o.x},${o.y}h${o.w}v${o.h}h${-o.w}z ${rrPath(x - 3, y - 3, w + 6, h + 6, r + 3)}"/>`
+  return `<path fill-rule="evenodd" fill="#0a68a6" d="M${o.x},${o.y}h${o.w}v${o.h}h${-o.w}z ${rrPath(x - 3, y - 3, w + 6, h + 6, r + 3)}"/>`
     + `<path d="${ring(0)}" fill="none" stroke="#9fd8ff" stroke-opacity=".5" stroke-width="16" filter="url(#f-blur2)"/>`
     + `<path d="${ring(0)}" fill="none" stroke="#e8f6ff" stroke-width="4" stroke-linejoin="round"/>`
     + `<path d="${ring(8)}" fill="none" stroke="#7cc4f5" stroke-opacity=".55" stroke-width="2"/>`
@@ -165,7 +165,7 @@ function staticLayer(b) {
 function boardPreviewSvg(b) {
   const v = bounds(b, VIEW_PAD);
   return `<svg viewBox="${v.x} ${v.y} ${v.w} ${v.h}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Map preview: ${esc(b.name)}">`
-    + `<rect x="${v.x - 2000}" y="${v.y - 2000}" width="${v.w + 4000}" height="${v.h + 4000}" fill="#1d7bc6"/><rect x="${v.x - 2000}" y="${v.y - 2000}" width="${v.w + 4000}" height="${v.h + 4000}" fill="url(#p-waves)"/>${staticLayer(b)}</svg>`;
+    + `<rect x="${v.x - 2000}" y="${v.y - 2000}" width="${v.w + 4000}" height="${v.h + 4000}" fill="#0a68a6"/><rect x="${v.x - 2000}" y="${v.y - 2000}" width="${v.w + 4000}" height="${v.h + 4000}" fill="url(#p-waves)"/>${staticLayer(b)}</svg>`;
 }
 function terrainCounts(tiles) {
   const c = {}; tiles.forEach(t => { c[t.terrain] = (c[t.terrain] || 0) + 1; });
@@ -510,10 +510,8 @@ function renderLobby(app) {
   app.innerHTML = `<div class="page">
     <div class="page-head"><button class="btn" id="leave">Leave room</button><h2>Waiting room</h2><button class="info-btn inline" id="info" aria-label="How to play" title="How to play">i</button></div>
     <div class="lobby">
-      <div class="stack"><div class="preview" id="lobby-preview" data-code="${st.code}"></div>
-        <p class="muted">${esc(st.mapName)}. Turn order is drawn at random when the game starts.</p>
-        <div class="panel stack optpanel"><h3 class="panel-title">Game options${host ? '' : '<small>chosen by the host</small>'}</h3>${optionsHtml(st, host)}</div></div>
-      <div class="panel stack">
+      <div class="panel stack optpanel lb-opts"><h3 class="panel-title">Game options${host ? '' : '<small>chosen by the host</small>'}</h3>${optionsHtml(st, host)}</div>
+      <div class="panel stack lb-room">
         <div><div class="muted">Room code</div><div class="room-code">${st.code}</div></div>
         <div class="row"><button class="btn" id="copy">Copy invite link</button>${navigator.share ? '<button class="btn" id="share">Share</button>' : ''}</div>
         <ul class="plist">${st.players.map((p, i) => `<li><span class="chip" style="background:${p.color}"></span>${p.bot ? icon('bot', 'boticon') : ''}<b class="grow">${esc(p.name)}${i === me ? ' (you)' : ''}</b>${p.host ? '<span class="badge">Host</span>' : ''}
@@ -526,6 +524,8 @@ function renderLobby(app) {
         <div class="row">${soundButtons()}<span class="muted" style="font-size:.88em">Sound effects and music</span></div>
         ${host ? `<button class="btn primary" id="start" ${st.players.length < 2 ? 'disabled' : ''}>Start game</button>` : ''}
       </div>
+      <div class="stack lb-map"><div class="preview" id="lobby-preview" data-code="${st.code}"></div>
+        <p class="muted">${esc(st.mapName)}. Turn order is drawn at random when the game starts.</p></div>
     </div></div>`;
   if (keepPreview) $('#lobby-preview').innerHTML = keepPreview;
   else if (S.board) $('#lobby-preview').innerHTML = boardPreviewSvg(S.board);
@@ -563,7 +563,7 @@ function buildShell(app) {
     <aside class="players" id="players"></aside>
     <section class="center"><div class="infobar" id="infobar"><div class="banner" id="banner"></div><div class="clock" id="clock" hidden></div><div class="dice" id="dice"></div><div class="setupstrip" id="setupstrip" hidden></div></div><main class="board-wrap" id="wrap">
       <svg id="board" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
-        <rect x="-5000" y="-5000" width="10000" height="10000" fill="#1d7bc6"/><rect x="-5000" y="-5000" width="10000" height="10000" fill="url(#p-waves)"/>
+        <rect x="-5000" y="-5000" width="10000" height="10000" fill="#0a68a6"/><rect x="-5000" y="-5000" width="10000" height="10000" fill="url(#p-waves)"/>
         <g id="static"></g><g id="dyn"></g>
       </svg>
       <div class="awards" id="awards"></div><div class="offer" id="offer"></div>

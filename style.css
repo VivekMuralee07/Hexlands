@@ -552,3 +552,16 @@ body { background: radial-gradient(130% 100% at 50% 0%, #29d3e6 0%, #129cc9 28%,
   .hand { gap: .3rem; }
   .act { min-height: 42px; font-size: .62rem; padding: .15em .05em; } .act .ic { width: 19px; height: 19px; }
 }
+
+/* ===== colours taken from the reference screenshot ===== */
+:root { --wood: #35c219; --brick: #ca7a64; --sheep: #7ccc02; --wheat: #e29b35; --ore: #83b2a2; --sea: #0a68a6; }
+.card.wood { --c: #35c219; } .card.brick { --c: #ca7a64; } .card.sheep { --c: #7ccc02; } .card.wheat { --c: #e29b35; } .card.ore { --c: #83b2a2; } .card.devc { --c: #8b63bb; }
+.bk.wood { --c: #35c219; } .bk.brick { --c: #ca7a64; } .bk.sheep { --c: #7ccc02; } .bk.wheat { --c: #e29b35; } .bk.ore { --c: #83b2a2; } .bk.dev { --c: #8b63bb; }
+.card .ic { background: radial-gradient(circle, rgba(255, 255, 255, .6) 0 58%, transparent 62%); border-radius: 50%; padding: 3px; box-sizing: content-box; }
+.bk .ic { background: rgba(255, 255, 255, .6); border-radius: 50%; padding: 1px; box-sizing: content-box; }
+.board-wrap, .preview, .editor-canvas { background: #0a68a6; }
+
+/* waiting room order: options on top, then the room panel, map at the bottom */
+.lobby { grid-template-areas: "opts room" "map room"; }
+.lb-opts { grid-area: opts; } .lb-room { grid-area: room; } .lb-map { grid-area: map; }
+@media (max-width: 760px) { .lobby { grid-template-areas: "opts" "room" "map"; } }
