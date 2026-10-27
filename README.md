@@ -12,6 +12,10 @@ A multiplayer island-settling game for 2–4 players in the browser. Gather wood
 - Discarding on a 7: your cards are shown one by one; tap the ones to give back (a meter fills as you pick, Auto-pick helps), then they fly to the bank. Other players' discards fly to the bank too.
 - Placement spots are glassy circles: big ones when you are placing one kind of piece (setup, or a single build), smaller ones with the piece drawn inside when roads, settlements and cities are all possible. A light-blue card above the map shows the piece you are placing.
 - Harbors are little ships with a billowing sail showing the symbol and ratio (? for 3:1), tied to the coast by wooden jetties
+- Trade window: pick what you want in the top row, tap cards in your hand to offer them, then press the bank tick (exact bank or harbor rate) or the players tick. Your bank rates show under each card in your hand.
+- Every public card movement flies slowly across the screen as the real resource: bank trades (to and from the bank), player trades (both ways), Year of Plenty and starting cards, as well as dice income, discards, steals and Monopoly.
+- Development cards: the ones you hold show in your hand by type with a count. Tap the purple pile in the bank bar to see how many of each kind are still unseen, how many have been played, and what you hold.
+- House colors: in the waiting room tap your house to pick from 10 colors (no duplicates). The host can recolor bots. Colors are kept when the game starts.
 - Stolen cards (robber or Knight) and Monopoly cards fly across the screen from the player who lost them to the player who gets them. Only the thief and the victim see which card it was; everyone else sees a face-down card.
 - Tap to build: once you have rolled and can afford a road, settlement or city, every legal spot glows on the map. Tap a spot to build there, with no button first. The Road, Settle and City buttons still work as filters.
 - A bar above the map shows the instruction, move timer, dice and setup order, so nothing covers the board
@@ -29,7 +33,7 @@ Requires Node.js 18 or newer.
 
 ```bash
 npm start            # http://localhost:3000
-npm test             # 53 tests, including full simulated games
+npm test             # 59 tests, including full simulated games
 ```
 
 Open two browser windows (or a phone on the same network at `http://<your-ip>:3000`) to play against yourself.

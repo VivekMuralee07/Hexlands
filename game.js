@@ -8,8 +8,11 @@ const COST = {
   city: { wheat: 2, ore: 3 },
   dev: { sheep: 1, wheat: 1, ore: 1 },
 };
-const COLORS = ['#d8432f', '#2f6fd8', '#e8a21c', '#3f9b4f'];
-const COLOR_NAMES = ['Red', 'Blue', 'Gold', 'Green'];
+const PALETTE = [
+  { id: 'red', name: 'Red', hex: '#d8432f' }, { id: 'blue', name: 'Blue', hex: '#2f6fd8' }, { id: 'orange', name: 'Orange', hex: '#ee8a1f' }, { id: 'green', name: 'Green', hex: '#3f9b4f' },
+  { id: 'gray', name: 'Gray', hex: '#626a77' }, { id: 'purple', name: 'Purple', hex: '#7a4fd6' }, { id: 'pink', name: 'Pink', hex: '#e86ab0' }, { id: 'teal', name: 'Teal', hex: '#18b5ae' },
+  { id: 'brown', name: 'Brown', hex: '#8b5a2b' }, { id: 'white', name: 'White', hex: '#f1f1ee' },
+];
 const LABEL = { wood: 'wood', brick: 'brick', sheep: 'sheep', wheat: 'hay', ore: 'ore' };
 const DEV_NAMES = { knight: 'Knight', vp: 'Victory Point', roadBuilding: 'Road Building', yearOfPlenty: 'Year of Plenty', monopoly: 'Monopoly' };
 const MAX_PLAYERS = 4;
@@ -98,6 +101,7 @@ class Game {
     this.robber = desert >= 0 ? desert : 0;
     this.vpTarget = Math.max(5, Math.min(20, vpTarget | 0 || 10));
     this.opts = { discardLimit: 7, discardMode: 'half', timer: 0, friendlyRobber: false, balancedDice: false };
+    this.events = []; this.eventSeq = 0; this.devPlayedCount = {};
     this.lastMonopoly = null; this.diceDeck = []; this.lastSum = null; this.clockAt = Date.now();
     const land = geo.tiles.length;
     this.bank = {}; RES.forEach(k => { this.bank[k] = Math.max(19, land); });
@@ -109,6 +113,7 @@ class Game {
       ['roadBuilding', 'yearOfPlenty', 'monopoly'].forEach(t => dev.push(t, t));
     }
     this.devDeck = shuffle(dev, rng);
+    this.devTotal = {}; dev.forEach(c => { this.devTotal[c] = (this.devTotal[c] || 0) + 1; });
     this.players = [];
     this.phase = 'lobby';
     this.buildings = {}; this.roads = {};
@@ -127,7 +132,7 @@ class Game {
     name = String(name || '').trim().slice(0, 16) || 'Player ' + (this.players.length + 1);
     if (this.players.some(p => p.name.toLowerCase() === name.toLowerCase())) fail('That name is taken in this room.');
     const p = { name, token, connected: false, res: emptyRes(), dev: [], knights: 0,
-      pieces: { road: 15, settlement: 5, city: 4 }, color: null, colorName: null, bot: null, stats: newStats() };
+      pieces: { road: 15, settlement: 5, city: 4 }, colorId: null, color: null, colorName: null, bot: null, stats: newStats() };
     if (!this.players.length) this.hostToken = token;
     this.players.push(p);
     this.assignColors();
@@ -142,6 +147,18 @@ class Game {
     this.assignColors();
     if (p) this.addLog(`${p.name} left.`);
     this.version++;
+  }
+  do_setColor(pi, a) {
+    if (this.phase !== 'lobby') fail('Colors can only change before the game starts.');
+    const seat = a.seat === undefined ? pi : a.seat | 0, target = this.players[seat];
+    if (!target) fail('That seat is empty.');
+    if (seat !== pi && !(this.isHost(pi) && target.bot)) fail('You can only change your own color.');
+    const c = PALETTE.find(x => x.id === a.color);
+    if (!c) fail('Unknown color.');
+    const holder = this.players.find((p, i) => i !== seat && p.colorId === c.id);
+    if (holder) fail(`${c.name} is taken by ${holder.name}.`);
+    target.colorId = c.id; this.assignColors();
+    this.addLog(`${target.name} chose ${c.name}.`);
   }
   do_addBot(pi, a) {
     if (this.phase !== 'lobby') fail('Bots can only join before the game starts.');
@@ -172,6 +189,8 @@ class Game {
     p.bot = a.level;
   }
   isBot(i) { return !!(this.players[i] && this.players[i].bot); }
+  // Public happenings every client can animate (cards that move are never secret here).
+  emit(type, data) { this.events.push({ seq: ++this.eventSeq, type, ...data }); if (this.events.length > 24) this.events.shift(); }
 
   // Position check used by the tests: returns every rule violation currently on the board.
   checkInvariants() {
@@ -318,7 +337,15 @@ class Game {
     this.clockAt = Date.now(); this.version++;
     return true;
   }
-  assignColors() { this.players.forEach((p, i) => { p.color = COLORS[i]; p.colorName = COLOR_NAMES[i]; }); }
+  // Every player keeps the colour they chose; anyone without one gets the first free colour.
+  assignColors() {
+    const taken = new Set();
+    this.players.forEach(p => { if (p.colorId && !taken.has(p.colorId)) taken.add(p.colorId); else p.colorId = null; });
+    this.players.forEach(p => {
+      if (!p.colorId) { const c = PALETTE.find(x => !taken.has(x.id)); p.colorId = c.id; taken.add(c.id); }
+      const c = PALETTE.find(x => x.id === p.colorId); p.color = c.hex; p.colorName = c.name;
+    });
+  }
   isHost(pi) { return !!this.players[pi] && this.players[pi].token === this.hostToken; }
   indexOf(token) { return this.players.findIndex(p => p.token === token); }
   addLog(text) { this.log.push({ text, at: Date.now() }); if (this.log.length > 80) this.log.shift(); }
@@ -480,6 +507,7 @@ class Game {
           const res = PRODUCES[this.board.tiles[h].terrain];
           if (res && this.giveFromBank(pi, res, 1)) got.push(res);
         }
+        if (got.length) this.emit('start', { p: pi, res: got });
         this.addLog(`${this.players[pi].name} placed a settlement` + (got.length ? ` and collected ${got.map(r => LABEL[r]).join(', ')}.` : '.'));
       } else this.addLog(`${this.players[pi].name} placed a settlement.`);
       this.updateLongestRoad();
@@ -661,6 +689,7 @@ class Game {
     if (type === 'monopoly' && !RES.includes(a.res)) fail('Pick a resource.');
     if (!['knight', 'roadBuilding', 'yearOfPlenty', 'monopoly'].includes(type)) fail('Unknown card.');
     p.dev.splice(idx, 1); this.devPlayed = true; p.stats.devPlayed++;
+    this.devPlayedCount[type] = (this.devPlayedCount[type] || 0) + 1;
     if (type === 'knight') {
       p.knights++; this.updateLargestArmy(pi); this.subphase = 'robber';
       this.addLog(`${p.name} played a Knight.`);
@@ -669,6 +698,7 @@ class Game {
       this.addLog(`${p.name} played Road Building.`);
     } else if (type === 'yearOfPlenty') {
       a.res.forEach(r => this.giveFromBank(pi, r, 1));
+      this.emit('yop', { p: pi, res: a.res.slice() });
       this.addLog(`${p.name} played Year of Plenty for ${a.res.map(r => LABEL[r]).join(' and ')}.`);
     } else if (type === 'monopoly') {
       let got = 0; const takes = {};
@@ -687,6 +717,7 @@ class Game {
     this.pay(pi, { [a.give]: ratio });
     this.giveFromBank(pi, a.get, 1);
     this.players[pi].stats.bankTrades++;
+    this.emit('bank', { p: pi, give: { [a.give]: ratio }, get: { [a.get]: 1 } });
     this.addLog(`${this.players[pi].name} traded ${ratio} ${LABEL[a.give]} for 1 ${LABEL[a.get]} with the bank.`);
   }
 
@@ -725,6 +756,8 @@ class Game {
     const A = this.players[pi].res, B = this.players[w].res;
     RES.forEach(k => { A[k] += get[k] - give[k]; B[k] += give[k] - get[k]; });
     this.players[pi].stats.playerTrades++; this.players[w].stats.playerTrades++;
+    const nz = o => Object.fromEntries(Object.entries(o).filter(([, n]) => n));
+    this.emit('trade', { a: pi, b: w, give: nz(give), get: nz(get) });
     this.addLog(`${this.players[pi].name} traded with ${this.players[w].name}.`);
     this.trade = null;
   }
@@ -804,10 +837,10 @@ class Game {
     const me = this.players[pi];
     return {
       code: this.code, phase: this.phase, you: pi, version: this.version, vpTarget: this.vpTarget, mapName: this.board.name,
-      opts: this.opts, timer: this.timerView(), cutRoads: this.cutOffRoads(),
+      opts: this.opts, timer: this.timerView(), palette: PALETTE, events: this.events, devPile: { total: this.devTotal, played: this.devPlayedCount }, cutRoads: this.cutOffRoads(),
       robberOptions: this.subphase === 'robber' && pi === this.turn ? this.legalRobberTiles(pi) : null,
       players: this.players.map((p, i) => ({
-        name: p.name, host: p.token === this.hostToken, bot: p.bot, stats: p.stats, color: p.color, colorName: p.colorName, connected: p.connected,
+        name: p.name, host: p.token === this.hostToken, bot: p.bot, stats: p.stats, colorId: p.colorId, color: p.color, colorName: p.colorName, connected: p.connected,
         cards: total(p.res), devCount: p.dev.length, knights: p.knights, pieces: p.pieces,
         vp: this.vp(i, ended || i === pi), roadLen: this.roadLens ? this.roadLens[i] : 0,
         res: ended ? p.res : undefined, devReveal: ended ? p.dev.map(d => d.type) : undefined,

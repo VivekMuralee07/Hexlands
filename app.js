@@ -417,7 +417,7 @@ function startSession(sess) {
   S.session = sess; store.set('session', sess);
   history.replaceState(null, '', '/room/' + sess.code);
   if (S.es) S.es.close();
-  S.board = null; S.state = null; S.shellReady = false; S.mode = null; S.boardFor = null;
+  S.board = null; S.state = null; S.shellReady = false; S.mode = null; S.boardFor = null; S.evSeq = null; S.logAt = null; S.tw = null;
   const es = new EventSource(`/api/events?code=${encodeURIComponent(sess.code)}&token=${encodeURIComponent(sess.token)}`);
   S.es = es;
   let opened = false;
@@ -448,7 +448,11 @@ function leaveToHome(msg) {
 function onState(st) {
   const prev = S.state; S.state = st;
   if (prev && prev.phase !== 'lobby' && st.phase !== 'lobby') checkAwards(prev, st);
-  if (st.phase === 'lobby') { if (S.screen !== 'lobby') S.screen = 'lobby'; renderLobby($('#app')); return; }
+  if (st.phase === 'lobby') {
+    if (prev) st.players.forEach((p, i) => { const q = prev.players[i]; if (q && q.name === p.name && q.colorId !== p.colorId && i !== st.you) toast(`${p.name} selected color ${p.colorName}`); });
+    if (S.screen !== 'lobby') S.screen = 'lobby';
+    renderLobby($('#app')); return;
+  }
   if (S.screen !== 'game') { S.screen = 'game'; S.shellReady = false; }
   // Reactions to changes
   if (prev && st.lastRoll && (!prev.lastRoll || prev.lastRoll.seq !== st.lastRoll.seq)) onRoll(st);
@@ -514,7 +518,7 @@ function renderLobby(app) {
       <div class="panel stack lb-room">
         <div><div class="muted">Room code</div><div class="room-code">${st.code}</div></div>
         <div class="row"><button class="btn" id="copy">Copy invite link</button>${navigator.share ? '<button class="btn" id="share">Share</button>' : ''}</div>
-        <ul class="plist">${st.players.map((p, i) => `<li><span class="chip" style="background:${p.color}"></span>${p.bot ? icon('bot', 'boticon') : ''}<b class="grow">${esc(p.name)}${i === me ? ' (you)' : ''}</b>${p.host ? '<span class="badge">Host</span>' : ''}
+        <ul class="plist">${st.players.map((p, i) => `<li>${swatch(p, i, me, host)}${p.bot ? icon('bot', 'boticon') : ''}<b class="grow">${esc(p.name)}${i === me ? ' (you)' : ''}</b>${p.host ? '<span class="badge">Host</span>' : ''}
           ${p.bot ? (host ? `<select class="lvlsel" data-seat="${i}" aria-label="Difficulty for ${esc(p.name)}">${['easy', 'medium', 'hard'].map(l => `<option value="${l}" ${p.bot === l ? 'selected' : ''}>${LEVEL_LABEL[l]}</option>`).join('')}</select><button class="btn small icon-only" data-rmbot="${i}" aria-label="Remove ${esc(p.name)}">✕</button>` : botTag(p)) : `<span class="dot ${p.connected ? '' : 'off'}" title="${p.connected ? 'Connected' : 'Offline'}"></span>`}</li>`).join('')}</ul>
         ${host && st.players.length < 4 ? `<div class="botadd"><b>Add a bot</b>
           <div class="seg" role="group" aria-label="Bot difficulty">${['easy', 'medium', 'hard'].map(l => `<button data-lvl="${l}" aria-pressed="${S.botLevel === l}">${LEVEL_LABEL[l]}</button>`).join('')}</div>
@@ -537,6 +541,7 @@ function renderLobby(app) {
   $$('[data-lvl]').forEach(b => b.onclick = () => { S.botLevel = b.dataset.lvl; store.set('botLevel', S.botLevel); renderLobby(app); });
   if ($('#addbot')) $('#addbot').onclick = () => act({ type: 'addBot', level: S.botLevel });
   $$('[data-rmbot]').forEach(b => b.onclick = () => act({ type: 'removeBot', seat: +b.dataset.rmbot }));
+  $$('[data-color-seat]').forEach(b => b.onclick = () => openColorPicker(+b.dataset.colorSeat));
   $$('.lvlsel').forEach(sel => sel.onchange = () => act({ type: 'setBotLevel', seat: +sel.dataset.seat, level: sel.value }));
   $$('[data-step]').forEach(b => b.onclick = () => { const [k, v, d, mn, mx] = b.dataset.step.split(':'); const nv = Math.max(+mn, Math.min(+mx, +v + +d)); if (nv !== +v) act({ type: 'setOptions', opts: { [k]: nv } }); });
   $$('[data-set]').forEach(b => b.onclick = () => { const [k, v] = b.dataset.set.split(':'); act({ type: 'setOptions', opts: { [k]: k === 'discardMode' ? v : +v } }); });
@@ -566,7 +571,7 @@ function buildShell(app) {
         <rect x="-5000" y="-5000" width="10000" height="10000" fill="#0a68a6"/>
         <g id="static"></g><g id="dyn"></g>
       </svg>
-      <div class="dice" id="dice"></div><div class="awards" id="awards"></div><div class="offer" id="offer"></div>
+      <div class="dice" id="dice"></div><div class="awards" id="awards"></div><div class="offer" id="offer"></div><div class="tradewin" id="tradewin" hidden></div>
       <div class="zoom"><button class="btn" id="zin" aria-label="Zoom in">+</button><button class="btn" id="zout" aria-label="Zoom out">−</button><button class="btn" id="zfit" aria-label="Fit board">⤢</button></div>
     </main></section>
     <aside class="side" id="side"><div class="panel"><h3>Ship's log</h3><div class="log" id="log"></div>
@@ -591,7 +596,7 @@ function buildShell(app) {
 function updateGame() {
   const st = S.state;
   $('#meta').innerHTML = `Room <b>${st.code}</b><span class="extra">, ${esc(st.mapName)}, first to ${st.vpTarget} points, ${st.devLeft} development cards left</span>`;
-  drawDyn(); drawPlayers(); drawBanner(); drawHand(); drawActions(); drawLog(); drawOffer(); drawClock(); drawSetupStrip(); drawPlacing();
+  drawDyn(); drawPlayers(); drawBanner(); drawHand(); drawActions(); drawLog(); drawOffer(); drawClock(); drawSetupStrip(); drawPlacing(); drawTrade();
   syncModals();
 }
 
@@ -614,7 +619,7 @@ const validRoads = anchor => S.board.edges.filter(e => canRoad(me(), e.id, ancho
 const myCitySpots = () => Object.keys(S.state.buildings).filter(v => S.state.buildings[v].p === me() && S.state.buildings[v].type === 'settlement').map(Number);
 
 function currentMode() {
-  const st = S.state; if (!st || !myTurn()) return null;
+  const st = S.state; if (!st || !myTurn() || S.tw) return null;
   if (st.phase === 'setup') return st.setup.expect === 'settlement' ? 'setupSettle' : 'setupRoad';
   if (st.phase !== 'main') return null;
   if (st.subphase === 'robber') return 'robber';
@@ -795,28 +800,36 @@ function drawDice(d, roll) {
   box.setAttribute('aria-label', `Dice show ${d[0]} and ${d[1]}`);
 }
 
+const ARC = '<svg class="ic" viewBox="0 0 32 32" aria-hidden="true"><path d="M4,24 Q16,0 28,24" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round"/></svg>';
 function drawPlayers() {
   const st = S.state, leader = Math.max(...st.players.map(p => p.vp));
-  const bank = `<div class="bank" title="Cards left in the bank, and development cards left in the deck">${RES.map(k => `<span class="bk ${k}" title="${RES_LABEL[k]} left in the bank">${icon(k)}<b>${st.bank[k]}</b></span>`).join('')}<span class="bk dev" title="Development cards left">${icon('dev')}<b>${st.devLeft}</b></span></div>`;
+  const bank = `<div class="bank" title="Cards left in the bank, and development cards left in the pile">${RES.map(k => `<span class="bk ${k}" title="${RES_LABEL[k]} left in the bank">${icon(k)}<b>${st.bank[k]}</b></span>`).join('')}<button class="bk dev" data-pile title="Development cards left in the pile. Tap to see what is still unseen.">${icon('dev')}<b>${st.devLeft}</b></button></div>`;
   $('#players').innerHTML = bank + st.players.map((p, i) => {
     const turn = st.turn === i && st.phase !== 'ended';
     const crown = p.vp === leader && leader >= 3 ? `<span class="crown">${icon('monopoly')}</span>` : '';
     const skippable = st.players[me()].host && i !== me() && !p.connected && (st.turn === i || (st.subphase === 'discard' && st.pendingDiscards[i]));
-    const piece = (k, n, label) => `<span class="pl" title="${label} left to build" style="color:${p.color}">${icon(k)}<b>${n}</b></span>`;
+    const piece = (k, n, label) => `<span class="pp" title="${label} left to build" style="color:${p.color}">${icon(k)}<b>${n}</b></span>`;
     const badges = [];
     if (st.longestRoad && st.longestRoad.p === i) badges.push(`<span class="badge">${icon('road')} Longest Road</span>`);
     if (st.largestArmy && st.largestArmy.p === i) badges.push(`<span class="badge">${icon('knight')} Largest Army</span>`);
     return `<div class="pcard ${turn ? 'turn' : ''}" style="--pc:${p.color}">
       <span class="vpb" title="Victory points (first to ${st.vpTarget})">${crown}${p.vp}</span>
-      <div class="tag">${p.bot ? icon('bot', 'boticon') : `<span class="dot ${p.connected ? '' : 'off'}"></span>`}<span class="nm">${esc(p.name)}${i === me() ? ' (you)' : ''}</span>${p.bot ? `<span class="lv lvl-${p.bot}" title="${LEVEL_LABEL[p.bot]} bot">${LEVEL_LABEL[p.bot][0]}</span>` : ''}${turn ? `<span class="turnpill">${i === me() ? 'Your turn' : 'Turn'}</span>` : ''}</div>
-      <div class="stats4"><span title="Development cards">${icon('dev')}<b>${p.devCount}</b></span><span title="Knights played">${icon('knight')}<b>${p.knights}</b></span><span title="Resource cards in hand">${icon('cards')}<b>${p.cards}</b></span><span title="Longest road">${icon('road')}<b>${p.roadLen}</b></span></div>
-      <div class="pieces">${piece('road', p.pieces.road, 'Roads')}${piece('settlement', p.pieces.settlement, 'Settlements')}${piece('city', p.pieces.city, 'Cities')}</div>
+      <div class="tag">${p.bot ? icon('bot', 'boticon') : `<span class="dot ${p.connected ? '' : 'off'}"></span>`}<span class="nm">${esc(p.name)}${i === me() ? ' (you)' : ''}</span>${p.bot ? `<span class="lv lvl-${p.bot}" title="${LEVEL_LABEL[p.bot]} bot">${LEVEL_LABEL[p.bot][0]}</span>` : ''}</div>
+      <div class="ptiles">
+        <span class="pt devt" title="Development cards in hand"><i>?</i><b class="cnt">${p.devCount}</b></span>
+        <span class="pt knt" title="Knights played">${icon('knight')}<b class="cnt">${p.knights}</b></span>
+        <span class="pt plain" title="Resource cards in hand">${icon('cards')}<b>${p.cards}</b></span>
+        <span class="pt plain" title="Longest road">${ARC}<b>${p.roadLen}</b></span>
+      </div>
+      <div class="ppieces">${piece('road', p.pieces.road, 'Roads')}${piece('settlement', p.pieces.settlement, 'Settlements')}${piece('city', p.pieces.city, 'Cities')}</div>
       ${badges.length ? `<div class="row badges" style="margin-top:.35rem;gap:.3rem">${badges.join('')}</div>` : ''}
       ${st.pendingDiscards[i] ? `<div class="muted" style="font-size:.85em;margin-top:.2rem">Discarding ${st.pendingDiscards[i]}</div>` : ''}
       ${skippable ? `<button class="btn small" style="margin-top:.4rem" data-skip>Skip offline player</button>` : ''}
+      ${turn ? `<div class="yourturn">${i === me() ? 'Your turn' : esc(p.name) + "'s turn"}<span class="tm"></span></div>` : ''}
     </div>`;
   }).join('');
   $$('[data-skip]').forEach(b => b.onclick = () => act({ type: 'skip' }));
+  $$('[data-pile]').forEach(b => b.onclick = openDevPile);
 }
 
 function drawBanner() {
@@ -839,12 +852,26 @@ function drawBanner() {
   b.textContent = t; b.classList.toggle('you', mine || !!st.pendingDiscards[me()]);
 }
 
+const DEV_ORDER = ['knight', 'vp', 'roadBuilding', 'yearOfPlenty', 'monopoly'];
 function drawHand() {
-  const st = S.state, r = st.me.res;
-  const devs = st.me.dev.length;
+  const st = S.state, r = st.me.res, held = {};
+  st.me.dev.forEach(d => { const h = held[d.type] || (held[d.type] = { n: 0, fresh: 0 }); h.n++; if (d.fresh) h.fresh++; });
   $('#hand').innerHTML = RES.map(k => `<div class="card ${k} ${r[k] ? '' : 'zero'}" data-res="${k}" role="button" tabindex="0" title="${RES_LABEL[k]}: ${r[k]}">${icon(k)}<span class="lbl">${RES_LABEL[k]}</span>${r[k] ? `<span class="n">${r[k]}</span>` : ''}</div>`).join('')
-    + `<button class="card devc ${devs ? '' : 'zero'}" id="devhand" title="Development cards" style="border-style:solid">${icon('dev')}<span class="lbl">Dev</span>${devs ? `<span class="n">${devs}</span>` : ''}</button>`;
-  $('#devhand').onclick = () => { if (S.mode) { S.mode = null; updateGame(); } openDev(); };
+    + '<span class="hsep"></span>'
+    + (DEV_ORDER.filter(t => held[t]).map(t => `<button class="card devc ${t}" data-dev="${t}" title="${DEV[t].name} x${held[t].n}${held[t].fresh ? ` (${held[t].fresh} bought this turn)` : ''}">${icon(t)}<span class="lbl">${DEV[t].name.split(' ')[0]}</span><span class="n">${held[t].n}</span></button>`).join('')
+      || `<button class="card devc zero" data-dev="none" title="No development cards yet">${icon('dev')}<span class="lbl">Dev</span></button>`);
+  $$('#hand [data-dev]').forEach(b => b.onclick = () => { S.tw = null; if (S.mode) S.mode = null; updateGame(); openDev(); });
+}
+function openDevPile() {
+  const st = S.state, tot = st.devPile.total, played = st.devPile.played, mine = {};
+  st.me.dev.forEach(d => { mine[d.type] = (mine[d.type] || 0) + 1; });
+  const total = Object.values(tot).reduce((a, b) => a + b, 0);
+  const rows = DEV_ORDER.map(t => {
+    const unseen = Math.max(0, (tot[t] || 0) - (played[t] || 0) - (mine[t] || 0));
+    return `<div class="devrow">${icon(t)}<div class="txt"><b>${DEV[t].name}</b><small>${DEV[t].text}</small></div>`
+      + `<div class="pilecnt"><b>${unseen}</b><small>unseen</small></div><div class="pilecnt"><b>${played[t] || 0}</b><small>played</small></div><div class="pilecnt"><b>${mine[t] || 0}</b><small>yours</small></div></div>`;
+  }).join('');
+  openModal('pile', `<h3>Development card pile</h3><p><b>${st.devLeft}</b> of ${total} cards are still in the pile. <b>Unseen</b> cards have not been played and are not in your hand, so they are in the pile or in another player's hand.</p><div class="devlist">${rows}</div><div class="foot"><button class="btn primary" id="pclose">Close</button></div>`, () => { $('#pclose').onclick = closeModal; });
 }
 
 function costIcons(c) { return `<span class="cost">${Object.entries(c).flatMap(([k, n]) => Array(n).fill(icon(k))).join('')}</span>`; }
@@ -873,7 +900,7 @@ function drawActions() {
   const toggle = k => () => { S.mode = S.mode === k ? null : k; updateGame(); };
   $('#b-road').onclick = toggle('road'); $('#b-settle').onclick = toggle('settle'); $('#b-city').onclick = toggle('city');
   $('#b-dev').onclick = async () => { const r = await act({ type: 'buyDev' }); if (r.ok && r.result) toast(`${icon(r.result.card)} You drew ${DEV[r.result.card].name}`, 'gain', true); };
-  $('#b-trade').onclick = () => { S.mode = null; updateGame(); openTrade('bank'); };
+  $('#b-trade').onclick = () => { S.mode = null; S.tw = S.tw ? null : { give: {}, get: {} }; updateGame(); };
   $('#b-end').onclick = () => { S.mode = null; act({ type: 'endTurn' }); };
 }
 function diceIcon() { return `<svg class="ic" viewBox="0 0 32 32"><rect x="4" y="4" width="24" height="24" rx="5" fill="#fffdf6" stroke="#182730" stroke-width="2"/><circle cx="11" cy="11" r="2.4" fill="#182730"/><circle cx="16" cy="16" r="2.4" fill="#182730"/><circle cx="21" cy="21" r="2.4" fill="#182730"/></svg>`; }
@@ -998,38 +1025,68 @@ function openSteal(tile, victims) {
   });
 }
 
-function openTrade(tab) {
-  const st = S.state, ratios = st.me.ratios, r = st.me.res;
-  let give = RES.find(k => r[k] >= ratios[k]) || null, get = null;
-  if (!give && tab === 'bank') tab = 'players';
-  const give2 = { wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 0 }, get2 = { wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 0 };
-  const body = () => tab === 'bank'
-    ? `<p>Trade with the bank. Harbors you own lower the price.</p>
-      <div class="section-label">You give</div><div class="res-grid">${RES.map(k => `<button class="res-pick" data-give="${k}" aria-pressed="${give === k}" ${r[k] >= ratios[k] ? '' : 'disabled'}>${icon(k)}${RES_LABEL[k]}<span class="ratio">${ratios[k]}:1</span><small class="muted">have ${r[k]}</small></button>`).join('')}</div>
-      <div class="section-label">You get</div><div class="res-grid">${RES.map(k => `<button class="res-pick" data-get="${k}" aria-pressed="${get === k}" ${k !== give && st.bank[k] > 0 ? '' : 'disabled'}>${icon(k)}${RES_LABEL[k]}<small class="muted">bank ${st.bank[k]}</small></button>`).join('')}</div>
-      <div class="foot"><button class="btn" id="tclose">Close</button><button class="btn primary" id="bgo" ${give && get ? '' : 'disabled'}>${give && get ? `Trade ${ratios[give]} ${RES_LABEL[give]} for 1 ${RES_LABEL[get]}` : 'Pick both sides'}</button></div>`
-    : `<p>Offer a deal to every other player. Anyone can accept; you choose who to trade with.</p>
-      <div class="section-label">You give</div>${qtyRow('g', give2, r)}
-      <div class="section-label">You want</div>${qtyRow('w', get2)}
-      <div class="foot"><button class="btn" id="tclose">Close</button><button class="btn primary" id="pgo">Propose trade</button></div>`;
-  const paint = () => {
-    openModal('trade', `<h3>Trade</h3><div class="tabs"><button data-tab="bank" aria-pressed="${tab === 'bank'}">Bank and harbors</button><button data-tab="players" aria-pressed="${tab === 'players'}">Players</button></div>${body()}`, layer => {
-      layer.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; paint(); });
-      $('#tclose').onclick = closeModal;
-      if (tab === 'bank') {
-        layer.querySelectorAll('[data-give]').forEach(b => b.onclick = () => { give = b.dataset.give; if (get === give) get = null; paint(); });
-        layer.querySelectorAll('[data-get]').forEach(b => b.onclick = () => { get = b.dataset.get; paint(); });
-        $('#bgo').onclick = async () => { const res = await act({ type: 'bankTrade', give, get }); if (res.ok) { closeModal(); toast(`${icon(get)} Traded for ${RES_LABEL[get]}`, 'gain', true); } };
-      } else {
-        bindQty(layer, { g: { vals: give2, max: r }, w: { vals: get2 } }, () => {});
-        $('#pgo').onclick = async () => {
-          if (!sum(give2) || !sum(get2)) return toast('Add cards on both sides.', 'err');
-          const res = await act({ type: 'offer', give: give2, get: get2 }); if (res.ok) closeModal();
-        };
-      }
-    });
+// ---------- trade window ----------
+// Same idea as the reference: pick what you want in the top row, tap cards in your hand to offer them,
+// then press the bank tick or the players tick. The cross closes the window.
+const TW_ICON = {
+  bank: '<svg class="ic" viewBox="0 0 32 32"><g fill="currentColor"><path d="M16,3 L29,10 V12 H3 V10Z"/><rect x="5" y="14" width="3.6" height="10"/><rect x="11" y="14" width="3.6" height="10"/><rect x="17.4" y="14" width="3.6" height="10"/><rect x="23.4" y="14" width="3.6" height="10"/><rect x="3" y="25" width="26" height="3.5"/></g></svg>',
+  people: '<svg class="ic" viewBox="0 0 32 32"><g fill="currentColor"><circle cx="16" cy="9" r="5"/><circle cx="6.5" cy="12" r="3.8"/><circle cx="25.5" cy="12" r="3.8"/><path d="M7,28 C7,19 10.5,16 16,16 C21.5,16 25,19 25,28Z"/><path d="M0.5,26 C0.5,19.5 3,17.5 6.5,17.5 C5.5,19.5 5,22 5,26Z"/><path d="M31.5,26 C31.5,19.5 29,17.5 25.5,17.5 C26.5,19.5 27,22 27,26Z"/></g></svg>',
+  me: '<svg class="ic" viewBox="0 0 32 32"><g fill="currentColor"><path d="M8,8 H24 V10 H8Z"/><path d="M11,8 C11,2 21,2 21,8Z"/><circle cx="16" cy="15.5" r="5"/><path d="M6,30 C6,21 10,19 16,19 C22,19 26,21 26,30Z"/></g></svg>',
+  check: '<svg class="ic" viewBox="0 0 32 32"><path d="M6,17 L13,24 L26,8" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  cross: '<svg class="ic" viewBox="0 0 32 32"><path d="M7,7 L25,25 M25,7 L7,25" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round"/></svg>',
+  down: '<svg class="arr" viewBox="0 0 24 28"><path d="M8,2 H16 V13 H21 L12,25 L3,13 H8Z" fill="#36c24f" stroke="#0e5d20" stroke-width="1.6" stroke-linejoin="round"/></svg>',
+  up: '<svg class="arr" viewBox="0 0 24 28"><path d="M8,26 H16 V15 H21 L12,3 L3,15 H8Z" fill="#e33a33" stroke="#7a1511" stroke-width="1.6" stroke-linejoin="round"/></svg>',
+};
+function drawTrade() {
+  const el = $('#tradewin'); if (!el) return;
+  const st = S.state, ok = S.tw && myTurn() && st.phase === 'main' && st.rolled && !st.subphase;
+  if (!ok) { if (S.tw) S.tw = null; el.hidden = true; el.innerHTML = ''; return; }
+  const T = S.tw, hand = st.me.res, ratios = st.me.ratios, col = st.players[me()].color;
+  RES.forEach(k => { T.give[k] = Math.min(T.give[k] || 0, hand[k]); T.get[k] = T.get[k] || 0; });
+  const card = (k, n, attr, extra = '', dim = false) => `<button class="tcard ${k} ${dim ? 'dim' : ''}" ${attr} aria-label="${RES_LABEL[k]}">${icon(k)}${n ? `<b class="cnt">${n}</b>` : ''}${extra}</button>`;
+  const want = RES.map(k => card(k, T.get[k], `data-want="${k}"`)).join('');
+  const getSel = RES.filter(k => T.get[k]).map(k => card(k, T.get[k], `data-unwant="${k}"`)).join('') || '<span class="thint">Tap what you want above</span>';
+  const giveSel = RES.filter(k => T.give[k]).map(k => card(k, T.give[k], `data-ungive="${k}"`)).join('') || '<span class="thint">Tap cards in your hand to offer</span>';
+  const handRow = RES.map(k => hand[k] ? card(k, hand[k] - T.give[k], `data-give="${k}"`, `<small class="rt" title="Your bank rate for ${RES_LABEL[k]}">${ratios[k]}:1</small>`, hand[k] - T.give[k] === 0) : '').join('') || '<span class="thint light">You have no cards to trade</span>';
+  const gk = RES.filter(k => T.give[k]), wk = RES.filter(k => T.get[k]);
+  let bank = null, hint = 'Pick what you want, then what you give.';
+  if (gk.length === 1 && wk.length === 1 && gk[0] !== wk[0]) {
+    const g = gk[0], w = wk[0], r = ratios[g], m = T.get[w];
+    if (T.give[g] === r * m) { bank = { g, w, m, r }; hint = `Bank: ${r * m} ${RES_LABEL[g]} for ${m} ${RES_LABEL[w]}`; if (st.bank[w] < m) { bank = null; hint = `The bank only has ${st.bank[w]} ${RES_LABEL[w]}`; } }
+    else hint = `Bank rate for ${RES_LABEL[g]} is ${r} to 1: give ${r * m} ${RES_LABEL[g]} for ${m} ${RES_LABEL[w]}, or offer this to players.`;
+  } else if (gk.length && wk.length) hint = 'Offer this deal to the other players, or pick one kind each for the bank.';
+  const player = gk.length > 0 && wk.length > 0 && !gk.some(k => T.get[k]);
+  el.hidden = false;
+  el.innerHTML = `<div class="tw-main">
+      <div class="tw-panel tw-want"><span class="tw-bank" title="Bank and harbors">${TW_ICON.bank}</span><div class="tw-cards">${want}</div></div>
+      <div class="tw-panel tw-sel">
+        <div class="tw-row"><span class="tw-who">${TW_ICON.people}</span>${TW_ICON.down}<div class="tw-cards">${getSel}</div></div>
+        <div class="tw-row"><span class="tw-who me" style="background:${col}">${TW_ICON.me}</span>${TW_ICON.up}<div class="tw-cards">${giveSel}</div></div>
+        <p class="tw-hint" id="tw-hint">${esc(hint)}</p>
+      </div>
+      <div class="tw-panel tw-hand">${handRow}</div>
+    </div>
+    <div class="tw-btns">
+      <button class="tw-btn" id="tw-bank" ${bank ? '' : 'disabled'} title="Trade with the bank" aria-label="Trade with the bank">${TW_ICON.bank}<span class="tick">${TW_ICON.check}</span></button>
+      <button class="tw-btn" id="tw-players" ${player ? '' : 'disabled'} title="Offer to the other players" aria-label="Offer to the other players">${TW_ICON.people}<span class="tick">${TW_ICON.check}</span></button>
+      <button class="tw-btn cancel" id="tw-close" title="Close" aria-label="Close the trade window">${TW_ICON.cross}</button>
+    </div>`;
+  const redraw = () => drawTrade();
+  const bump = (obj, k, d, max) => { obj[k] = Math.max(0, Math.min(max, (obj[k] || 0) + d)); redraw(); };
+  el.querySelectorAll('[data-want]').forEach(b => b.onclick = () => { const k = b.dataset.want; if (T.give[k]) return toast('You are already offering that.', 'err'); bump(T.get, k, 1, 19); });
+  el.querySelectorAll('[data-unwant]').forEach(b => b.onclick = () => bump(T.get, b.dataset.unwant, -1, 19));
+  el.querySelectorAll('[data-give]').forEach(b => b.onclick = () => { const k = b.dataset.give; if (T.get[k]) return toast('You are already asking for that.', 'err'); if (hand[k] - T.give[k] > 0) bump(T.give, k, 1, hand[k]); });
+  el.querySelectorAll('[data-ungive]').forEach(b => b.onclick = () => bump(T.give, b.dataset.ungive, -1, 99));
+  $('#tw-close').onclick = () => { S.tw = null; updateGame(); };
+  if (bank) $('#tw-bank').onclick = async () => {
+    for (let i = 0; i < bank.m; i++) { const r = await act({ type: 'bankTrade', give: bank.g, get: bank.w }); if (!r.ok) break; }
+    if (S.tw) { S.tw.give = {}; S.tw.get = {}; drawTrade(); }
   };
-  paint();
+  if (player) $('#tw-players').onclick = async () => {
+    const clean = o => Object.fromEntries(Object.entries(o).filter(([, n]) => n));
+    const r = await act({ type: 'offer', give: clean(T.give), get: clean(T.get) });
+    if (r.ok) { S.tw = null; updateGame(); }
+  };
 }
 
 function openDev() {
@@ -1205,6 +1262,7 @@ function tickClock() {
   el.className = 'clock' + (secs <= 5 ? ' urgent' : secs <= 10 ? ' warn' : '');
   el.innerHTML = `<svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="4"/><circle cx="18" cy="18" r="15" fill="none" stroke="${col}" stroke-width="4" stroke-linecap="round" stroke-dasharray="${(94.2 * frac).toFixed(1)} 94.2"/></svg><b>${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}</b><span>${esc(who)}</span>`;
   el.setAttribute('aria-label', `${secs} seconds left for ${who}`);
+  $$('.yourturn .tm').forEach(t => { t.textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`; });
   if (mine && secs <= 5 && secs > 0 && S.lastTick !== secs) { S.lastTick = secs; Sound.play('tick'); }
 }
 function drawSetupStrip() {
@@ -1238,7 +1296,7 @@ function flyGains(st) {
           { transform: `translate(${sp.x - 17}px, ${sp.y - 17}px) scale(.4)`, opacity: 0 },
           { transform: `translate(${sp.x - 17}px, ${sp.y - 42}px) scale(1.25)`, opacity: 1, offset: .22 },
           { transform: `translate(${ex}px, ${ey}px) scale(.8)`, opacity: .9 },
-        ], { duration: 950, delay: 120 + count * 70, easing: 'cubic-bezier(.4,.1,.3,1)', fill: 'both' });
+        ], { duration: 1500, delay: 120 + count * 90, easing: 'cubic-bezier(.4,.1,.3,1)', fill: 'both' });
         a.onfinish = () => el.remove();
       }
     });
@@ -1275,7 +1333,7 @@ function flyAway(els) {
       { transform: 'translateY(-18px) rotate(-4deg) scale(1.07)', opacity: 1 },
       { transform: `translate(${dx * .12}px, ${dy * .12 - 34}px) rotate(-14deg) scale(1.14)`, opacity: 1, offset: .25 },
       { transform: `translate(${dx}px, ${dy}px) rotate(${(i % 2 ? 1 : -1) * 38}deg) scale(.25)`, opacity: 0 },
-    ], { duration: 720, delay: i * 70, easing: 'cubic-bezier(.5,0,.75,.35)', fill: 'both' });
+    ], { duration: 1100, delay: i * 90, easing: 'cubic-bezier(.5,0,.75,.35)', fill: 'both' });
     return a.finished.then(() => c.remove(), () => c.remove());
   }));
 }
@@ -1291,7 +1349,7 @@ function flyDiscardCards(i, n) {
       { transform: `translate(${sx}px, ${sy}px) scale(.7)`, opacity: 0 },
       { transform: `translate(${sx + 8}px, ${sy - 16}px) scale(1.1) rotate(-8deg)`, opacity: 1, offset: .2 },
       { transform: `translate(${ex}px, ${ey}px) scale(.5) rotate(${(c % 2 ? 1 : -1) * 40}deg)`, opacity: .2 },
-    ], { duration: 760, delay: c * 60, easing: 'cubic-bezier(.5,0,.7,.4)', fill: 'both' }).onfinish = () => el.remove();
+    ], { duration: 1200, delay: c * 80, easing: 'cubic-bezier(.5,0,.7,.4)', fill: 'both' }).onfinish = () => el.remove();
   }
 }
 // ---------- cards travelling from one player to another ----------
@@ -1316,7 +1374,7 @@ function flyCard(from, to, kind, delay = 0) {
     { transform: `translate(${mx}px, ${my}px) scale(1.3) rotate(10deg)`, opacity: 1, offset: .55 },
     { transform: `translate(${ex}px, ${ey}px) scale(.75)`, opacity: 1, offset: .92 },
     { transform: `translate(${ex}px, ${ey}px) scale(.4)`, opacity: 0 },
-  ], { duration: 1150, delay, easing: 'cubic-bezier(.45,.05,.35,1)', fill: 'both' }).onfinish = () => {
+  ], { duration: 1800, delay, easing: 'cubic-bezier(.45,.05,.35,1)', fill: 'both' }).onfinish = () => {
     el.remove(); to.classList.remove('landed'); void to.offsetWidth; to.classList.add('landed'); setTimeout(() => to.classList.remove('landed'), 650);
   };
 }
@@ -1328,7 +1386,27 @@ function animateMonopoly(st) {
   const m = st.lastMonopoly; let n = 0;
   Object.entries(m.takes).forEach(([i, cnt]) => { for (let c = 0; c < Math.min(cnt, 6); c++, n++) flyCard(anchorOf(+i, m.res), anchorOf(m.by, m.res), m.res, n * 90); });
 }
+// Every public card movement is announced by the server as an event: bank trades, player trades,
+// Year of Plenty and the starting cards. Each card flies slowly, drawn as the real resource.
+function processEvents(prev, st) {
+  const base = S.evSeq != null ? S.evSeq : Math.max(0, ...(prev.events || []).map(e => e.seq));
+  let newest = base;
+  for (const e of st.events || []) { if (e.seq <= base) continue; newest = Math.max(newest, e.seq); animateEvent(e); }
+  S.evSeq = newest;
+}
+function animateEvent(e) {
+  const bank = k => $(`#players .bank .bk.${k}`) || $('#players .bank');
+  const each = (cards, fn, after = 0) => Object.entries(cards).forEach(([k, n]) => { for (let c = 0; c < Math.min(n, 4); c++) fn(k, after + c * 180); });
+  if (e.type === 'bank') {
+    each(e.give, (k, d) => flyCard(anchorOf(e.p, k), bank(k), k, d));
+    each(e.get, (k, d) => flyCard(bank(k), anchorOf(e.p, k), k, d), 1000);
+  } else if (e.type === 'trade') {
+    each(e.give, (k, d) => flyCard(anchorOf(e.a, k), anchorOf(e.b, k), k, d));
+    each(e.get, (k, d) => flyCard(anchorOf(e.b, k), anchorOf(e.a, k), k, d), 350);
+  } else if (e.type === 'yop' || e.type === 'start') e.res.forEach((k, c) => flyCard(bank(k), anchorOf(e.p, k), k, c * 320));
+}
 function soundReactions(prev, st) {
+  processEvents(prev, st);
   const cnt = x => ({ r: Object.keys(x.roads).length, s: Object.values(x.buildings).filter(b => b.type === 'settlement').length, c: Object.values(x.buildings).filter(b => b.type === 'city').length });
   const a = cnt(prev), b = cnt(st);
   if (b.c > a.c) Sound.play('city'); else if (b.s > a.s) Sound.play('settle'); else if (b.r > a.r) Sound.play('road');
@@ -1362,6 +1440,25 @@ function showInstall() {
 }
 addEventListener('beforeinstallprompt', e => { e.preventDefault(); S.installEvt = e; showInstall(); });
 addEventListener('appinstalled', () => { S.installEvt = null; const b = $('#install'); if (b) b.remove(); });
+
+// ---------- house colours ----------
+const houseIcon = hex => `<svg class="hse" viewBox="-20 -19 40 38" aria-hidden="true"><g transform="scale(1.35)">${houseSvg(hex)}</g></svg>`;
+function swatch(p, i, me, host) {
+  const can = i === me || (host && p.bot);
+  return can ? `<button class="hsw" data-color-seat="${i}" title="${i === me ? 'Change your house color' : 'Change this bot\'s color'} (${p.colorName})" aria-label="House color: ${p.colorName}. Tap to change.">${houseIcon(p.color)}</button>`
+    : `<span class="hsw static" title="${p.colorName}">${houseIcon(p.color)}</span>`;
+}
+function openColorPicker(seat) {
+  const st = S.state, p = st.players[seat];
+  const cells = st.palette.map(c => {
+    const holder = st.players.findIndex((q, i) => i !== seat && q.colorId === c.id);
+    return `<button class="cpick" data-c="${c.id}" aria-pressed="${p.colorId === c.id}" ${holder >= 0 ? 'disabled' : ''} title="${c.name}${holder >= 0 ? ` (taken by ${esc(st.players[holder].name)})` : ''}">${houseIcon(c.hex)}<small>${c.name}</small></button>`;
+  }).join('');
+  openModal('colors', `<h3>Choose a house color</h3><p>${seat === me() ? 'This is the color of your roads, settlements and cities.' : `${esc(p.name)} is a bot. Pick its color.`}</p><div class="cgrid">${cells}</div><div class="foot"><button class="btn" id="cclose">Close</button></div>`, layer => {
+    $('#cclose').onclick = closeModal;
+    layer.querySelectorAll('.cpick').forEach(b => b.onclick = async () => { const r = await act({ type: 'setColor', seat, color: b.dataset.c }); if (r.ok) closeModal(); });
+  });
+}
 
 // ---------- boot ----------
 setInterval(tickClock, 250);

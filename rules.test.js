@@ -453,3 +453,62 @@ test('Monopoly records how many cards each player gave up, for the animation', (
   assert.equal(g.players[me].res.ore, 6);
   assert.deepEqual(g.view(a).lastMonopoly, g.lastMonopoly, 'every player is told, since the resource is public');
 });
+
+test('house colors: choose your own, no duplicates, host can recolor bots, kept when the game starts', () => {
+  const g = mk(1, 14); g.addPlayer('Asha', 'a'); g.act(0, { type: 'addBot', level: 'easy' });
+  assert.deepEqual(g.players.map(p => p.colorId), ['red', 'blue', 'orange'], 'first free colors by default');
+  g.act(1, { type: 'setColor', color: 'purple' });
+  assert.equal(g.players[1].color, '#7a4fd6');
+  assert.throws(() => g.act(1, { type: 'setColor', color: 'red' }), /taken by P0/);
+  assert.throws(() => g.act(1, { type: 'setColor', color: 'plaid' }), /Unknown/);
+  assert.throws(() => g.act(1, { type: 'setColor', seat: 0, color: 'pink' }), /your own/);
+  assert.throws(() => g.act(0, { type: 'setColor', seat: 1, color: 'pink' }), /your own/, 'the host can recolor bots only');
+  g.act(0, { type: 'setColor', seat: 2, color: 'teal' });
+  assert.equal(g.players[2].colorId, 'teal');
+  g.act(0, { type: 'setColor', color: 'blue' });                  // a color that was free again
+  assert.equal(new Set(g.players.map(p => p.colorId)).size, 3);
+  const chosen = Object.fromEntries(g.players.map(p => [p.name, p.colorId]));
+  g.act(0, { type: 'start' });
+  g.players.forEach(p => assert.equal(p.colorId, chosen[p.name], p.name + ' keeps the chosen color after the seats are shuffled'));
+  assert.throws(() => g.act(0, { type: 'setColor', color: 'green' }), /before the game starts/);
+  assert.ok(g.view(0).palette.length >= 8 && g.view(0).players.every(p => p.colorId));
+});
+
+test('events: bank trades, player trades, Year of Plenty and starting cards are announced for the animations', () => {
+  const g = started(3, 5); 
+  const startEvents = g.events.filter(e => e.type === 'start'); assert.equal(startEvents.length, 0, 'nothing before the second round');
+  finishSetup(g);
+  const starts = g.events.filter(e => e.type === 'start');
+  assert.ok(starts.length >= 1 && starts.every(e => e.res.length >= 1), 'second settlements announce their starting cards');
+  const me = g.turn, other = (me + 1) % 3;
+  g.forcedDice = [[1, 2]]; g.act(me, { type: 'roll' });
+  g.players[me].res = { wood: 4, brick: 0, sheep: 0, wheat: 0, ore: 0 }; g.players[other].res = { wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 2 };
+  const before = g.eventSeq;
+  const ratio = g.tradeRatio(me, 'wood'); g.players[me].res.wood = ratio;
+  g.act(me, { type: 'bankTrade', give: 'wood', get: 'ore' });
+  const bank = g.events[g.events.length - 1];
+  assert.deepEqual([bank.type, bank.p, bank.give, bank.get], ['bank', me, { wood: ratio }, { ore: 1 }]); assert.ok(bank.seq > before);
+  g.act(me, { type: 'offer', give: { ore: 1 }, get: { ore: 0, brick: 1 } });
+  g.players[other].res.brick = 1;
+  g.act(other, { type: 'respond', accept: true }); g.act(me, { type: 'confirm', with: other });
+  const t = g.events[g.events.length - 1];
+  assert.deepEqual([t.type, t.a, t.b, t.give, t.get], ['trade', me, other, { ore: 1 }, { brick: 1 }]);
+  g.players[me].dev.push({ type: 'yearOfPlenty', turn: 0 });
+  g.act(me, { type: 'playDev', card: 'yearOfPlenty', res: ['sheep', 'wheat'] });
+  const y = g.events[g.events.length - 1]; assert.deepEqual([y.type, y.p, y.res], ['yop', me, ['sheep', 'wheat']]);
+  const seqs = g.events.map(e => e.seq); assert.deepEqual(seqs, [...seqs].sort((a, b) => a - b), 'events stay in order');
+  assert.ok(g.view(other).events.length > 0);
+});
+
+test('development card pile: totals, what has been played, and the view for every player', () => {
+  const g = finishSetup(started(3, 9));
+  assert.deepEqual(g.devTotal, { knight: 14, vp: 5, roadBuilding: 2, yearOfPlenty: 2, monopoly: 2 });
+  assert.deepEqual(g.devPlayedCount, {});
+  const me = g.turn; g.players[me].dev.push({ type: 'knight', turn: 0 });
+  g.forcedDice = [[1, 2]]; g.act(me, { type: 'roll' });
+  g.act(me, { type: 'playDev', card: 'knight' });
+  assert.equal(g.devPlayedCount.knight, 1);
+  const v = g.view((me + 1) % 3);
+  assert.deepEqual(v.devPile.played, { knight: 1 }); assert.equal(v.devPile.total.knight, 14); assert.equal(v.devPlayed, true, 'the existing once-per-turn flag is untouched');
+  assert.ok(v.players.every(p => p.devReveal === undefined && typeof p.devCount === 'number'), 'other players only show how many cards they hold, never which');
+});
