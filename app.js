@@ -110,17 +110,17 @@ function shade(hex, f) {
 }
 function tileSvg(t, attrs = '') {
   return `<g transform="translate(${t.x * U} ${t.y * U})" ${attrs}><g transform="scale(.955)">`
-    + `<polygon points="${ART.HEX}" transform="translate(0 9)" fill="#06203f" opacity=".45"/>`
+    + `<polygon points="${ART.HEX}" transform="translate(0 9)" fill="#7a4a10" opacity=".35"/>`
     + `<polygon points="${ART.HEX}" transform="translate(0 5)" fill="${SIDE[t.terrain] || '#444'}"/>`
     + `<g clip-path="url(#c-hex)"><use href="#t-${t.terrain}" x="-60" y="-60" width="120" height="120"/></g>`
     + `<polygon points="${ART.HEX}" fill="none" stroke="#fff8e0" stroke-width="3.6" stroke-linejoin="round"/>`
     + `<polygon points="${ART.HEX}" transform="scale(.94)" fill="none" stroke="#fff" stroke-opacity=".25" stroke-width="1.5"/></g></g>`;
 }
 function tokenSvg(n, x, y) {
-  const pips = 6 - Math.abs(7 - n), red = n === 6 || n === 8, col = red ? '#c9201a' : '#2b1d0e';
-  const dots = Array.from({ length: pips }, (_, i) => `<circle cx="${(i - (pips - 1) / 2) * 7}" cy="18.5" r="2.9" fill="${col}"/>`).join('');
-  return `<g transform="translate(${x} ${y})" pointer-events="none">${red ? '<circle r="37" fill="#ff5a3c" opacity=".3" filter="url(#f-blur2)"/>' : ''}<circle r="31" fill="url(#g-token)" stroke="${red ? '#b3261e' : '#8a6a3a'}" stroke-width="2.4" filter="url(#f-shadow)"/>`
-    + `<circle r="26.5" fill="none" stroke="#c9b48a" stroke-width="1"/><text y="${n >= 10 ? 7 : 9}" text-anchor="middle" font-family="Alegreya SC, Georgia, serif" font-weight="800" font-size="${n >= 10 ? 29 : 35}" fill="${col}">${n}</text>${dots}</g>`;
+  const pips = 6 - Math.abs(7 - n), red = n === 6 || n === 8, col = red ? '#d4140d' : '#000';
+  const dots = Array.from({ length: pips }, (_, i) => `<circle cx="${(i - (pips - 1) / 2) * 7.4}" cy="19" r="3.3" fill="${col}"/>`).join('');
+  return `<g transform="translate(${x} ${y})" pointer-events="none"><circle r="31" fill="url(#g-token)" stroke="${red ? '#a31a14' : '#6b5a3a'}" stroke-width="2.4" filter="url(#f-shadow)"/>`
+    + `<circle r="26.5" fill="none" stroke="#c9b48a" stroke-width="1"/><text y="${n >= 10 ? 7 : 9}" text-anchor="middle" font-family="Alegreya SC, Georgia, serif" font-weight="800" font-size="${n >= 10 ? 29 : 35}" fill="${col}" stroke="${col}" stroke-width="1.4" stroke-linejoin="round">${n}</text>${dots}</g>`;
 }
 const RES_COLOR = { wood: '#14943a', brick: '#e2632a', sheep: '#92b40a', wheat: '#f3ba23', ore: '#a3a9a5' };
 function portSvg(p) {
@@ -150,10 +150,8 @@ function frameSvg(b) {
   const ring = inset => rrPath(x + inset, y + inset, w - 2 * inset, h - 2 * inset, Math.max(4, r - inset));
   const name = String(b.name || '').toUpperCase(), pw = Math.max(150, name.length * 10 + 40);
   return `<path fill-rule="evenodd" fill="#0a68a6" d="M${o.x},${o.y}h${o.w}v${o.h}h${-o.w}z ${rrPath(x - 3, y - 3, w + 6, h + 6, r + 3)}"/>`
-    + `<path d="${ring(0)}" fill="none" stroke="#9fd8ff" stroke-opacity=".5" stroke-width="16" filter="url(#f-blur2)"/>`
-    + `<path d="${ring(0)}" fill="none" stroke="#e8f6ff" stroke-width="4" stroke-linejoin="round"/>`
-    + `<path d="${ring(8)}" fill="none" stroke="#7cc4f5" stroke-opacity=".55" stroke-width="2"/>`
-    + `<g transform="translate(${x + w / 2} ${y})"><rect x="${-pw / 2}" y="-14" width="${pw}" height="28" rx="14" fill="#0c3d73" stroke="#e8f6ff" stroke-width="3"/><text y="5.5" text-anchor="middle" font-family="Alegreya Sans, sans-serif" font-weight="800" font-size="14" letter-spacing="1.6" fill="#fff">${esc(name)}</text></g>`;
+    + `<path d="${ring(0)}" fill="none" stroke="#3f94cf" stroke-width="3" stroke-linejoin="round"/>`
+    + `<g transform="translate(${x + w / 2} ${y})"><rect x="${-pw / 2}" y="-14" width="${pw}" height="28" rx="14" fill="#0c3d73" stroke="#3f94cf" stroke-width="3"/><text y="5.5" text-anchor="middle" font-family="Alegreya Sans, sans-serif" font-weight="800" font-size="14" letter-spacing="1.6" fill="#fff">${esc(name)}</text></g>`;
 }
 function staticLayer(b) {
   const v = bounds(b, 140);
@@ -164,7 +162,7 @@ function staticLayer(b) {
     return `<path d="M0,-6 L1.6,-1.6 L6,0 L1.6,1.6 L0,6 L-1.6,1.6 L-6,0 L-1.6,-1.6Z" transform="translate(${x.toFixed(0)} ${y.toFixed(0)}) scale(${sc.toFixed(2)})" fill="#fff" opacity="0"><animate attributeName="opacity" values="0;.85;0" dur="${dur.toFixed(1)}s" begin="${begin.toFixed(1)}s" repeatCount="indefinite"/></path>`;
   }).join('');
   const sorted = b.tiles.slice().sort((p, q) => p.y - q.y || p.x - q.x);
-  return `<g filter="url(#f-blur2)">${poly(1.4, '#dcffff', .55)}</g>${sparkles}<g>${poly(1.15, '#d8b765')}</g><g>${poly(1.08, '#fbeab0')}</g>`
+  return [[1.31, '#4f9fcb'], [1.27, '#7bd0f9'], [1.2, '#dfeadd'], [1.17, '#f0d9a2'], [1.09, '#dfb86d']].map(([sc, col]) => `<g>${poly(sc, col)}</g>`).join('')
     + (b.ports || []).map(portSvg).join('')
     + sorted.map(t => tileSvg(t)).join('')
     + sorted.filter(t => t.number).map(t => tokenSvg(t.number, t.x * U, t.y * U)).join('')
@@ -173,7 +171,7 @@ function staticLayer(b) {
 function boardPreviewSvg(b) {
   const v = bounds(b, VIEW_PAD);
   return `<svg viewBox="${v.x} ${v.y} ${v.w} ${v.h}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Map preview: ${esc(b.name)}">`
-    + `<rect x="${v.x - 2000}" y="${v.y - 2000}" width="${v.w + 4000}" height="${v.h + 4000}" fill="#0a68a6"/><rect x="${v.x - 2000}" y="${v.y - 2000}" width="${v.w + 4000}" height="${v.h + 4000}" fill="url(#p-waves)"/>${staticLayer(b)}</svg>`;
+    + `<rect x="${v.x - 2000}" y="${v.y - 2000}" width="${v.w + 4000}" height="${v.h + 4000}" fill="#0a68a6"/>${staticLayer(b)}</svg>`;
 }
 function terrainCounts(tiles) {
   const c = {}; tiles.forEach(t => { c[t.terrain] = (c[t.terrain] || 0) + 1; });
@@ -565,7 +563,7 @@ function buildShell(app) {
     <aside class="players" id="players"></aside>
     <section class="center"><div class="infobar" id="infobar"><div class="banner" id="banner"></div><div class="placing" id="placing" hidden></div><div class="clock" id="clock" hidden></div><div class="dice" id="dice"></div><div class="setupstrip" id="setupstrip" hidden></div></div><main class="board-wrap" id="wrap">
       <svg id="board" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
-        <rect x="-5000" y="-5000" width="10000" height="10000" fill="#0a68a6"/><rect x="-5000" y="-5000" width="10000" height="10000" fill="url(#p-waves)"/>
+        <rect x="-5000" y="-5000" width="10000" height="10000" fill="#0a68a6"/>
         <g id="static"></g><g id="dyn"></g>
       </svg>
       <div class="awards" id="awards"></div><div class="offer" id="offer"></div>

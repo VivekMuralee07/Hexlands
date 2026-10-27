@@ -48,6 +48,46 @@ const PRESETS = {
     mask: ['..XXXXX...', '.XXXXXXXX.', 'XXXXXXXXXX', 'XXXXXXXXX.', '.XXXXXXX..', '..XXXXX...', '...XXX....', '...XX.....'],
     weights: { forest: 7, hills: 4, pasture: 5, fields: 4, mountains: 3 }, deserts: 1,
   },
+  france: {
+    name: 'France', blurb: 'Wheat and pasture, with Corsica offshore.',
+    mask: ['..XXXX...', '.XXXXXX..', 'XXXXXXXX.', '.XXXXXXX.', '.XXXXXXX.', '..XXXXXX.', '..XXXXX.X', '...XXXX..'],
+    weights: { forest: 4, hills: 3, pasture: 5, fields: 6, mountains: 3 }, deserts: 0,
+  },
+  spain: {
+    name: 'Spain', blurb: 'Dry hills and mountains, with the Balearic Islands.',
+    mask: ['.XXXXXXX..', 'XXXXXXXXX.', '.XXXXXXXXX', '.XXXXXXXX.', '..XXXXXXX.', '..XXXXXX..', '...XXXX..X'],
+    weights: { forest: 3, hills: 5, pasture: 3, fields: 4, mountains: 4 }, deserts: 2,
+  },
+  germany: {
+    name: 'Germany', blurb: 'Forests and farmland from the coast to the Alps.',
+    mask: ['..XXX...', '.XXXXX..', 'XXXXXXX.', '.XXXXXXX', '..XXXXXX', '..XXXXXX', '...XXXXX', '...XXXX.'],
+    weights: { forest: 6, hills: 3, pasture: 4, fields: 5, mountains: 3 }, deserts: 0,
+  },
+  china: {
+    name: 'China', blurb: 'A huge land of mountains and rice, with Hainan in the south.',
+    mask: ['.....XXX...', '..XXXXXXX..', '.XXXXXXXXX.', '..XXXXXXXX.', '...XXXXXXX.', '....XXXXXX.', '....XXXXX..', '......XXX..', '.........X.'],
+    weights: { forest: 4, hills: 4, pasture: 3, fields: 6, mountains: 5 }, deserts: 2,
+  },
+  canada: {
+    name: 'Canada', blurb: 'Endless forest and rock, with Arctic islands and Newfoundland.',
+    mask: ['..XX..XXX...', '.XXXXXXXXX..', '.XXXXXXXXXX.', '..XXXXXXXXX.', '..XXXXXXXX.X', '...XXXXXXX..'],
+    weights: { forest: 9, hills: 2, pasture: 3, fields: 4, mountains: 5 }, deserts: 1,
+  },
+  mexico: {
+    name: 'Mexico', blurb: 'Deserts and sierras, with Baja and the Yucat\u00e1n.',
+    mask: ['X..XXXXXXX..', 'XX.XXXXXXX..', '.X..XXXXXXX.', '...XXXXXXX..', '....XXXXXX.X', '....XXXXX.XX', '.....XXXX...', '......XXX...'],
+    weights: { forest: 3, hills: 4, pasture: 3, fields: 4, mountains: 4 }, deserts: 3,
+  },
+  argentina: {
+    name: 'Argentina', blurb: 'Pampas, the Andes and windswept Patagonia, down to Tierra del Fuego.',
+    mask: ['..XXXXXX.', '.XXXXXXX.', '..XXXXXX.', '..XXXXXX.', '...XXXXX.', '...XXXX..', '...XXXX..', '....XXX..', '....XXX..', '.....XX..', '....XX...'],
+    weights: { forest: 3, hills: 3, pasture: 7, fields: 6, mountains: 6 }, deserts: 2,
+  },
+  newzealand: {
+    name: 'New Zealand', blurb: 'Sheep country across two islands.',
+    mask: ['.....XX...', '....XXXX..', '....XXXXX.', '.....XXX..', '..XX.XX...', '.XXXX.....', 'XXXXX.....', 'XXXXX.....', '.XXXX.....', '..XXX.....', '...XX.....'],
+    weights: { forest: 4, hills: 2, pasture: 8, fields: 3, mountains: 5 }, deserts: 0,
+  },
 };
 
 function makeRng(seed) {

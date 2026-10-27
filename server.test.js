@@ -261,3 +261,22 @@ test('PWA: manifest, service worker, icons, screenshots and the Android verifica
   assert.match(html, /rel="manifest"/); assert.match(html, /serviceWorker\.register/); assert.match(html, /apple-touch-icon/);
   assert.ok(!html.includes('</svg>'), 'no leftover markup in the page head');
 });
+
+test('Android verification file: the .well-known copy wins, then the flat copy, then an empty list', async () => {
+  const fs = require('fs'), os = require('os'), path = require('path');
+  const { readAssetLinks } = require('./server');
+  const get = dir => new Promise(res => readAssetLinks(dir, res));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hexlinks-'));
+  try {
+    assert.equal(await get(dir), '[]', 'nothing there yet');
+    fs.writeFileSync(path.join(dir, 'assetlinks.json'), '[]\n');
+    assert.equal(await get(dir), '[]', 'an empty placeholder counts as nothing');
+    const flat = JSON.stringify([{ target: { package_name: 'com.example.flat' } }]);
+    fs.writeFileSync(path.join(dir, 'assetlinks.json'), flat);
+    assert.equal(await get(dir), flat, 'the flat file is used');
+    const real = JSON.stringify([{ relation: ['delegate_permission/common.handle_all_urls'], target: { namespace: 'android_app', package_name: 'com.example.hexlands', sha256_cert_fingerprints: ['AA:BB:CC'] } }]);
+    fs.mkdirSync(path.join(dir, '.well-known'));
+    fs.writeFileSync(path.join(dir, '.well-known', 'assetlinks.json'), real);
+    assert.equal(await get(dir), real, 'the .well-known file takes priority');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});

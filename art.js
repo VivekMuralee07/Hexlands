@@ -99,7 +99,21 @@
   t.pasture += `<g transform="translate(40 6)"><ellipse rx="14" ry="6.5" fill="#1d86b8"/><ellipse rx="12.5" ry="5.4" fill="#45c8f0"/><path d="M-8,-1 q4,-2 8,0" stroke="#fff" stroke-opacity=".7" stroke-width="1" fill="none"/><circle cx="6" cy="1" r="2.2" fill="#5fcf5f"/></g>`;
   // Plain, flat tiles: one colour per resource and no scenery
   const PLAIN = {"forest": "#14943a", "hills": "#e2632a", "pasture": "#92b40a", "fields": "#f3ba23", "mountains": "#a3a9a5", "desert": "#cac284"};
-  Object.keys(t).forEach(k => { t[k] = `<rect x="-60" y="-60" width="120" height="120" fill="${PLAIN[k]}"/>`; });
+  // Small resource symbols: white with a dark outline, drawn above the number token (the desert gets a big cactus).
+  const dark = (h, f) => { const n = parseInt(h.slice(1), 16); return '#' + [n >> 16, (n >> 8) & 255, n & 255].map(c => Math.round(c * (1 - f)).toString(16).padStart(2, '0')).join(''); };
+  const SHAPES = {
+    forest: `<path d="M0,-14 L8,-3 H4 L10,5 H2 V13 H-2 V5 H-10 L-4,-3 H-8Z"/>`,
+    hills: `<rect x="-13" y="-11" width="12" height="7" rx="1.2"/><rect x="1" y="-11" width="12" height="7" rx="1.2"/><rect x="-7" y="-2.5" width="14" height="7" rx="1.2"/><rect x="-13" y="6" width="12" height="7" rx="1.2"/><rect x="1" y="6" width="12" height="7" rx="1.2"/>`,
+    pasture: `<ellipse cx="-11.5" cy="-1" rx="4" ry="4.8"/><circle cx="-4" cy="-3" r="6"/><circle cx="3" cy="-5" r="6.5"/><circle cx="10" cy="-2" r="5.5"/><circle cx="2" cy="3" r="7"/><circle cx="-5" cy="3" r="5.5"/><rect x="-7.5" y="7" width="3.4" height="7" rx="1.5"/><rect x="1" y="8" width="3.4" height="6" rx="1.5"/><rect x="7" y="5" width="3.4" height="8" rx="1.5"/>`,
+    fields: `<rect x="-1.2" y="-8" width="2.4" height="22" rx="1"/><ellipse cx="0" cy="-11" rx="3" ry="5.2"/><ellipse cx="-5" cy="-3" rx="3" ry="5.2" transform="rotate(-30 -5 -3)"/><ellipse cx="5" cy="-3" rx="3" ry="5.2" transform="rotate(30 5 -3)"/><ellipse cx="-5.5" cy="5" rx="3" ry="5.2" transform="rotate(-30 -5.5 5)"/><ellipse cx="5.5" cy="5" rx="3" ry="5.2" transform="rotate(30 5.5 5)"/>`,
+    mountains: `<path d="M-14,12 L-10,0 L-3,-4 L3,2 L1,12Z"/><path d="M-2,12 L2,-3 L8,-8 L14,4 L12,12Z"/><path d="M-7,-3 L-2,-11 L5,-7 L2,-1Z"/>`,
+    desert: `<rect x="-3.2" y="-13" width="6.4" height="26" rx="3.2"/><rect x="-11" y="-7" width="4.6" height="12" rx="2.3"/><rect x="-11" y="2" width="9" height="4.6" rx="2.3"/><rect x="6.4" y="-9" width="4.6" height="12" rx="2.3"/><rect x="2" y="-1" width="9" height="4.6" rx="2.3"/>`,
+  };
+  const glyph = k => {
+    const ink = dark(PLAIN[k], .55), fill = k === 'desert' ? '#6bb05a' : '#fffdf3', pos = k === 'desert' ? 'scale(1.55)' : 'translate(0 -42) scale(.8)';
+    return `<g transform="${pos}"><g fill="${ink}" stroke="${ink}" stroke-width="3.4" stroke-linejoin="round">${SHAPES[k]}</g><g fill="${fill}">${SHAPES[k]}</g>${k === 'pasture' ? `<circle cx="-12.5" cy="-2" r="1.2" fill="${ink}"/>` : ''}</g>`;
+  };
+  Object.keys(t).forEach(k => { t[k] = `<rect x="-60" y="-60" width="120" height="120" fill="${PLAIN[k]}"/>${glyph(k)}`; });
   const symbols = Object.keys(t).map(k => `<symbol id="t-${k}" viewBox="-60 -60 120 120" overflow="visible">${t[k]}</symbol>`).join('');
 
   const icons = {

@@ -185,10 +185,21 @@ async function api(req, res, url) {
   sendJson(res, 404, { error: 'Not found.' });
 }
 
+// The real file can sit in a .well-known folder (where Android looks for it) or flat next to the server as
+// assetlinks.json. The first one that actually has content wins; with neither, an empty list is served.
+function readAssetLinks(dir, cb) {
+  const files = [path.join(dir, '.well-known', 'assetlinks.json'), path.join(dir, 'assetlinks.json')];
+  const next = i => {
+    if (i >= files.length) return cb('[]');
+    fs.readFile(files[i], 'utf8', (err, data) => (err || !data.trim() || data.trim() === '[]') ? next(i + 1) : cb(data));
+  };
+  next(0);
+}
+
 function serveStatic(req, res, url) {
   let p = url.pathname;
-  if (p === '/.well-known/assetlinks.json') {   // Android app verification; the file sits flat in the repo as assetlinks.json
-    return fs.readFile(path.join(PUBLIC, 'assetlinks.json'), (err, data) => { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' }); res.end(err ? '[]' : data); });
+  if (p === '/.well-known/assetlinks.json') {   // Android app verification (Digital Asset Links)
+    return readAssetLinks(PUBLIC, data => { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' }); res.end(data); });
   }
   if (p === '/' || /^\/room\//.test(p)) p = '/index.html';
   if (!PUBLIC_FILES.has(p)) { res.writeHead(404, { 'Content-Type': 'text/plain' }); return res.end('Not found'); }
@@ -223,4 +234,4 @@ setInterval(() => {
 }, 60e3).unref();
 
 if (require.main === module) server.listen(PORT, () => console.log(`Hexlands running on http://localhost:${PORT}`));
-module.exports = { server, rooms };
+module.exports = { server, rooms, readAssetLinks };

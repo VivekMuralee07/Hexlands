@@ -3,7 +3,7 @@
 A multiplayer island-settling game for 2–4 players in the browser. Gather wood, brick, sheep, hay and ore, trade, build, and race to the points target.
 
 - Join with a 5-character room code or an invite link (`/room/ABCDE`)
-- 8 maps (Classic Island, India, United States, United Kingdom, Australia, Japan, Italy, Brazil) plus a map editor
+- 16 maps: Classic Island, India, United States, United Kingdom, Australia, Japan, Italy, Brazil, France, Spain, Germany, China, Canada, Mexico, Argentina and New Zealand, plus a map editor
 - Bots (Easy, Medium, Hard) can fill any empty seat, up to 4 players in total
 - Host options before each game: points to win, discard limit and amount, move timer, friendly robber, balanced dice
 - Flat, colorful board with a slim border and a map-name label: moving sea, windmills, chimney smoke, flying resource cards, confetti on a win
@@ -148,7 +148,7 @@ The game is a Progressive Web App, so PWABuilder can wrap it as an Android app. 
 2. Open pwabuilder.com, paste the address and press **Start**. The report should show a valid manifest, a service worker and HTTPS.
 3. Choose **Package for stores**, then **Android**. Suggested options: package ID like `com.yourname.hexlands`, app name `Hexlands`, display mode `Standalone`, status bar color `#0b3a7a`, splash color `#0a68a6`, and let PWABuilder create a **new signing key**.
 4. Download the zip. It holds the signed APK (install it on a phone), an `.aab` file (for Google Play), the signing key and its password file (keep these safe: you need them for every update), and an `assetlinks.json`.
-5. Replace the `assetlinks.json` in this repo with the one from the zip and commit. Render redeploys, and the file is then served at `/.well-known/assetlinks.json` (open that address to check). Until this is done, the app shows a browser address bar at the top. Afterwards it runs full screen.
+5. Put the `assetlinks.json` from the zip in this repo, either in a folder called `.well-known` (`.well-known/assetlinks.json`) or flat next to the other files. The `.well-known` copy takes priority. Commit, and Render redeploys; the file is then served at `/.well-known/assetlinks.json`. Until Android can verify it, the app shows a browser address bar at the top. Afterwards it runs full screen.
 6. Install the APK: copy it to the phone, allow "install unknown apps" for your file manager, then open the file.
 
 Notes:
@@ -156,6 +156,13 @@ Notes:
 - On Render's free plan the server sleeps when idle, so the first launch after a quiet spell can take up to a minute.
 - Without the internet the app opens its shell but cannot start a game, because games run on the server.
 - Browsers that support installing also show an **Install the app** button on the home screen.
+
+Still seeing the address bar? Work through these in order:
+1. Open `https://YOUR-SITE/.well-known/assetlinks.json` in your phone's browser. You should see the JSON from PWABuilder, not `[]`. If it shows `[]`, the file is not in the repo yet or Render has not finished deploying.
+2. Check that the file's `package_name` is exactly the package ID you chose in PWABuilder, and that `sha256_cert_fingerprints` holds the fingerprint of the key that signed the APK you installed (it is in the signing key info file in the zip). If you later publish on Google Play with Play App Signing, add Google's fingerprint as a second entry.
+3. Ask Google to confirm the link by opening this address (fill in the three parts): `https://digitalassetlinks.googleapis.com/v1/assetlinks:check?source.web.site=https://YOUR-SITE&relation=delegate_permission/common.handle_all_urls&target.android_app.package_name=YOUR.PACKAGE.ID&target.android_app.certificate.sha256_fingerprint=YOUR:SHA256:FINGERPRINT`. It should answer `"linked": true`.
+4. Android remembers a failed check. Uninstall the app and install the APK again (or clear Chrome's data), then open the app twice.
+5. On Render's free plan, wake the site first by opening it in a browser. If the server is asleep while the app launches, the check can time out.
 
 ## Project layout
 
