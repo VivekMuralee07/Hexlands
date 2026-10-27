@@ -19,6 +19,17 @@ function finishSetup(g) {
   }
   return g;
 }
+// Starting settlements spread across the board (finishSetup always packs them into one corner).
+function spreadSetup(g, k) {
+  let n = 0;
+  while (g.phase === 'setup') {
+    const pi = g.turn, list = g.validSettlements(pi, false), v = list[(k * 7 + n * 13) % list.length];
+    n++;
+    g.act(pi, { type: 'settle', vertex: v });
+    g.act(pi, { type: 'road', edge: g.board.vertices[v].edges.find(e => g.roads[e] === undefined) });
+  }
+  return g;
+}
 const started = (n, seed, opts) => { const g = mk(n, seed); if (opts) g.act(0, { type: 'setOptions', opts }); g.act(0, { type: 'start' }); return g; };
 
 test('setup order: 1..N, then N..1; the last player places two in a row; each settlement gets its road', () => {
@@ -304,5 +315,121 @@ test('bots play full games with friendly robber and balanced dice on', () => {
     }
     assert.equal(g.phase, 'ended'); assert.equal(rescues, 0, 'bots never make an illegal move');
     for (const k of RES) assert.equal(g.bank[k] + g.players.reduce((a, p) => a + p.res[k], 0), start);
+  }
+});
+
+const otherEnd = (g, e, v) => (g.board.edges[e].v[0] === v ? g.board.edges[e].v[1] : g.board.edges[e].v[0]);
+
+test('a road cut by an opponent settlement stays, is flagged as cut off, and can still be built on from its far end', () => {
+  let g, me, opp, found = null;
+  for (let k = 0; k < 80 && !found; k++) {
+  g = started(3, 31); spreadSetup(g, k);
+  me = g.turn; opp = (me + 1) % 3;
+  const mine = Object.keys(g.buildings).map(Number).filter(v => g.buildings[v].p === me);
+  outer: for (const s of mine) for (const e1 of g.board.vertices[s].edges) {
+    if (g.roads[e1] !== undefined) continue;
+    const v1 = otherEnd(g, e1, s); if (g.buildings[v1]) continue;
+    for (const e2 of g.board.vertices[v1].edges) {
+      if (e2 === e1 || g.roads[e2] !== undefined) continue;
+      const v2 = otherEnd(g, e2, v1);
+      if (g.buildings[v2] || g.board.vertices[v2].edges.some(o => o !== e2 && g.roads[o] === me)) continue;
+      found = { e1, v1, e2, v2 }; break outer;
+    }
+  }
+  }
+  assert.ok(found, 'found a two-road chain to cut');
+  g.roads[found.e1] = me; g.roads[found.e2] = me;
+  assert.deepEqual(g.cutOffRoads(), [], 'a connected chain is not flagged');
+  g.buildings[found.v1] = { p: opp, type: 'settlement' };
+  assert.deepEqual(g.cutOffRoads(), [found.e2], 'only the far road is cut off');
+  assert.equal(g.roads[found.e2], me, 'the road stays on the board');
+  assert.ok(g.view(me).cutRoads.includes(found.e2));
+  const onward = g.board.vertices[found.v2].edges.find(e => e !== found.e2 && g.roads[e] === undefined);
+  assert.equal(g.canRoad(me, onward), true, 'you can still build from the far end');
+  delete g.buildings[found.v1];
+  assert.deepEqual(g.cutOffRoads(), [], 'removing the blocker reconnects it');
+});
+
+test('audit: in full bot games a road is only ever cut off because an opponent built on its chain', () => {
+  const explained = (g, e) => {
+    const pi = g.roads[e], seenE = new Set([e]), seenV = new Set(), st = [e];
+    while (st.length) {
+      const x = st.pop();
+      for (const v of g.board.edges[x].v) { seenV.add(v); for (const o of g.board.vertices[v].edges) if (!seenE.has(o) && g.roads[o] === pi) { seenE.add(o); st.push(o); } }
+    }
+    return [...seenV].some(v => g.buildings[v] && g.buildings[v].p !== pi);
+  };
+  let cutSeen = 0;
+  for (const [preset, seed] of [['classic', 11], ['uk', 12], ['india', 13], ['japan', 14], ['usa', 15]]) {
+    const g = mk(1, seed, preset);
+    ['hard', 'hard', 'medium'].forEach(l => g.act(0, { type: 'addBot', level: l }));
+    g.players[0].bot = 'hard'; g.act(0, { type: 'start' });
+    let steps = 0;
+    while (g.phase !== 'ended' && steps++ < 30000) {
+      const n = bots.nextActor(g);
+      try { g.act(n.pi, bots.decide(g, n.pi)); } catch (e) { assert.ok(bots.rescue(g, n.pi)); }
+      if (steps % 25 === 0 || g.phase === 'ended') for (const e of g.cutOffRoads()) { cutSeen++; assert.ok(explained(g, e), `road ${e} is isolated with no opposing building on its chain`); }
+    }
+    assert.equal(g.phase, 'ended');
+  }
+  assert.ok(cutSeen >= 0);
+});
+
+test('strict placement: no isolated roads; a settlement may sit at the open end of a road', () => {
+  let found = null;
+  for (let seed = 1; seed < 120 && !found; seed++) {
+    const g = started(3, seed); spreadSetup(g, seed);
+    const me = g.turn, S = Object.keys(g.buildings).map(Number).find(v => g.buildings[v].p === me);
+    for (const e1 of g.board.vertices[S].edges) {
+      if (g.roads[e1] !== undefined) continue;
+      const v1 = g.board.edges[e1].v.find(v => v !== S);
+      if (g.buildings[v1]) continue;
+      for (const e2 of g.board.vertices[v1].edges) {
+        if (e2 === e1 || g.roads[e2] !== undefined) continue;
+        const v2 = g.board.edges[e2].v.find(v => v !== v1);
+        if (!g.buildings[v2] && g.canSettle(me, v2, false)) { found = { g, me, e1, v1, e2, v2 }; break; }
+      }
+      if (found) break;
+    }
+  }
+  assert.ok(found, 'a board where a two-road chain reaches a legal corner');
+  const { g, me, e1, v1, e2, v2 } = found;
+  g.forcedDice = [[1, 2]]; g.act(me, { type: 'roll' });
+  g.players[me].res = { wood: 6, brick: 6, sheep: 2, wheat: 2, ore: 0 };
+  const isolated = () => g.board.edges.find(e => g.roads[e.id] === undefined && !g.canRoad(me, e.id));
+  assert.ok(!g.validSettlements(me, true).includes(v2), 'no road leads there yet');
+  assert.throws(() => g.act(me, { type: 'road', edge: isolated().id }), /connect/);
+  g.act(me, { type: 'road', edge: e1 });
+  assert.ok(!g.validSettlements(me, true).includes(v1), 'one road out is too close to your own town');
+  assert.throws(() => g.act(me, { type: 'road', edge: isolated().id }), /connect/);
+  g.act(me, { type: 'road', edge: e2 });
+  assert.ok(g.validSettlements(me, true).includes(v2), 'the open end of a road is a legal settlement spot');
+  g.act(me, { type: 'settle', vertex: v2 });
+  assert.equal(g.buildings[v2].p, me);
+  assert.deepEqual(g.checkInvariants(), []);
+});
+
+test('the position checker really catches an isolated road', () => {
+  const g = finishSetup(started(3, 8));
+  assert.deepEqual(g.checkInvariants(), []);
+  const lone = g.board.edges.find(e => g.roads[e.id] === undefined && !g.canRoad(0, e.id));
+  g.roads[lone.id] = 0;
+  assert.match(g.checkInvariants().join(), /isolated group/);
+});
+
+test('rule invariants hold during full bot games on every map (no isolated roads, distance rule, towns touch a road)', () => {
+  for (const { key } of maps.presetList()) {
+    const g = mk(1, key.length * 13, key);
+    ['hard', 'medium', 'easy'].forEach(l => g.act(0, { type: 'addBot', level: l }));
+    g.act(0, { type: 'setOptions', opts: { friendlyRobber: key.length % 2 === 0, balancedDice: true } });
+    g.players[0].bot = 'medium'; g.act(0, { type: 'start' });
+    let steps = 0;
+    while (g.phase !== 'ended' && steps++ < 40000) {
+      const n = bots.nextActor(g);
+      try { g.act(n.pi, bots.decide(g, n.pi)); } catch (e) { assert.ok(bots.rescue(g, n.pi)); }
+      if (steps % 2 === 0) assert.deepEqual(g.checkInvariants(), [], `${key}, step ${steps}`);
+    }
+    assert.deepEqual(g.checkInvariants(), [], key);
+    assert.equal(g.phase, 'ended');
   }
 });

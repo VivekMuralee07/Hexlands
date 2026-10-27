@@ -148,6 +148,8 @@
     <linearGradient id="g-shine" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".34"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#001a40" stop-opacity=".2"/></linearGradient>
     <filter id="f-blur" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="14"/></filter>
     <filter id="f-blur2" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="6"/></filter>
+    <linearGradient id="g-wood" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d99d58"/><stop offset=".5" stop-color="#9a6030"/><stop offset="1" stop-color="#5f3716"/></linearGradient>
+    <pattern id="p-grain" width="60" height="9" patternUnits="userSpaceOnUse"><path d="M0,2 q15,-2 30,0 t30,0 M0,6.5 q15,2 30,0 t30,0" stroke="#4a2a0e" stroke-width="1.1" fill="none"/></pattern>
     <clipPath id="c-hex"><polygon points="${HEX}"/></clipPath>
     ${pine}${oak}${bricks}${sheep}${tuft}${wheat}${cactus}${ore}
   </defs>${symbols}${iconSymbols}`;

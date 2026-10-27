@@ -410,3 +410,6 @@ body { background: radial-gradient(130% 100% at 50% 0%, #29d3e6 0%, #129cc9 28%,
 .hero-board svg { -webkit-mask-image: radial-gradient(closest-side, #000 90%, transparent); mask-image: radial-gradient(closest-side, #000 90%, transparent); }
 .setupstrip { top: 4rem; }
 @media (max-width: 760px) { .clock, .setupstrip { top: 4.6rem; } .banner { font-size: .86em; } }
+
+.board-wrap, .preview { background: radial-gradient(ellipse at 50% 40%, #12386c 0%, #081c3a 85%); }
+.hero-board svg { -webkit-mask-image: none; mask-image: none; border-radius: 22px; }

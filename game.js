@@ -173,6 +173,52 @@ class Game {
   }
   isBot(i) { return !!(this.players[i] && this.players[i].bot); }
 
+  // Position check used by the tests: returns every rule violation currently on the board.
+  checkInvariants() {
+    const bad = [], { vertices, edges } = this.board;
+    for (const v of Object.keys(this.buildings)) for (const n of vertices[v].adj) if (this.buildings[n]) bad.push(`towns at ${v} and ${n} are next to each other`);
+    this.players.forEach((_, pi) => {
+      const mine = Object.keys(this.roads).map(Number).filter(e => this.roads[e] === pi), seen = new Set();
+      for (const e0 of mine) {
+        if (seen.has(e0)) continue;
+        let anchored = false, size = 0;
+        const stack = [e0]; seen.add(e0);
+        while (stack.length) {
+          const e = stack.pop(); size++;
+          for (const v of edges[e].v) {
+            if (this.buildings[v] && this.buildings[v].p === pi) anchored = true;
+            for (const o of vertices[v].edges) if (this.roads[o] === pi && !seen.has(o)) { seen.add(o); stack.push(o); }
+          }
+        }
+        if (!anchored) bad.push(`player ${pi} has an isolated group of ${size} road(s)`);
+      }
+    });
+    if (this.phase !== 'setup') for (const [v, b] of Object.entries(this.buildings)) if (!vertices[v].edges.some(e => this.roads[e] === b.p)) bad.push(`${b.type} at ${v} touches none of its owner's roads`);
+    return bad;
+  }
+
+  // Roads that no longer link back to one of their owner's settlements or cities, because an
+  // opponent built on a corner along the way. They stay on the board (as in the official rules).
+  cutOffRoads() {
+    const { vertices, edges } = this.board, out = [];
+    for (let pi = 0; pi < this.players.length; pi++) {
+      const reach = new Set(), seenV = new Set(), stack = [];
+      for (const [v, b] of Object.entries(this.buildings)) if (b.p === pi) { stack.push(+v); seenV.add(+v); }
+      while (stack.length) {
+        const v = stack.pop();
+        for (const e of vertices[v].edges) {
+          if (this.roads[e] !== pi || reach.has(e)) continue;
+          reach.add(e);
+          const o = edges[e].v[0] === v ? edges[e].v[1] : edges[e].v[0], bo = this.buildings[o];
+          if ((bo && bo.p !== pi) || seenV.has(o)) continue;   // an opponent's building ends the chain here
+          seenV.add(o); stack.push(o);
+        }
+      }
+      for (const e of Object.keys(this.roads)) if (this.roads[e] === pi && !reach.has(+e)) out.push(+e);
+    }
+    return out;
+  }
+
   // ----- host options, dice, friendly robber, move clock -----
   do_setOptions(pi, a) {
     if (this.phase !== 'lobby') fail('Options can only change before the game starts.');
@@ -757,7 +803,7 @@ class Game {
     const me = this.players[pi];
     return {
       code: this.code, phase: this.phase, you: pi, version: this.version, vpTarget: this.vpTarget, mapName: this.board.name,
-      opts: this.opts, timer: this.timerView(),
+      opts: this.opts, timer: this.timerView(), cutRoads: this.cutOffRoads(),
       robberOptions: this.subphase === 'robber' && pi === this.turn ? this.legalRobberTiles(pi) : null,
       players: this.players.map((p, i) => ({
         name: p.name, host: p.token === this.hostToken, bot: p.bot, stats: p.stats, color: p.color, colorName: p.colorName, connected: p.connected,

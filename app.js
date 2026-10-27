@@ -131,6 +131,25 @@ function portSvg(p) {
   return `<g>${pier}</g><g transform="translate(${px} ${py})" filter="url(#f-shadow)"><title>${p.type === 'any' ? 'Harbor: trade any 3 identical cards for 1' : `Harbor: trade 2 ${RES_LABEL[p.type]} for 1`}</title>`
     + `<circle r="21" fill="#fff"/><circle r="21" fill="none" stroke="#e5322d" stroke-width="6" stroke-dasharray="16.5 16.5"/><circle r="15" fill="url(#g-brass)" stroke="#6b4a12" stroke-width="1.5"/>${badge}</g>`;
 }
+const FRAME_PAD = 40, VIEW_PAD = 66, TOP_EXTRA = () => (innerWidth < 760 ? 200 : 110);   // spare table above the frame for the banner, setup strip and clock
+const rrPath = (x, y, w, h, r) => `M${x + r},${y}h${w - 2 * r}a${r},${r} 0 0 1 ${r},${r}v${h - 2 * r}a${r},${r} 0 0 1 ${-r},${r}h${-(w - 2 * r)}a${r},${r} 0 0 1 ${-r},${-r}v${-(h - 2 * r)}a${r},${r} 0 0 1 ${r},${-r}z`;
+// A wooden frame around the sea, with brass studs and a name plate. Everything outside it is the table.
+function frameSvg(b) {
+  const f = bounds(b, FRAME_PAD), o = bounds(b, 6000), r = 36, { x, y, w, h } = f, k = 0.293 * r;
+  const ring = inset => rrPath(x + inset, y + inset, w - 2 * inset, h - 2 * inset, Math.max(4, r - inset));
+  const name = String(b.name || '').toUpperCase(), pw = Math.max(170, name.length * 12 + 44);
+  const studs = [[x + k, y + k], [x + w - k, y + k], [x + k, y + h - k], [x + w - k, y + h - k]];
+  return `<path fill-rule="evenodd" fill="#071a33" d="M${o.x},${o.y}h${o.w}v${o.h}h${-o.w}z ${rrPath(x - 10, y - 10, w + 20, h + 20, r + 10)}"/>`
+    + `<path d="${ring(0)}" fill="none" stroke="#000" stroke-opacity=".45" stroke-width="30" transform="translate(0 5)" filter="url(#f-blur2)"/>`
+    + `<path d="${ring(0)}" fill="none" stroke="#2b1707" stroke-width="30"/>`
+    + `<path d="${ring(0)}" fill="none" stroke="url(#g-wood)" stroke-width="24"/>`
+    + `<path d="${ring(0)}" fill="none" stroke="url(#p-grain)" stroke-opacity=".5" stroke-width="24"/>`
+    + `<path d="${ring(-11.5)}" fill="none" stroke="#ffe1a6" stroke-opacity=".55" stroke-width="2"/>`
+    + `<path d="${ring(11.5)}" fill="none" stroke="#f3c47e" stroke-opacity=".8" stroke-width="2"/>`
+    + `<path d="${ring(17)}" fill="none" stroke="#001a40" stroke-opacity=".4" stroke-width="10" filter="url(#f-blur2)"/>`
+    + studs.map(([cx, cy]) => `<g transform="translate(${cx} ${cy})"><circle r="9" fill="#3a2406"/><circle r="7.5" fill="url(#g-brass)" stroke="#6b4a12" stroke-width="1"/><circle cx="-2" cy="-2.2" r="2.2" fill="#fff" opacity=".7"/></g>`).join('')
+    + `<g transform="translate(${x + w / 2} ${y})"><rect x="${-pw / 2}" y="-16" width="${pw}" height="32" rx="9" fill="url(#g-brass)" stroke="#5a3b0a" stroke-width="2.4"/><rect x="${-pw / 2 + 4}" y="-12" width="${pw - 8}" height="24" rx="6" fill="none" stroke="#fff" stroke-opacity=".45"/><text y="6.5" text-anchor="middle" font-family="Alegreya SC, Georgia, serif" font-weight="800" font-size="18" fill="#3a2406">${esc(name)}</text></g>`;
+}
 function staticLayer(b) {
   const v = bounds(b, 140);
   const poly = (sc, fill, op = 1) => b.tiles.map(t => `<polygon points="${ART.HEX}" transform="translate(${t.x * U} ${t.y * U}) scale(${sc})" fill="${fill}" opacity="${op}"/>`).join('');
@@ -143,10 +162,11 @@ function staticLayer(b) {
   return `<g filter="url(#f-blur2)">${poly(1.4, '#dcffff', .55)}</g>${sparkles}<g>${poly(1.15, '#d8b765')}</g><g>${poly(1.08, '#fbeab0')}</g>`
     + (b.ports || []).map(portSvg).join('')
     + sorted.map(t => tileSvg(t)).join('')
-    + sorted.filter(t => t.number).map(t => tokenSvg(t.number, t.x * U, t.y * U)).join('');
+    + sorted.filter(t => t.number).map(t => tokenSvg(t.number, t.x * U, t.y * U)).join('')
+    + frameSvg(b);
 }
 function boardPreviewSvg(b) {
-  const v = bounds(b, 30);
+  const v = bounds(b, VIEW_PAD);
   return `<svg viewBox="${v.x} ${v.y} ${v.w} ${v.h}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Map preview: ${esc(b.name)}">`
     + `<rect x="${v.x - 2000}" y="${v.y - 2000}" width="${v.w + 4000}" height="${v.h + 4000}" fill="url(#p-waves)"/>${staticLayer(b)}</svg>`;
 }
@@ -400,7 +420,7 @@ function startSession(sess) {
   es.addEventListener('board', e => {
     const fresh = S.boardFor !== sess.code;
     S.board = JSON.parse(e.data); S.boardFor = sess.code;
-    if (fresh || !S.vb) { S.base = bounds(S.board, innerWidth < 760 ? 22 : 70); S.vb = { ...S.base }; S.shellReady = false; }
+    if (fresh || !S.vb) { S.base = bounds(S.board, VIEW_PAD); S.base.y -= TOP_EXTRA(); S.base.h += TOP_EXTRA(); S.vb = { ...S.base }; S.shellReady = false; }
   });
   es.addEventListener('state', e => { opened = true; onState(JSON.parse(e.data)); });
   es.onerror = () => {
@@ -614,13 +634,15 @@ function drawDyn() {
     S.seenFor = st.code;
   }
   const fresh = k => { if (S.seen.has(k)) return false; S.seen.add(k); return true; };
+  const cut = new Set(st.cutRoads || []);
   let s = '';
   if (S.hot && S.hot.until > Date.now()) s += b.tiles.filter(t => t.number === S.hot.sum && t.id !== st.robber).map(t => `<polygon class="hot" points="${ART.HEX}" transform="translate(${t.x * U} ${t.y * U}) scale(.95)"/>`).join('');
   for (const [e, p] of Object.entries(st.roads)) {
     const [a, c] = b.edges[e].v.map(i => V[i]);
     const ax = a.x * U, ay = a.y * U, cx = c.x * U, cy = c.y * U, k = 0.16;
     const x1 = ax + (cx - ax) * k, y1 = ay + (cy - ay) * k, x2 = cx - (cx - ax) * k, y2 = cy - (cy - ay) * k, col = st.players[p].color;
-    s += `<g class="${fresh('r' + e) ? 'road-new' : ''}" filter="url(#f-shadow)"><line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#1b1b1b" stroke-width="14" stroke-linecap="round"/>`
+    const isCut = cut.has(+e);
+    s += `<g class="${fresh('r' + e) ? 'road-new' : ''}" filter="url(#f-shadow)"${isCut ? ' opacity=".5"' : ''}>${isCut ? '<title>Cut off by an opposing settlement. The road stays, but it no longer links back to your towns.</title>' : ''}<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#1b1b1b" stroke-width="14" stroke-linecap="round"/>`
       + `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${col}" stroke-width="10" stroke-linecap="round"/>`
       + `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#000" stroke-opacity=".22" stroke-width="10" stroke-dasharray="2 6"/>`
       + `<line x1="${x1}" y1="${y1 - 2}" x2="${x2}" y2="${y2 - 2}" stroke="#fff" stroke-opacity=".4" stroke-width="2.4" stroke-linecap="round"/></g>`;
@@ -693,11 +715,18 @@ function modePossible(kind) {
 function afterBuild() {}
 
 // Pan, pinch and wheel zoom; a short tap passes through to the board element under the finger.
-function applyVB() { const v = S.vb; $('#board').setAttribute('viewBox', `${v.x} ${v.y} ${v.w} ${v.h}`); }
+function applyVB() {
+  const v = S.vb, B = S.base;
+  if (B) {   // keep the framed board in view: the centre of the screen can't leave the board area
+    const cx = Math.max(B.x, Math.min(B.x + B.w, v.x + v.w / 2)), cy = Math.max(B.y, Math.min(B.y + B.h, v.y + v.h / 2));
+    v.x = cx - v.w / 2; v.y = cy - v.h / 2;
+  }
+  $('#board').setAttribute('viewBox', `${v.x} ${v.y} ${v.w} ${v.h}`);
+}
 function svgPoint(svg, cx, cy) { const p = svg.createSVGPoint(); p.x = cx; p.y = cy; return p.matrixTransform(svg.getScreenCTM().inverse()); }
 function zoomAt(svg, cx, cy, f) {
   const p = svgPoint(svg, cx, cy), v = S.vb;
-  const w = Math.max(S.base.w * 0.3, Math.min(S.base.w * 1.8, v.w / f)); const k = v.w / w;
+  const w = Math.max(S.base.w * 0.3, Math.min(S.base.w * 1.25, v.w / f)); const k = v.w / w;
   S.vb = { x: p.x - (p.x - v.x) / k, y: p.y - (p.y - v.y) / k, w, h: v.h / k };
   applyVB();
 }
@@ -997,7 +1026,7 @@ function openRules() {
       ${row('settlement', 'Settlement', COST.settlement, '1 point.')}
       ${row('city', 'City', COST.city, '2 points. Replaces a settlement and pays double.')}
       ${row('dev', 'Development card', COST.dev, 'Drawn from a deck of 25.')}</div></section>
-    <section><h4>Where pieces can go</h4><ul><li>A settlement needs a free corner at least two roads away from every other settlement and city, and it must touch one of your roads (except during setup).</li><li>A road must connect to one of your own roads, settlements or cities. It can run on from the end of another road, but never through a corner holding another player's settlement or city.</li></ul></section>
+    <section><h4>Where pieces can go</h4><ul><li>A settlement needs a free corner at least two roads away from every other settlement and city, and it must touch one of your roads (except during setup). The open end of a single road is fine.</li><li>A road must connect to one of your own roads, settlements or cities. It can run on from the end of another road, but never through a corner holding another player's settlement or city. A road can't be placed on its own, away from your network.</li><li>If an opponent builds on a corner of your road, the road stays but the far side is drawn faded: it no longer links back to your towns and no longer counts as one chain for Longest Road. You can still build onward from its far end.</li></ul></section>
     <section><h4>Rolling a 7</h4><p>Nobody collects. Anyone holding more cards than the discard limit (7 by default) discards half, rounded down. Then the roller moves the robber to another tile, which blocks that tile, and steals one random card from a player next to it.</p></section>
     <section><h4>Development cards</h4><p>25 cards: 14 Knights, 5 Victory Points, 2 Road Building, 2 Year of Plenty, 2 Monopoly. You can play one per turn, but not on the turn you bought it. Knights move the robber; three played Knights earn Largest Army. Victory Point cards stay hidden until you win.</p></section>
     <section><h4>Bonuses</h4><p>Longest Road: 5 or more connected roads, and you must beat the holder to take it. An opponent's settlement built in the middle can cut a road. Largest Army: 3 or more Knights played, and you must beat the holder.</p></section>

@@ -6,7 +6,7 @@ A multiplayer island-settling game for 2–4 players in the browser. Gather wood
 - 8 maps (Classic Island, India, United States, United Kingdom, Australia, Japan, Italy, Brazil) plus a map editor
 - Bots (Easy, Medium, Hard) can fill any empty seat, up to 4 players in total
 - Host options before each game: points to win, discard limit and amount, move timer, friendly robber, balanced dice
-- Animated board: moving sea, windmills, chimney smoke, flying resource cards, confetti on a win
+- Animated board in a wooden frame with a name plate: moving sea, windmills, chimney smoke, flying resource cards, confetti on a win
 - Beat themes at the start and finish, a click on every button, and a note for each resource card
 - Leaderboard at the end with points breakdown, stats and a dice chart
 - Tap the gold **i** on the start page (or **Rules** in a game) for a short rules guide
@@ -18,7 +18,7 @@ Requires Node.js 18 or newer.
 
 ```bash
 npm start            # http://localhost:3000
-npm test             # 47 tests, including full simulated games
+npm test             # 52 tests, including full simulated games
 ```
 
 Open two browser windows (or a phone on the same network at `http://<your-ip>:3000`) to play against yourself.
@@ -80,7 +80,7 @@ Only `index.html`, `app.js`, `art.js`, `sound.js` and `style.css` are sent to br
 | City | 2 hay, 3 ore | 2 points; replaces a settlement and pays double |
 | Development card | sheep, hay, ore | One of 25 cards (below) |
 
-**Road placement.** A new road must connect to one of your own roads, settlements or cities. It may continue from the end of another road, so a settlement is not needed at its far end. It can never start on the far side of a corner holding another player's settlement or city. During setup, the road must touch the settlement you just placed. (The dotted white lines leading to the round harbor signs are harbor piers, not roads.)
+**Road placement.** A new road must connect to one of your own roads, settlements or cities. It may continue from the end of another road, so a settlement is not needed at its far end. It can never start on the far side of a corner holding another player's settlement or city. A settlement must touch one of your roads (after setup), and the open end of a single road is fine. If an opponent's settlement cuts a chain, the far part stays on the board (drawn faded) and you can keep building from its end, as in the official rules. During setup, the road must touch the settlement you just placed. (The dotted white lines leading to the round harbor signs are harbor piers, not roads.)
 
 **Development cards** (25 on the classic board): 14 Knights, 5 Victory Points, 2 Road Building, 2 Year of Plenty, 2 Monopoly. One per turn, never on the turn you bought it. Knights move the robber; Victory Point cards stay hidden until you win.
 
