@@ -555,23 +555,20 @@ function renderGame(app) {
   if (!S.shellReady || !$('#board')) buildShell(app);
   updateGame();
 }
+const GB_ICON = {
+  msg: '<svg class="ic" viewBox="0 0 32 32" aria-hidden="true"><path d="M6,5 H26 a3,3 0 0 1 3,3 V19 a3,3 0 0 1 -3,3 H16.5 L10,28 V22 H6 a3,3 0 0 1 -3,-3 V8 a3,3 0 0 1 3,-3Z" fill="currentColor"/><path d="M9,11 H23 M9,15.5 H19" stroke="#0b2a5a" stroke-width="2.4" stroke-linecap="round"/></svg>',
+  exit: '<svg class="ic" viewBox="0 0 32 32" aria-hidden="true"><path d="M13,4 H6 a2,2 0 0 0 -2,2 V26 a2,2 0 0 0 2,2 H13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><path d="M12,16 H28 M22,9 L29,16 L22,23" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+};
 function buildShell(app) {
   app.innerHTML = `<div class="game">
-    <header class="topbar">
-      <span class="brand">Hexlands</span>
-      <span class="meta" id="meta"></span><span class="spacer"></span>
-      <span id="sndbtns" class="row" style="gap:.3rem;flex-wrap:nowrap">${soundButtons()}</span>
-      <button class="btn small" id="rules">Rules</button>
-      <button class="btn small drawer-toggle" id="logbtn">Log</button>
-      <button class="btn small" id="quit">Leave</button>
-    </header>
     <aside class="players" id="players"></aside>
     <section class="center"><div class="infobar" id="infobar"><div class="banner" id="banner"></div><div class="placing" id="placing" hidden></div><div class="clock" id="clock" hidden></div><div class="setupstrip" id="setupstrip" hidden></div></div><main class="board-wrap" id="wrap">
-      <svg id="board" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+      <svg id="board" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMin meet">
         <rect x="-5000" y="-5000" width="10000" height="10000" fill="#0a68a6"/>
         <g id="static"></g><g id="dyn"></g>
       </svg>
       <div class="dice" id="dice"></div><div class="awards" id="awards"></div><div class="offer" id="offer"></div><div class="tradewin" id="tradewin" hidden></div>
+      <div class="gbtns"><button class="gbtn drawer-toggle" id="logbtn" title="Messages" aria-label="Messages">${GB_ICON.msg}</button><button class="gbtn" id="quit" title="Leave game" aria-label="Leave game">${GB_ICON.exit}</button></div>
       <div class="zoom"><button class="btn" id="zin" aria-label="Zoom in">+</button><button class="btn" id="zout" aria-label="Zoom out">−</button><button class="btn" id="zfit" aria-label="Fit board">⤢</button></div>
     </main></section>
     <aside class="side" id="side"><div class="panel"><h3>Ship's log</h3><div class="log" id="log"></div>
@@ -586,7 +583,6 @@ function buildShell(app) {
   $('#zout').onclick = () => zoomCenter(1 / 1.25);
   $('#zfit').onclick = () => { S.vb = { ...S.base }; applyVB(); };
   $('#logbtn').onclick = () => $('#side').classList.toggle('open');
-  $('#rules').onclick = openRules;
   bindSoundButtons();
   $('#quit').onclick = () => { if (confirm('Leave this game? You can rejoin with the room code while it is running.')) { if (S.es) S.es.close(); S.es = null; S.state = null; history.replaceState(null, '', '/'); go('home'); } };
   $('#chat').onsubmit = e => { e.preventDefault(); const v = $('#chatin').value.trim(); if (v) { act({ type: 'chat', text: v }); $('#chatin').value = ''; } };
@@ -595,7 +591,6 @@ function buildShell(app) {
 
 function updateGame() {
   const st = S.state;
-  $('#meta').innerHTML = `Room <b>${st.code}</b><span class="extra">, ${esc(st.mapName)}, first to ${st.vpTarget} points, ${st.devLeft} development cards left</span>`;
   drawDyn(); drawPlayers(); drawBanner(); drawHand(); drawActions(); drawLog(); drawOffer(); drawClock(); drawSetupStrip(); drawPlacing(); drawTrade();
   syncModals();
 }
@@ -878,7 +873,7 @@ function costIcons(c) { return `<span class="cost">${Object.entries(c).flatMap((
 function drawActions() {
   const st = S.state, box = $('#actions'), mine = myTurn(), P = st.players[me()];
   if (st.phase === 'ended') { box.innerHTML = `<button class="act go" id="res">${icon('vp')}Results</button><button class="act" id="home">${icon('settlement')}New game</button>`; $('#res').onclick = openLeaderboard; $('#home').onclick = () => leaveToHome(); return; }
-  if (st.phase === 'setup' || !mine) { box.innerHTML = `<span class="waiting">${st.phase === 'setup' ? (mine ? '' : 'Setup in progress') : (st.players[st.turn].bot ? `${esc(st.players[st.turn].name)} is playing` : `Waiting for ${esc(st.players[st.turn].name)}`)}</span>`; return; }
+  if (st.phase === 'setup' || !mine) { box.innerHTML = ''; return; }
   if (st.subphase) { box.innerHTML = ''; return; }
   const m = S.mode;
   const btn = (id, label, ic, cost, enabled, pressed) => `<button class="act" id="${id}" ${enabled ? '' : 'disabled'} aria-pressed="${!!pressed}">${icon(ic)}${label}${cost ? costIcons(cost) : ''}</button>`;

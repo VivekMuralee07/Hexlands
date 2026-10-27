@@ -693,3 +693,13 @@ span.pcardx { cursor: default; }
 .tw-btn:disabled { opacity: .5; cursor: not-allowed; } .tw-btn:not(:disabled):hover { filter: brightness(1.1); }
 .tw-btn.cancel { background: linear-gradient(#2f9fc2, #12809f); }
 @media (max-width: 760px) { .tcard { width: 38px; height: 52px; } .tcard .ic { width: 21px; height: 21px; } .tw-btn { width: 50px; height: 50px; } .tw-row { min-height: 60px; } .tw-cards { gap: 7px; } .tradewin { padding: .35rem; gap: .35rem; } }
+
+/* ===== no top bar: messages and Leave float in the corner of the map ===== */
+.game { grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: "players board side" "dock dock dock"; padding-top: env(safe-area-inset-top, 0px); background: #0b3a7a; }
+@media (max-width: 1100px) { .game { grid-template-areas: "players board" "dock dock"; } .side { top: calc(env(safe-area-inset-top, 0px) + .5rem); } }
+@media (max-width: 760px) { .game { grid-template-rows: auto minmax(0, 1fr) auto; grid-template-areas: "players" "board" "dock"; } }
+.gbtns { position: absolute; top: .5rem; right: .5rem; z-index: 40; display: flex; gap: .4rem; }
+.gbtn { width: 40px; height: 40px; padding: 0; border-radius: 10px; border: 2px solid rgba(255, 255, 255, .5); background: rgba(5, 25, 34, .8); color: #fff; display: grid; place-items: center; cursor: pointer; }
+.gbtn .ic { width: 22px; height: 22px; } .gbtn:hover { border-color: #ffd23f; }
+.gbtn.drawer-toggle { display: none; }
+@media (max-width: 1100px) { .gbtn.drawer-toggle { display: grid; } }
