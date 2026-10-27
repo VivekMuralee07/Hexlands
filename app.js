@@ -121,34 +121,29 @@ function tokenSvg(n, x, y) {
   return `<g transform="translate(${x} ${y})" pointer-events="none">${red ? '<circle r="22" fill="#ff5a3c" opacity=".35" filter="url(#f-blur2)"/>' : ''}<circle r="17.5" fill="url(#g-token)" stroke="${red ? '#b3261e' : '#8a6a3a'}" stroke-width="1.8" filter="url(#f-shadow)"/>`
     + `<circle r="14.5" fill="none" stroke="#c9b48a" stroke-width=".8"/><text y="4.5" text-anchor="middle" font-family="Alegreya SC, Georgia, serif" font-weight="800" font-size="${n >= 10 ? 15 : 18}" fill="${col}">${n}</text>${dots}</g>`;
 }
+const RES_COLOR = { wood: '#2f9e44', brick: '#e8532a', sheep: '#8bdc3a', wheat: '#f5c518', ore: '#6f95c4' };
 function portSvg(p) {
   const px = p.x * U, py = p.y * U;
   const pier = p.vx.map(([x, y]) => `<line x1="${px}" y1="${py}" x2="${x * U}" y2="${y * U}" stroke="#fff" stroke-opacity=".9" stroke-width="3.2" stroke-linecap="round" stroke-dasharray="0.1 6.5"/>`
     + `<circle cx="${x * U}" cy="${y * U}" r="4.2" fill="#8a5a2b" stroke="#2c1e0e" stroke-width="1.2"/>`).join('');
   const badge = p.type === 'any'
-    ? `<text y="4.5" text-anchor="middle" font-family="Alegreya Sans, sans-serif" font-weight="800" font-size="12.5" fill="#3a2a08">3:1</text>`
-    : `<use href="#ic-${p.type}" x="-9" y="-14" width="18" height="18"/><text y="11.5" text-anchor="middle" font-family="Alegreya Sans, sans-serif" font-weight="800" font-size="8.5" fill="#3a2a08">2:1</text>`;
+    ? `<text y="4" text-anchor="middle" font-family="Alegreya Sans, sans-serif" font-weight="800" font-size="12" fill="#1b3350">3:1</text>`
+    : `<use href="#ic-${p.type}" x="-8.5" y="-14" width="17" height="17"/><text y="11" text-anchor="middle" font-family="Alegreya Sans, sans-serif" font-weight="800" font-size="8.5" fill="#1b3350">2:1</text>`;
   return `<g>${pier}</g><g transform="translate(${px} ${py})" filter="url(#f-shadow)"><title>${p.type === 'any' ? 'Harbor: trade any 3 identical cards for 1' : `Harbor: trade 2 ${RES_LABEL[p.type]} for 1`}</title>`
-    + `<circle r="21" fill="#fff"/><circle r="21" fill="none" stroke="#e5322d" stroke-width="6" stroke-dasharray="16.5 16.5"/><circle r="15" fill="url(#g-brass)" stroke="#6b4a12" stroke-width="1.5"/>${badge}</g>`;
+    + `<circle r="19" fill="${p.type === 'any' ? '#cdd8e4' : RES_COLOR[p.type]}" stroke="#fff" stroke-width="2.4"/><circle r="14.5" fill="#fff"/>${badge}</g>`;
 }
 const FRAME_PAD = 40, VIEW_PAD = 66, TOP_EXTRA = () => (innerWidth < 760 ? 200 : 110);   // spare table above the frame for the banner, setup strip and clock
 const rrPath = (x, y, w, h, r) => `M${x + r},${y}h${w - 2 * r}a${r},${r} 0 0 1 ${r},${r}v${h - 2 * r}a${r},${r} 0 0 1 ${-r},${r}h${-(w - 2 * r)}a${r},${r} 0 0 1 ${-r},${-r}v${-(h - 2 * r)}a${r},${r} 0 0 1 ${r},${-r}z`;
 // A wooden frame around the sea, with brass studs and a name plate. Everything outside it is the table.
 function frameSvg(b) {
-  const f = bounds(b, FRAME_PAD), o = bounds(b, 6000), r = 36, { x, y, w, h } = f, k = 0.293 * r;
+  const f = bounds(b, FRAME_PAD), o = bounds(b, 6000), r = 30, { x, y, w, h } = f;
   const ring = inset => rrPath(x + inset, y + inset, w - 2 * inset, h - 2 * inset, Math.max(4, r - inset));
-  const name = String(b.name || '').toUpperCase(), pw = Math.max(170, name.length * 12 + 44);
-  const studs = [[x + k, y + k], [x + w - k, y + k], [x + k, y + h - k], [x + w - k, y + h - k]];
-  return `<path fill-rule="evenodd" fill="#071a33" d="M${o.x},${o.y}h${o.w}v${o.h}h${-o.w}z ${rrPath(x - 10, y - 10, w + 20, h + 20, r + 10)}"/>`
-    + `<path d="${ring(0)}" fill="none" stroke="#000" stroke-opacity=".45" stroke-width="30" transform="translate(0 5)" filter="url(#f-blur2)"/>`
-    + `<path d="${ring(0)}" fill="none" stroke="#2b1707" stroke-width="30"/>`
-    + `<path d="${ring(0)}" fill="none" stroke="url(#g-wood)" stroke-width="24"/>`
-    + `<path d="${ring(0)}" fill="none" stroke="url(#p-grain)" stroke-opacity=".5" stroke-width="24"/>`
-    + `<path d="${ring(-11.5)}" fill="none" stroke="#ffe1a6" stroke-opacity=".55" stroke-width="2"/>`
-    + `<path d="${ring(11.5)}" fill="none" stroke="#f3c47e" stroke-opacity=".8" stroke-width="2"/>`
-    + `<path d="${ring(17)}" fill="none" stroke="#001a40" stroke-opacity=".4" stroke-width="10" filter="url(#f-blur2)"/>`
-    + studs.map(([cx, cy]) => `<g transform="translate(${cx} ${cy})"><circle r="9" fill="#3a2406"/><circle r="7.5" fill="url(#g-brass)" stroke="#6b4a12" stroke-width="1"/><circle cx="-2" cy="-2.2" r="2.2" fill="#fff" opacity=".7"/></g>`).join('')
-    + `<g transform="translate(${x + w / 2} ${y})"><rect x="${-pw / 2}" y="-16" width="${pw}" height="32" rx="9" fill="url(#g-brass)" stroke="#5a3b0a" stroke-width="2.4"/><rect x="${-pw / 2 + 4}" y="-12" width="${pw - 8}" height="24" rx="6" fill="none" stroke="#fff" stroke-opacity=".45"/><text y="6.5" text-anchor="middle" font-family="Alegreya SC, Georgia, serif" font-weight="800" font-size="18" fill="#3a2406">${esc(name)}</text></g>`;
+  const name = String(b.name || '').toUpperCase(), pw = Math.max(150, name.length * 10 + 40);
+  return `<path fill-rule="evenodd" fill="#0c4a86" d="M${o.x},${o.y}h${o.w}v${o.h}h${-o.w}z ${rrPath(x - 3, y - 3, w + 6, h + 6, r + 3)}"/>`
+    + `<path d="${ring(0)}" fill="none" stroke="#9fd8ff" stroke-opacity=".5" stroke-width="16" filter="url(#f-blur2)"/>`
+    + `<path d="${ring(0)}" fill="none" stroke="#e8f6ff" stroke-width="4" stroke-linejoin="round"/>`
+    + `<path d="${ring(8)}" fill="none" stroke="#7cc4f5" stroke-opacity=".55" stroke-width="2"/>`
+    + `<g transform="translate(${x + w / 2} ${y})"><rect x="${-pw / 2}" y="-14" width="${pw}" height="28" rx="14" fill="#0c3d73" stroke="#e8f6ff" stroke-width="3"/><text y="5.5" text-anchor="middle" font-family="Alegreya Sans, sans-serif" font-weight="800" font-size="14" letter-spacing="1.6" fill="#fff">${esc(name)}</text></g>`;
 }
 function staticLayer(b) {
   const v = bounds(b, 140);
@@ -168,7 +163,7 @@ function staticLayer(b) {
 function boardPreviewSvg(b) {
   const v = bounds(b, VIEW_PAD);
   return `<svg viewBox="${v.x} ${v.y} ${v.w} ${v.h}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Map preview: ${esc(b.name)}">`
-    + `<rect x="${v.x - 2000}" y="${v.y - 2000}" width="${v.w + 4000}" height="${v.h + 4000}" fill="url(#p-waves)"/>${staticLayer(b)}</svg>`;
+    + `<rect x="${v.x - 2000}" y="${v.y - 2000}" width="${v.w + 4000}" height="${v.h + 4000}" fill="#1d7bc6"/><rect x="${v.x - 2000}" y="${v.y - 2000}" width="${v.w + 4000}" height="${v.h + 4000}" fill="url(#p-waves)"/>${staticLayer(b)}</svg>`;
 }
 function terrainCounts(tiles) {
   const c = {}; tiles.forEach(t => { c[t.terrain] = (c[t.terrain] || 0) + 1; });
@@ -565,7 +560,7 @@ function buildShell(app) {
     <aside class="players" id="players"></aside>
     <main class="board-wrap" id="wrap">
       <svg id="board" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
-        <rect x="-5000" y="-5000" width="10000" height="10000" fill="url(#p-waves)"/>
+        <rect x="-5000" y="-5000" width="10000" height="10000" fill="#1d7bc6"/><rect x="-5000" y="-5000" width="10000" height="10000" fill="url(#p-waves)"/>
         <g id="static"></g><g id="dyn"></g>
       </svg>
       <div class="banner" id="banner"></div><div class="clock" id="clock" hidden></div><div class="setupstrip" id="setupstrip" hidden></div>
@@ -642,7 +637,11 @@ function drawDyn() {
     const ax = a.x * U, ay = a.y * U, cx = c.x * U, cy = c.y * U, k = 0.16;
     const x1 = ax + (cx - ax) * k, y1 = ay + (cy - ay) * k, x2 = cx - (cx - ax) * k, y2 = cy - (cy - ay) * k, col = st.players[p].color;
     const isCut = cut.has(+e);
-    s += `<g class="${fresh('r' + e) ? 'road-new' : ''}" filter="url(#f-shadow)"${isCut ? ' opacity=".5"' : ''}>${isCut ? '<title>Cut off by an opposing settlement. The road stays, but it no longer links back to your towns.</title>' : ''}<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#1b1b1b" stroke-width="14" stroke-linecap="round"/>`
+    // The soft shadow is drawn by hand. An SVG filter on a perfectly vertical road has a zero-width box,
+    // and browsers then paint nothing at all, so vertical roads used to disappear.
+    s += `<g class="${fresh('r' + e) ? 'road-new' : ''}"${isCut ? ' opacity=".5"' : ''}>${isCut ? '<title>Cut off by an opposing settlement. The road stays, but it no longer links back to your towns.</title>' : ''}`
+      + `<line x1="${x1}" y1="${y1 + 3}" x2="${x2}" y2="${y2 + 3}" stroke="#001a3a" stroke-opacity=".38" stroke-width="15" stroke-linecap="round"/>`
+      + `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#1b1b1b" stroke-width="14" stroke-linecap="round"/>`
       + `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${col}" stroke-width="10" stroke-linecap="round"/>`
       + `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#000" stroke-opacity=".22" stroke-width="10" stroke-dasharray="2 6"/>`
       + `<line x1="${x1}" y1="${y1 - 2}" x2="${x2}" y2="${y2 - 2}" stroke="#fff" stroke-opacity=".4" stroke-width="2.4" stroke-linecap="round"/></g>`;
@@ -676,7 +675,7 @@ function highlights() {
   if (mode === 'city') return myCitySpots().map(v => spot(v, 15)).join('');
   if (mode === 'setupRoad') return validRoads(st.setup.last).map(edge).join('');
   if (mode === 'road' || mode === 'freeRoad') return validRoads().map(edge).join('');
-  if (mode === 'robber') return (st.robberOptions || []).map(id => S.board.tiles[id]).map(t => `<polygon class="tspot" data-t="${t.id}" points="${ART.HEX}" transform="translate(${t.x * U} ${t.y * U}) scale(.9)"/>`).join('');
+  if (mode === 'robber') return (st.robberOptions || []).map(id => S.board.tiles[id]).map(t => `<g class="rspot" data-t="${t.id}" transform="translate(${t.x * U} ${t.y * U})"><polygon points="${ART.HEX}" transform="scale(.92)" fill="transparent"/><circle class="rdisc" r="27"/><circle class="rdot" r="8"/></g>`).join('');
   return '';
 }
 
@@ -774,20 +773,26 @@ function drawDice(d, roll) {
 }
 
 function drawPlayers() {
-  const st = S.state;
-  $('#players').innerHTML = st.players.map((p, i) => {
+  const st = S.state, leader = Math.max(...st.players.map(p => p.vp));
+  const bank = `<div class="bank" title="Cards left in the bank, and development cards left in the deck">${RES.map(k => `<span class="bk ${k}" title="${RES_LABEL[k]} left in the bank">${icon(k)}<b>${st.bank[k]}</b></span>`).join('')}<span class="bk dev" title="Development cards left">${icon('dev')}<b>${st.devLeft}</b></span></div>`;
+  $('#players').innerHTML = bank + st.players.map((p, i) => {
+    const turn = st.turn === i && st.phase !== 'ended';
+    const crown = p.vp === leader && leader >= 3 ? `<span class="crown">${icon('monopoly')}</span>` : '';
+    const skippable = st.players[me()].host && i !== me() && !p.connected && (st.turn === i || (st.subphase === 'discard' && st.pendingDiscards[i]));
+    const piece = (k, n, label) => `<span class="pl" title="${label} left to build" style="color:${p.color}">${icon(k)}<b>${n}</b></span>`;
     const badges = [];
     if (st.longestRoad && st.longestRoad.p === i) badges.push(`<span class="badge">${icon('road')} Longest Road</span>`);
     if (st.largestArmy && st.largestArmy.p === i) badges.push(`<span class="badge">${icon('knight')} Largest Army</span>`);
-    const skippable = st.players[me()].host && i !== me() && !p.connected && (st.turn === i || (st.subphase === 'discard' && st.pendingDiscards[i]));
-    return `<div class="pcard ${st.turn === i && st.phase !== 'ended' ? 'turn' : ''}" style="--pc:${p.color}">
-      <div class="name">${p.bot ? icon('bot', 'boticon') : `<span class="dot ${p.connected ? '' : 'off'}"></span>`}<span>${esc(p.name)}${i === me() ? ' (you)' : ''}</span></div>
+    return `<div class="pcard ${turn ? 'turn' : ''}" style="--pc:${p.color}">
+      <span class="vpb" title="Victory points (first to ${st.vpTarget})">${crown}${p.vp}</span>
+      <div class="tag">${p.bot ? icon('bot', 'boticon') : `<span class="dot ${p.connected ? '' : 'off'}"></span>`}<span class="nm">${esc(p.name)}${i === me() ? ' (you)' : ''}</span></div>
       ${p.bot ? `<div class="lvl lvl-${p.bot}">${LEVEL_LABEL[p.bot]} bot</div>` : ''}
-      <div class="vp" title="Victory points">${p.vp}<small>/${st.vpTarget}</small></div>
-      <div class="stats"><span title="Resource cards">${icon('cards')}${p.cards}</span><span title="Development cards">${icon('dev')}${p.devCount}</span><span title="Knights played">${icon('knight')}${p.knights}</span><span title="Longest road">${icon('road')}${p.roadLen}</span></div>
+      <div class="stats4"><span title="Development cards">${icon('dev')}<b>${p.devCount}</b></span><span title="Knights played">${icon('knight')}<b>${p.knights}</b></span><span title="Resource cards in hand">${icon('cards')}<b>${p.cards}</b></span><span title="Longest road">${icon('road')}<b>${p.roadLen}</b></span></div>
+      <div class="pieces">${piece('road', p.pieces.road, 'Roads')}${piece('settlement', p.pieces.settlement, 'Settlements')}${piece('city', p.pieces.city, 'Cities')}</div>
       ${badges.length ? `<div class="row badges" style="margin-top:.35rem;gap:.3rem">${badges.join('')}</div>` : ''}
       ${st.pendingDiscards[i] ? `<div class="muted" style="font-size:.85em;margin-top:.2rem">Discarding ${st.pendingDiscards[i]}</div>` : ''}
       ${skippable ? `<button class="btn small" style="margin-top:.4rem" data-skip>Skip offline player</button>` : ''}
+      ${turn ? `<div class="yourturn">${i === me() ? 'Your turn' : esc(p.name) + "'s turn"}</div>` : ''}
     </div>`;
   }).join('');
   $$('[data-skip]').forEach(b => b.onclick = () => act({ type: 'skip' }));

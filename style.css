@@ -413,3 +413,43 @@ body { background: radial-gradient(130% 100% at 50% 0%, #29d3e6 0%, #129cc9 28%,
 
 .board-wrap, .preview { background: radial-gradient(ellipse at 50% 40%, #12386c 0%, #081c3a 85%); }
 .hero-board svg { -webkit-mask-image: none; mask-image: none; border-radius: 22px; }
+
+/* ===== colonist.io-style board and panels ===== */
+.board-wrap, .preview { background: #0c4a86; }
+.board-wrap::after { box-shadow: none; }
+.players { padding-top: 1.5rem; gap: 1.5rem; }
+.bank { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px; border-radius: 10px; background: rgba(5, 30, 66, .88); border: 1px solid rgba(255, 255, 255, .14); }
+.bk { display: inline-flex; align-items: center; gap: 3px; padding: 3px 6px 3px 4px; border-radius: 6px; background: var(--c, #345); color: #fff; font-size: .85rem; }
+.bk .ic { width: 1.25em; height: 1.25em; } .bk b { text-shadow: 0 1px 2px rgba(0, 0, 0, .55); }
+.bk.wood { --c: #2f9e44; } .bk.brick { --c: #d9532b; } .bk.sheep { --c: #6fb52c; } .bk.wheat { --c: #d8a410; } .bk.ore { --c: #5b7fae; } .bk.dev { --c: #6a4aa8; }
+.pcard { position: relative; padding: 1.5rem .6rem .5rem; border: 1px solid rgba(255, 255, 255, .14); border-left: 1px solid rgba(255, 255, 255, .14); background: rgba(5, 30, 66, .9); }
+.pcard.turn { border-color: #5fb4ff; box-shadow: 0 0 0 2px #5fb4ff, 0 0 22px rgba(95, 180, 255, .45); }
+.vpb { position: absolute; left: -10px; top: -14px; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; background: var(--pc); border: 3px solid #fff; color: #fff; font: 800 1.35rem/1 var(--display); text-shadow: 0 1px 3px rgba(0, 0, 0, .6); box-shadow: 0 3px 8px rgba(0, 0, 0, .4); z-index: 2; }
+.vpb .crown { position: absolute; left: 50%; top: -21px; transform: translateX(-50%); width: 26px; height: 26px; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .5)); }
+.vpb .crown .ic { width: 26px; height: 26px; }
+.pcard .tag { position: absolute; left: 24px; right: -1px; top: -10px; height: 28px; padding: 0 .5rem 0 26px; display: flex; align-items: center; gap: .3rem; background: var(--pc); border-radius: 7px 7px 0 0; color: #fff; font-weight: 800; text-shadow: 0 1px 2px rgba(0, 0, 0, .55); min-width: 0; }
+.pcard .tag .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.pcard .tag .boticon { width: 1.2em; height: 1.2em; flex: none; }
+.pcard .lvl { margin: 0 0 .15rem; }
+.stats4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; text-align: center; }
+.stats4 span { display: inline-flex; flex-direction: column; align-items: center; gap: 1px; font-size: .92rem; }
+.stats4 .ic { width: 1.35em; height: 1.35em; } .stats4 b { color: #fff; }
+.pieces { display: flex; justify-content: space-around; margin-top: .35rem; padding-top: .3rem; border-top: 1px solid rgba(255, 255, 255, .12); }
+.pl { display: inline-flex; align-items: center; gap: 3px; font-weight: 800; }
+.pl .ic { width: 1.3em; height: 1.3em; } .pl b { color: #fff; }
+.yourturn { margin: .45rem -.6rem -.5rem; padding: .22rem 0; text-align: center; background: #2f8cf0; color: #fff; font-weight: 800; border-radius: 0 0 9px 9px; }
+.rspot { cursor: pointer; }
+.rdisc { fill: rgba(12, 24, 48, .45); stroke: #fff; stroke-width: 3.5; transition: fill .12s; }
+.rdot { fill: #fff; opacity: .95; pointer-events: none; }
+.rspot:hover .rdisc { fill: rgba(255, 255, 255, .38); }
+@media (prefers-reduced-motion: no-preference) { .rdisc { animation: rpulse 1.1s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: center; } }
+@keyframes rpulse { from { transform: scale(.9); } to { transform: scale(1.07); } }
+@media (max-width: 760px) {
+  .players { padding-top: 1.6rem; gap: .9rem; }
+  .pcard { min-width: 168px; padding: 1.5rem .55rem .45rem; }
+  .bank { flex: none; width: 150px; align-content: flex-start; }
+}
+/* robber targets: a ring inside each legal hex; the number token stays readable */
+.rdot { display: none; }
+.rdisc { fill: rgba(255, 255, 255, .10); stroke: #fff; stroke-width: 4; filter: drop-shadow(0 0 2px rgba(0, 20, 50, .9)); }
+.rspot:hover .rdisc { fill: rgba(255, 255, 255, .32); }

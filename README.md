@@ -6,7 +6,9 @@ A multiplayer island-settling game for 2–4 players in the browser. Gather wood
 - 8 maps (Classic Island, India, United States, United Kingdom, Australia, Japan, Italy, Brazil) plus a map editor
 - Bots (Easy, Medium, Hard) can fill any empty seat, up to 4 players in total
 - Host options before each game: points to win, discard limit and amount, move timer, friendly robber, balanced dice
-- Animated board in a wooden frame with a name plate: moving sea, windmills, chimney smoke, flying resource cards, confetti on a win
+- Flat, colorful board with a slim border and a map-name label: moving sea, windmills, chimney smoke, flying resource cards, confetti on a win
+- Bank bar and player cards: points badge (crown for the leader), development cards, knights, cards in hand, longest road, and roads, settlements and cities left to build
+- Robber: a ring appears around the number token of every hex where it can go
 - Beat themes at the start and finish, a click on every button, and a note for each resource card
 - Leaderboard at the end with points breakdown, stats and a dice chart
 - Tap the gold **i** on the start page (or **Rules** in a game) for a short rules guide
@@ -18,7 +20,7 @@ Requires Node.js 18 or newer.
 
 ```bash
 npm start            # http://localhost:3000
-npm test             # 52 tests, including full simulated games
+npm test             # 53 tests, including full simulated games
 ```
 
 Open two browser windows (or a phone on the same network at `http://<your-ip>:3000`) to play against yourself.

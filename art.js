@@ -139,13 +139,13 @@
   const iconSymbols = Object.keys(icons).map(k => `<symbol id="ic-${k}" viewBox="0 0 32 32">${icons[k]}</symbol>`).join('');
 
   const defs = `<defs>
-    ${grad('g-forest', '#4fc25a', '#1b7a3b')}${grad('g-hills', '#ff9a62', '#c8582a')}${grad('g-pasture', '#c4f77a', '#6fd13f')}
-    ${grad('g-fields', '#ffe873', '#f5b81c')}${grad('g-mountains', '#cfd9e6', '#7d8ba0')}${grad('g-desert', '#fff0b8', '#f4c46c')}
+    ${grad('g-forest', '#46b657', '#2a8a3c')}${grad('g-hills', '#f59350', '#e0662a')}${grad('g-pasture', '#b0e456', '#86c93a')}
+    ${grad('g-fields', '#fbd04e', '#f0b126')}${grad('g-mountains', '#c9cfd6', '#a3abb4')}${grad('g-desert', '#f6e5ae', '#ecd08c')}
     ${rgrad('g-sea', '#1f6a80', '#0b2d3d')}${rgrad('g-token', '#fffaf0', '#e6d6b0')}${rgrad('g-brass', '#f3d27e', '#a87a22')}
     <pattern id="p-waves" width="120" height="48" patternUnits="userSpaceOnUse"><path d="M0,24 q15,-12 30,0 t30,0 t30,0 t30,0" stroke="#e2fcff" stroke-opacity=".26" stroke-width="2.6" fill="none"/><path d="M0,44 q15,-9 30,0 t30,0 t30,0 t30,0" stroke="#fff" stroke-opacity=".14" stroke-width="2" fill="none"/><animateTransform attributeName="patternTransform" type="translate" from="0 0" to="120 0" dur="16s" repeatCount="indefinite"/></pattern>
     <filter id="f-shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="2.5" stdDeviation="2.5" flood-color="#000" flood-opacity=".45"/></filter>
     <filter id="f-glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-    <linearGradient id="g-shine" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".34"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#001a40" stop-opacity=".2"/></linearGradient>
+    <linearGradient id="g-shine" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".12"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#001a40" stop-opacity=".08"/></linearGradient>
     <filter id="f-blur" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="14"/></filter>
     <filter id="f-blur2" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="6"/></filter>
     <linearGradient id="g-wood" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d99d58"/><stop offset=".5" stop-color="#9a6030"/><stop offset="1" stop-color="#5f3716"/></linearGradient>

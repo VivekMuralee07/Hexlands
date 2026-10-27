@@ -433,3 +433,10 @@ test('rule invariants hold during full bot games on every map (no isolated roads
     assert.equal(g.phase, 'ended');
   }
 });
+
+test('roads are never drawn through an SVG filter (a filter hides perfectly vertical roads)', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, 'app.js'), 'utf8');
+  const i = src.indexOf("class=\"${fresh('r' + e)"), j = src.indexOf("const smoke");
+  assert.ok(i > 0 && j > i, 'found the road drawing code');
+  assert.ok(!/filter=/.test(src.slice(i, j)), 'road markup must not use the filter attribute');
+});
