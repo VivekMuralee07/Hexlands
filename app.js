@@ -98,7 +98,7 @@ function bounds(b, pad = 70) {
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   const add = (x, y, r) => { x0 = Math.min(x0, x - r); y0 = Math.min(y0, y - r); x1 = Math.max(x1, x + r); y1 = Math.max(y1, y + r); };
   b.tiles.forEach(t => add(t.x * U, t.y * U, 62));
-  (b.ports || []).forEach(p => add(p.x * U, p.y * U, 22));
+  (b.ports || []).forEach(p => add(p.x * U, p.y * U, 36));
   return { x: x0 - pad, y: y0 - pad, w: x1 - x0 + 2 * pad, h: y1 - y0 + 2 * pad };
 }
 const SIDE = { forest: '#14542a', hills: '#8f3d1d', pasture: '#3f8a26', fields: '#b8860f', mountains: '#4c5663', desert: '#b88a45' };
@@ -108,31 +108,33 @@ function shade(hex, f) {
   return '#' + ch.map(c => c.toString(16).padStart(2, '0')).join('');
 }
 function tileSvg(t, attrs = '') {
-  return `<g transform="translate(${t.x * U} ${t.y * U})" ${attrs}>`
-    + `<polygon points="${ART.HEX}" transform="translate(0 10)" fill="#06203f" opacity=".5"/>`
-    + `<polygon points="${ART.HEX}" transform="translate(0 6)" fill="${SIDE[t.terrain] || '#444'}"/>`
+  return `<g transform="translate(${t.x * U} ${t.y * U})" ${attrs}><g transform="scale(.955)">`
+    + `<polygon points="${ART.HEX}" transform="translate(0 9)" fill="#06203f" opacity=".45"/>`
+    + `<polygon points="${ART.HEX}" transform="translate(0 5)" fill="${SIDE[t.terrain] || '#444'}"/>`
     + `<g clip-path="url(#c-hex)"><use href="#t-${t.terrain}" x="-60" y="-60" width="120" height="120"/><rect x="-60" y="-60" width="120" height="120" fill="url(#g-shine)"/></g>`
-    + `<polygon points="${ART.HEX}" fill="none" stroke="#1d1408" stroke-opacity=".6" stroke-width="2.5"/>`
-    + `<polygon points="${ART.HEX}" transform="scale(.93)" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width="1.6"/></g>`;
+    + `<polygon points="${ART.HEX}" fill="none" stroke="#fff8e0" stroke-width="3.6" stroke-linejoin="round"/>`
+    + `<polygon points="${ART.HEX}" transform="scale(.94)" fill="none" stroke="#fff" stroke-opacity=".25" stroke-width="1.5"/></g></g>`;
 }
 function tokenSvg(n, x, y) {
   const pips = 6 - Math.abs(7 - n), red = n === 6 || n === 8, col = red ? '#c9201a' : '#2b1d0e';
-  const dots = Array.from({ length: pips }, (_, i) => `<circle cx="${(i - (pips - 1) / 2) * 4.2}" cy="10" r="1.5" fill="${col}"/>`).join('');
-  return `<g transform="translate(${x} ${y})" pointer-events="none">${red ? '<circle r="22" fill="#ff5a3c" opacity=".35" filter="url(#f-blur2)"/>' : ''}<circle r="17.5" fill="url(#g-token)" stroke="${red ? '#b3261e' : '#8a6a3a'}" stroke-width="1.8" filter="url(#f-shadow)"/>`
-    + `<circle r="14.5" fill="none" stroke="#c9b48a" stroke-width=".8"/><text y="4.5" text-anchor="middle" font-family="Alegreya SC, Georgia, serif" font-weight="800" font-size="${n >= 10 ? 15 : 18}" fill="${col}">${n}</text>${dots}</g>`;
+  const dots = Array.from({ length: pips }, (_, i) => `<circle cx="${(i - (pips - 1) / 2) * 5.4}" cy="13.5" r="2.3" fill="${col}"/>`).join('');
+  return `<g transform="translate(${x} ${y})" pointer-events="none">${red ? '<circle r="29" fill="#ff5a3c" opacity=".35" filter="url(#f-blur2)"/>' : ''}<circle r="23" fill="url(#g-token)" stroke="${red ? '#b3261e' : '#8a6a3a'}" stroke-width="2" filter="url(#f-shadow)"/>`
+    + `<circle r="19.5" fill="none" stroke="#c9b48a" stroke-width=".9"/><text y="${n >= 10 ? 4 : 5.5}" text-anchor="middle" font-family="Alegreya SC, Georgia, serif" font-weight="800" font-size="${n >= 10 ? 20 : 25}" fill="${col}">${n}</text>${dots}</g>`;
 }
 const RES_COLOR = { wood: '#2f9e44', brick: '#e8532a', sheep: '#8bdc3a', wheat: '#f5c518', ore: '#6f95c4' };
 function portSvg(p) {
-  const px = p.x * U, py = p.y * U;
-  const pier = p.vx.map(([x, y]) => `<line x1="${px}" y1="${py}" x2="${x * U}" y2="${y * U}" stroke="#fff" stroke-opacity=".9" stroke-width="3.2" stroke-linecap="round" stroke-dasharray="0.1 6.5"/>`
-    + `<circle cx="${x * U}" cy="${y * U}" r="4.2" fill="#8a5a2b" stroke="#2c1e0e" stroke-width="1.2"/>`).join('');
-  const badge = p.type === 'any'
-    ? `<text y="4" text-anchor="middle" font-family="Alegreya Sans, sans-serif" font-weight="800" font-size="12" fill="#1b3350">3:1</text>`
-    : `<use href="#ic-${p.type}" x="-8.5" y="-14" width="17" height="17"/><text y="11" text-anchor="middle" font-family="Alegreya Sans, sans-serif" font-weight="800" font-size="8.5" fill="#1b3350">2:1</text>`;
-  return `<g>${pier}</g><g transform="translate(${px} ${py})" filter="url(#f-shadow)"><title>${p.type === 'any' ? 'Harbor: trade any 3 identical cards for 1' : `Harbor: trade 2 ${RES_LABEL[p.type]} for 1`}</title>`
-    + `<circle r="19" fill="${p.type === 'any' ? '#cdd8e4' : RES_COLOR[p.type]}" stroke="#fff" stroke-width="2.4"/><circle r="14.5" fill="#fff"/>${badge}</g>`;
+  const px = p.x * U, py = p.y * U, any = p.type === 'any', col = any ? '#c4d0de' : RES_COLOR[p.type];
+  const pier = p.vx.map(([x, y]) => `<line x1="${px}" y1="${py}" x2="${x * U}" y2="${y * U}" stroke="#fff" stroke-opacity=".92" stroke-width="3.6" stroke-linecap="round" stroke-dasharray="0.1 7"/>`
+    + `<circle cx="${x * U}" cy="${y * U}" r="5" fill="#8a5a2b" stroke="#2c1e0e" stroke-width="1.4"/>`).join('');
+  const plate = any
+    ? `<text y="7.5" text-anchor="middle" font-family="Alegreya Sans, sans-serif" font-weight="800" font-size="21" fill="#1b3350">3:1</text>`
+    : `<use href="#ic-${p.type}" x="-25" y="-12.5" width="25" height="25"/><text x="14" y="7" text-anchor="middle" font-family="Alegreya Sans, sans-serif" font-weight="800" font-size="19" fill="#1b3350">2:1</text>`;
+  const boat = `<g transform="translate(27 -23)"><g><animateTransform attributeName="transform" type="translate" values="0 0;0 -2.5;0 0" dur="2.6s" repeatCount="indefinite"/>`
+    + `<path d="M-11,5 h22 l-5,7 h-12z" fill="#8a5a2b" stroke="#2c1e0e" stroke-width="1.3" stroke-linejoin="round"/><path d="M0,4 V-14 L11,2z" fill="#fff" stroke="#8aa0b8" stroke-width="1"/><path d="M0,4 V-10 L-8,2z" fill="${col}" stroke="#2c3e55" stroke-width=".9"/></g></g>`;
+  return `<g>${pier}</g><g transform="translate(${px} ${py})" filter="url(#f-shadow)"><title>${any ? 'Harbor: trade any 3 identical cards for 1' : `Harbor: trade 2 ${RES_LABEL[p.type]} for 1`}</title>`
+    + `<ellipse cy="23" rx="32" ry="6" fill="#fff" opacity=".28"/><rect x="-33" y="-21" width="66" height="42" rx="14" fill="${col}" stroke="#fff" stroke-width="3.4"/><rect x="-27" y="-15" width="54" height="30" rx="10" fill="#fff"/>${plate}${boat}</g>`;
 }
-const FRAME_PAD = 40, VIEW_PAD = 66, TOP_EXTRA = () => (innerWidth < 760 ? 200 : 110);   // spare table above the frame for the banner, setup strip and clock
+const FRAME_PAD = 22, VIEW_PAD = 40, TOP_EXTRA = () => 0;
 const rrPath = (x, y, w, h, r) => `M${x + r},${y}h${w - 2 * r}a${r},${r} 0 0 1 ${r},${r}v${h - 2 * r}a${r},${r} 0 0 1 ${-r},${r}h${-(w - 2 * r)}a${r},${r} 0 0 1 ${-r},${-r}v${-(h - 2 * r)}a${r},${r} 0 0 1 ${r},${-r}z`;
 // A wooden frame around the sea, with brass studs and a name plate. Everything outside it is the table.
 function frameSvg(b) {
@@ -438,6 +440,7 @@ function leaveToHome(msg) {
 
 function onState(st) {
   const prev = S.state; S.state = st;
+  if (prev && prev.phase !== 'lobby' && st.phase !== 'lobby') checkAwards(prev, st);
   if (st.phase === 'lobby') { if (S.screen !== 'lobby') S.screen = 'lobby'; renderLobby($('#app')); return; }
   if (S.screen !== 'game') { S.screen = 'game'; S.shellReady = false; }
   // Reactions to changes
@@ -558,16 +561,14 @@ function buildShell(app) {
       <button class="btn small" id="quit">Leave</button>
     </header>
     <aside class="players" id="players"></aside>
-    <main class="board-wrap" id="wrap">
+    <section class="center"><div class="infobar" id="infobar"><div class="banner" id="banner"></div><div class="clock" id="clock" hidden></div><div class="dice" id="dice"></div><div class="setupstrip" id="setupstrip" hidden></div></div><main class="board-wrap" id="wrap">
       <svg id="board" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
         <rect x="-5000" y="-5000" width="10000" height="10000" fill="#1d7bc6"/><rect x="-5000" y="-5000" width="10000" height="10000" fill="url(#p-waves)"/>
         <g id="static"></g><g id="dyn"></g>
       </svg>
-      <div class="banner" id="banner"></div><div class="clock" id="clock" hidden></div><div class="setupstrip" id="setupstrip" hidden></div>
-      <div class="dice" id="dice"></div>
-      <div class="offer" id="offer"></div>
+      <div class="awards" id="awards"></div><div class="offer" id="offer"></div>
       <div class="zoom"><button class="btn" id="zin" aria-label="Zoom in">+</button><button class="btn" id="zout" aria-label="Zoom out">−</button><button class="btn" id="zfit" aria-label="Fit board">⤢</button></div>
-    </main>
+    </main></section>
     <aside class="side" id="side"><div class="panel"><h3>Ship's log</h3><div class="log" id="log"></div>
       <form class="chatform" id="chat"><input id="chatin" maxlength="200" placeholder="Message the table" autocomplete="off" aria-label="Chat message"><button class="btn small">Send</button></form></div></aside>
     <footer class="dock"><div class="hand" id="hand"></div><div class="actions" id="actions"></div></footer>
@@ -619,8 +620,18 @@ function currentMode() {
   if (st.subphase === 'robber') return 'robber';
   if (st.subphase === 'roadBuilding') return 'freeRoad';
   if (st.subphase || !st.rolled) return null;
-  return S.mode;
+  return S.mode || 'auto';   // no button pressed: show everything you can afford to build
 }
+// Everything the current player can afford to place right now.
+function buildable() {
+  const st = S.state, P = st.players[me()];
+  return {
+    road: canAfford(COST.road) && P.pieces.road > 0 ? validRoads() : [],
+    settle: canAfford(COST.settlement) && P.pieces.settlement > 0 ? validSettle(true) : [],
+    city: canAfford(COST.city) && P.pieces.city > 0 ? myCitySpots() : [],
+  };
+}
+function autoCount() { const b = buildable(); return b.road.length + b.settle.length + b.city.length; }
 
 function drawDyn() {
   const st = S.state, b = S.board, V = b.vertices; if (!$('#dyn')) return;
@@ -634,63 +645,61 @@ function drawDyn() {
   if (S.hot && S.hot.until > Date.now()) s += b.tiles.filter(t => t.number === S.hot.sum && t.id !== st.robber).map(t => `<polygon class="hot" points="${ART.HEX}" transform="translate(${t.x * U} ${t.y * U}) scale(.95)"/>`).join('');
   for (const [e, p] of Object.entries(st.roads)) {
     const [a, c] = b.edges[e].v.map(i => V[i]);
-    const ax = a.x * U, ay = a.y * U, cx = c.x * U, cy = c.y * U, k = 0.16;
+    const ax = a.x * U, ay = a.y * U, cx = c.x * U, cy = c.y * U, k = 0.2;
     const x1 = ax + (cx - ax) * k, y1 = ay + (cy - ay) * k, x2 = cx - (cx - ax) * k, y2 = cy - (cy - ay) * k, col = st.players[p].color;
     const isCut = cut.has(+e);
     // The soft shadow is drawn by hand. An SVG filter on a perfectly vertical road has a zero-width box,
     // and browsers then paint nothing at all, so vertical roads used to disappear.
     s += `<g class="${fresh('r' + e) ? 'road-new' : ''}"${isCut ? ' opacity=".5"' : ''}>${isCut ? '<title>Cut off by an opposing settlement. The road stays, but it no longer links back to your towns.</title>' : ''}`
-      + `<line x1="${x1}" y1="${y1 + 3}" x2="${x2}" y2="${y2 + 3}" stroke="#001a3a" stroke-opacity=".38" stroke-width="15" stroke-linecap="round"/>`
-      + `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#1b1b1b" stroke-width="14" stroke-linecap="round"/>`
-      + `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${col}" stroke-width="10" stroke-linecap="round"/>`
-      + `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#000" stroke-opacity=".22" stroke-width="10" stroke-dasharray="2 6"/>`
-      + `<line x1="${x1}" y1="${y1 - 2}" x2="${x2}" y2="${y2 - 2}" stroke="#fff" stroke-opacity=".4" stroke-width="2.4" stroke-linecap="round"/></g>`;
+      + `<line x1="${x1}" y1="${y1 + 3.5}" x2="${x2}" y2="${y2 + 3.5}" stroke="#001a3a" stroke-opacity=".38" stroke-width="19" stroke-linecap="round"/>`
+      + `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#1b1b1b" stroke-width="17" stroke-linecap="round"/>`
+      + `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${col}" stroke-width="12.5" stroke-linecap="round"/>`
+      + `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#000" stroke-opacity=".22" stroke-width="12.5" stroke-dasharray="2 7"/>`
+      + `<line x1="${x1}" y1="${y1 - 2.5}" x2="${x2}" y2="${y2 - 2.5}" stroke="#fff" stroke-opacity=".4" stroke-width="3" stroke-linecap="round"/></g>`;
   }
   const smoke = (cx, cy) => `<circle cx="${cx}" cy="${cy}" r="1.5" fill="#fff" opacity="0"><animate attributeName="cy" values="${cy};${cy - 15}" dur="3.2s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;.75;0" dur="3.2s" repeatCount="indefinite"/><animate attributeName="r" values="1.5;5" dur="3.2s" repeatCount="indefinite"/></circle>`;
   for (const [v, bd] of Object.entries(st.buildings)) {
     const x = V[v].x * U, y = V[v].y * U, col = st.players[bd.p].color, dk = shade(col, -.38), lt = shade(col, .4);
     const pop = fresh('b' + v + bd.type) ? 'pop' : '';
     s += bd.type === 'city'
-      ? `<g transform="translate(${x} ${y})" filter="url(#f-shadow)"><g class="bld ${pop}">`
+      ? `<g transform="translate(${x} ${y}) scale(1.35)" filter="url(#f-shadow)"><g class="bld ${pop}">`
         + `<path d="M-18,12 V-2 H-4 V12Z" fill="${col}" stroke="#1b1b1b" stroke-width="2"/><path d="M-4,12 V-15 H11 V12Z" fill="${col}" stroke="#1b1b1b" stroke-width="2"/><path d="M11,12 V1 H19 V12Z" fill="${col}" stroke="#1b1b1b" stroke-width="2"/>`
         + `<path d="M-4,12 V-15 H0 V12Z" fill="${lt}" opacity=".4"/><path d="M-6,-15 L3.5,-26 L13,-15Z" fill="${dk}" stroke="#1b1b1b" stroke-width="2" stroke-linejoin="round"/><path d="M-20,-1 L-11,-9 L-2,-1Z" fill="${dk}" stroke="#1b1b1b" stroke-width="2" stroke-linejoin="round"/>`
         + `<rect x="-1" y="-10" width="4" height="5" fill="#ffe27a"/><rect x="5" y="-10" width="4" height="5" fill="#ffe27a"/><rect x="-12" y="3" width="4" height="4" fill="#ffe27a"/><rect x="2" y="3" width="5" height="9" fill="#3a2410"/>`
         + `<path d="M3.5,-26 V-37" stroke="#1b1b1b" stroke-width="1.6"/><path d="M3.5,-37 l11,3.5 l-11,3.5z" fill="#ffd23f" stroke="#7a5512" stroke-width="1"><animateTransform attributeName="transform" type="rotate" values="-7 3.5 -37;7 3.5 -37;-7 3.5 -37" dur="1.6s" repeatCount="indefinite"/></path>${smoke(-12, -4)}</g></g>`
-      : `<g transform="translate(${x} ${y})" filter="url(#f-shadow)"><g class="bld ${pop}">`
+      : `<g transform="translate(${x} ${y}) scale(1.35)" filter="url(#f-shadow)"><g class="bld ${pop}">`
         + `<rect x="5" y="-17" width="4.5" height="9" fill="${dk}" stroke="#1b1b1b" stroke-width="1.4"/><path d="M-11,10 V-3 H11 V10Z" fill="${col}" stroke="#1b1b1b" stroke-width="2" stroke-linejoin="round"/><path d="M-11,10 V-3 H0 V10Z" fill="${lt}" opacity=".35"/>`
         + `<path d="M-14,-2 L0,-15 L14,-2Z" fill="${dk}" stroke="#1b1b1b" stroke-width="2" stroke-linejoin="round"/><rect x="-3" y="2" width="6" height="8" rx="1" fill="#3a2410"/><rect x="5" y="1" width="4" height="4" fill="#ffe27a"/>${smoke(7.2, -19)}</g></g>`;
   }
   const rt = b.tiles[st.robber];
-  s += `<use href="#ic-robber" x="${rt.x * U - 56}" y="${rt.y * U - 30}" width="50" height="50" pointer-events="none" filter="url(#f-shadow)"/>`;
+  s += `<use href="#ic-robber" x="${rt.x * U - 74}" y="${rt.y * U - 40}" width="68" height="68" pointer-events="none" filter="url(#f-shadow)"/>`;
   s += highlights();
   $('#dyn').innerHTML = s;
 }
 function highlights() {
   const mode = currentMode(); if (!mode) return '';
   const V = S.board.vertices, st = S.state;
-  const spot = (v, r = 9) => `<circle class="spot" cx="${V[v].x * U}" cy="${V[v].y * U}" r="${r}"/><circle cx="${V[v].x * U}" cy="${V[v].y * U}" r="20" fill="transparent" data-v="${v}" style="cursor:pointer"/>`;
+  const spot = (v, kind) => kind === 'city'
+    ? `<circle class="spot city" cx="${V[v].x * U}" cy="${V[v].y * U}" r="23"/><circle cx="${V[v].x * U}" cy="${V[v].y * U}" r="24" fill="transparent" data-v="${v}" data-k="city" style="cursor:pointer"/>`
+    : `<circle class="spot" cx="${V[v].x * U}" cy="${V[v].y * U}" r="12"/><circle cx="${V[v].x * U}" cy="${V[v].y * U}" r="22" fill="transparent" data-v="${v}" data-k="settle" style="cursor:pointer"/>`;
   const edge = e => { const [a, c] = S.board.edges[e].v.map(i => V[i]); const xy = `x1="${a.x * U}" y1="${a.y * U}" x2="${c.x * U}" y2="${c.y * U}"`; return `<line class="espot" ${xy}/><line class="ehit" ${xy} data-e="${e}"/>`; };
-  if (mode === 'setupSettle') return validSettle(false).map(v => spot(v)).join('');
-  if (mode === 'settle') return validSettle(true).map(v => spot(v)).join('');
-  if (mode === 'city') return myCitySpots().map(v => spot(v, 15)).join('');
+  if (mode === 'setupSettle') return validSettle(false).map(v => spot(v, 'settle')).join('');
+  if (mode === 'settle') return validSettle(true).map(v => spot(v, 'settle')).join('');
+  if (mode === 'city') return myCitySpots().map(v => spot(v, 'city')).join('');
   if (mode === 'setupRoad') return validRoads(st.setup.last).map(edge).join('');
   if (mode === 'road' || mode === 'freeRoad') return validRoads().map(edge).join('');
-  if (mode === 'robber') return (st.robberOptions || []).map(id => S.board.tiles[id]).map(t => `<g class="rspot" data-t="${t.id}" transform="translate(${t.x * U} ${t.y * U})"><polygon points="${ART.HEX}" transform="scale(.92)" fill="transparent"/><circle class="rdisc" r="27"/><circle class="rdot" r="8"/></g>`).join('');
+  if (mode === 'auto') { const b = buildable(); return b.road.map(edge).join('') + b.settle.map(v => spot(v, 'settle')).join('') + b.city.map(v => spot(v, 'city')).join(''); }
+  if (mode === 'robber') return (st.robberOptions || []).map(id => S.board.tiles[id]).map(t => `<g class="rspot" data-t="${t.id}" transform="translate(${t.x * U} ${t.y * U})"><polygon points="${ART.HEX}" transform="scale(.92)" fill="transparent"/><circle class="rdisc" r="31"/><circle class="rdot" r="8"/></g>`).join('');
   return '';
 }
 
 async function onBoardTap(el) {
   const mode = currentMode(); if (!mode || !el) return;
   const t = el.closest('[data-v],[data-e],[data-t]'); if (!t) return;
-  if (t.dataset.v != null) {
-    const v = +t.dataset.v;
-    if (mode === 'city') { const r = await act({ type: 'city', vertex: v }); if (r.ok) afterBuild('city'); }
-    else if (mode === 'setupSettle' || mode === 'settle') { const r = await act({ type: 'settle', vertex: v }); if (r.ok && mode === 'settle') afterBuild('settle'); }
-  } else if (t.dataset.e != null) {
-    const r = await act({ type: 'road', edge: +t.dataset.e }); if (r.ok && mode === 'road') afterBuild('road');
-  } else if (t.dataset.t != null && mode === 'robber') {
-    const tile = +t.dataset.t;
-    const victims = robberVictims(tile);
+  if (t.dataset.v != null) await act({ type: t.dataset.k === 'city' ? 'city' : 'settle', vertex: +t.dataset.v });
+  else if (t.dataset.e != null) await act({ type: 'road', edge: +t.dataset.e });
+  else if (t.dataset.t != null && mode === 'robber') {
+    const tile = +t.dataset.t, victims = robberVictims(tile);
     if (victims.length > 1) return openSteal(tile, victims);
     act({ type: 'robber', tile, victim: victims[0] });
   }
@@ -785,14 +794,12 @@ function drawPlayers() {
     if (st.largestArmy && st.largestArmy.p === i) badges.push(`<span class="badge">${icon('knight')} Largest Army</span>`);
     return `<div class="pcard ${turn ? 'turn' : ''}" style="--pc:${p.color}">
       <span class="vpb" title="Victory points (first to ${st.vpTarget})">${crown}${p.vp}</span>
-      <div class="tag">${p.bot ? icon('bot', 'boticon') : `<span class="dot ${p.connected ? '' : 'off'}"></span>`}<span class="nm">${esc(p.name)}${i === me() ? ' (you)' : ''}</span></div>
-      ${p.bot ? `<div class="lvl lvl-${p.bot}">${LEVEL_LABEL[p.bot]} bot</div>` : ''}
+      <div class="tag">${p.bot ? icon('bot', 'boticon') : `<span class="dot ${p.connected ? '' : 'off'}"></span>`}<span class="nm">${esc(p.name)}${i === me() ? ' (you)' : ''}</span>${p.bot ? `<span class="lv lvl-${p.bot}" title="${LEVEL_LABEL[p.bot]} bot">${LEVEL_LABEL[p.bot][0]}</span>` : ''}${turn ? `<span class="turnpill">${i === me() ? 'Your turn' : 'Turn'}</span>` : ''}</div>
       <div class="stats4"><span title="Development cards">${icon('dev')}<b>${p.devCount}</b></span><span title="Knights played">${icon('knight')}<b>${p.knights}</b></span><span title="Resource cards in hand">${icon('cards')}<b>${p.cards}</b></span><span title="Longest road">${icon('road')}<b>${p.roadLen}</b></span></div>
       <div class="pieces">${piece('road', p.pieces.road, 'Roads')}${piece('settlement', p.pieces.settlement, 'Settlements')}${piece('city', p.pieces.city, 'Cities')}</div>
       ${badges.length ? `<div class="row badges" style="margin-top:.35rem;gap:.3rem">${badges.join('')}</div>` : ''}
       ${st.pendingDiscards[i] ? `<div class="muted" style="font-size:.85em;margin-top:.2rem">Discarding ${st.pendingDiscards[i]}</div>` : ''}
       ${skippable ? `<button class="btn small" style="margin-top:.4rem" data-skip>Skip offline player</button>` : ''}
-      ${turn ? `<div class="yourturn">${i === me() ? 'Your turn' : esc(p.name) + "'s turn"}</div>` : ''}
     </div>`;
   }).join('');
   $$('[data-skip]').forEach(b => b.onclick = () => act({ type: 'skip' }));
@@ -813,7 +820,7 @@ function drawBanner() {
   else if (st.subphase === 'roadBuilding') t = mine ? `Place ${plural(st.freeRoads, 'free road')}` : `${p.name} is placing free roads`;
   else if (mine) {
     const m = currentMode();
-    t = !st.rolled ? 'Your turn: roll the dice' : m === 'road' ? 'Tap a glowing edge to build a road' : m === 'settle' ? 'Tap a glowing corner to settle' : m === 'city' ? 'Tap one of your settlements to upgrade it' : 'Build, trade, or end your turn';
+    t = !st.rolled ? 'Your turn: roll the dice' : m === 'road' ? 'Tap a glowing edge to build a road' : m === 'settle' ? 'Tap a glowing corner to settle' : m === 'city' ? 'Tap one of your settlements to upgrade it' : m === 'auto' && autoCount() ? 'Tap a glowing spot to build, or trade, or end your turn' : 'Build, trade, or end your turn';
   } else t = p.bot ? `${p.name} is thinking…` : `${p.name}'s turn`;
   b.textContent = t; b.classList.toggle('you', mine || !!st.pendingDiscards[me()]);
 }
@@ -1095,6 +1102,26 @@ function openLeaderboard() {
     <div class="foot"><button class="btn" id="vclose">View board</button><button class="btn primary" id="vnew">New game</button></div>`, () => {
     $('#vclose').onclick = closeModal; $('#vnew').onclick = () => leaveToHome();
   });
+}
+
+// ---------- Longest Road / Largest Army announcements ----------
+function checkAwards(prev, st) {
+  const nm = i => st.players[i].name;
+  const lr = st.longestRoad, pl = prev.longestRoad, la = st.largestArmy, pa = prev.largestArmy;
+  if (lr && (!pl || pl.p !== lr.p)) showAward('road', lr.p, `${plural(lr.len, 'connected road')} · +2 points${pl ? ` · taken from ${nm(pl.p)}` : ''}`);
+  else if (!lr && pl) showAward('road', null, `${nm(pl.p)} lost it, and nobody holds it now`);
+  if (la && (!pa || pa.p !== la.p)) showAward('army', la.p, `${plural(la.size, 'knight')} played · +2 points${pa ? ` · taken from ${nm(pa.p)}` : ''}`);
+}
+function showAward(kind, p, text) {
+  const box = $('#awards'); if (!box) return;
+  const st = S.state, pl = p == null ? null : st.players[p];
+  const title = kind === 'road' ? (pl ? 'Longest Road' : 'Longest Road is open') : 'Largest Army';
+  const el = document.createElement('div');
+  el.className = 'award'; el.style.setProperty('--pc', pl ? pl.color : '#5b7fae');
+  el.innerHTML = `<span class="aw-ic">${icon(kind === 'road' ? 'road' : 'knight')}</span><div><b>${title}</b><span>${pl ? `${esc(pl.name)}${p === me() ? ' (you)' : ''} takes it. ` : ''}${esc(text)}</span></div>`;
+  box.append(el); Sound.play('gain'); setTimeout(() => Sound.play('turn'), 160);
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 520); }, 4200);
+  while (box.children.length > 3) box.firstChild.remove();
 }
 
 // ---------- move clock and setup order ----------

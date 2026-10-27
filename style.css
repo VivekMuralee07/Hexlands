@@ -453,3 +453,61 @@ body { background: radial-gradient(130% 100% at 50% 0%, #29d3e6 0%, #129cc9 28%,
 .rdot { display: none; }
 .rdisc { fill: rgba(255, 255, 255, .10); stroke: #fff; stroke-width: 4; filter: drop-shadow(0 0 2px rgba(0, 20, 50, .9)); }
 .rspot:hover .rdisc { fill: rgba(255, 255, 255, .32); }
+
+/* ===== layout: info bar above the map, bigger map, compact players ===== */
+.center { grid-area: board; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.center .board-wrap { flex: 1 1 auto; min-height: 0; }
+.center .board-wrap #board { position: absolute; inset: 0; }
+.infobar { display: flex; align-items: center; flex-wrap: wrap; gap: .3rem .7rem; padding: .35rem .7rem; background: rgba(5, 30, 66, .92); border-bottom: 1px solid rgba(255, 255, 255, .14); position: relative; z-index: 3; }
+.infobar .banner { position: static; transform: none; left: auto; top: auto; width: auto; max-width: none; flex: 1 1 13rem; text-align: left; background: transparent; border: 0; box-shadow: none; padding: .15rem .2rem; font-size: 1.05rem; pointer-events: auto; }
+.infobar .clock { position: static; right: auto; top: auto; left: auto; padding: .15rem .8rem .15rem .25rem; }
+.infobar .clock svg { width: 30px; height: 30px; }
+.infobar .dice { position: static; left: auto; bottom: auto; align-items: center; }
+.infobar .setupstrip { position: static; left: auto; top: auto; right: auto; transform: none; padding: .2rem .6rem; }
+.infobar .die { width: 56px; height: 56px; padding: 9px; border-radius: 11px; }
+.infobar .die i { width: 11px; height: 11px; }
+.infobar .die-sum { font-size: 1.9em; }
+@media (min-width: 1101px) { .game { grid-template-columns: 212px minmax(0, 1fr) 250px; } }
+.players { padding-top: 1.4rem; gap: 1.25rem; }
+.pcard { padding: 1.3rem .5rem .4rem; }
+.vpb { width: 36px; height: 36px; font-size: 1.15rem; left: -9px; top: -13px; }
+.vpb .crown { top: -19px; width: 23px; height: 23px; } .vpb .crown .ic { width: 23px; height: 23px; }
+.pcard .tag { height: 24px; left: 20px; padding: 0 .4rem 0 22px; font-size: .88rem; top: -9px; }
+.pcard .tag .lv { flex: none; width: 17px; height: 17px; border-radius: 50%; display: grid; place-items: center; font-size: .68rem; background: rgba(0, 0, 0, .3); border: 1px solid currentColor; }
+.turnpill { margin-left: auto; flex: none; padding: 0 .45rem; border-radius: 999px; background: #2f8cf0; font-size: .7rem; line-height: 17px; }
+.stats4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; }
+.stats4 span { flex-direction: row; justify-content: center; gap: 2px; font-size: .84rem; }
+.stats4 .ic { width: 1.1em; height: 1.1em; }
+.pieces { margin-top: .2rem; padding-top: .2rem; }
+.pl .ic { width: 1.1em; height: 1.1em; } .pl { font-size: .84rem; }
+.bank { padding: 4px; gap: 3px; } .bk { padding: 2px 5px 2px 3px; font-size: .78rem; } .bk .ic { width: 1.1em; height: 1.1em; }
+/* build spots and bigger hit areas */
+.espot { stroke-width: 13; } .ehit { stroke-width: 38; }
+.spot.city { fill: rgba(255, 214, 102, .2); stroke: #ffd23f; stroke-width: 4.5; }
+/* announcements */
+.awards { position: absolute; left: 50%; top: 7%; transform: translateX(-50%); display: grid; gap: .5rem; z-index: 8; pointer-events: none; width: min(92%, 460px); }
+.award { display: flex; align-items: center; gap: .8rem; padding: .65rem 1rem; border-radius: 16px; background: linear-gradient(135deg, color-mix(in srgb, var(--pc) 55%, #0a2a62), #0a2a62); border: 3px solid #ffd23f; box-shadow: 0 14px 40px rgba(0, 0, 0, .55), 0 0 30px rgba(255, 210, 63, .45); animation: awardin .6s cubic-bezier(.2, 1.5, .4, 1) both; }
+.award.out { animation: awardout .5s ease-in forwards; }
+.aw-ic { width: 56px; height: 56px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--pc); border: 3px solid #fff; color: #fff; }
+.aw-ic .ic { width: 34px; height: 34px; }
+.award b { display: block; font-family: var(--display); font-size: 1.5em; color: #ffe08a; line-height: 1.1; }
+.award span:not(.aw-ic) { color: #fff; font-weight: 700; }
+@keyframes awardin { from { opacity: 0; transform: translateY(-26px) scale(.8); } to { opacity: 1; transform: none; } }
+@keyframes awardout { to { opacity: 0; transform: translateY(-16px) scale(.95); } }
+@media (prefers-reduced-motion: reduce) { .award, .award.out { animation: none; } }
+@media (max-width: 760px) {
+  .infobar { padding: .3rem .5rem; gap: .25rem .5rem; }
+  .infobar .banner { flex: 1 1 100%; font-size: .92rem; }
+  .infobar .die { width: 44px; height: 44px; padding: 7px; } .infobar .die i { width: 9px; height: 9px; }
+  .players { padding-top: 1.3rem; gap: .7rem; }
+  .pcard { min-width: 150px; padding: 1.25rem .45rem .35rem; }
+  .bank { width: 128px; }
+}
+@media (max-width: 760px) {
+  .dock { gap: .3rem; padding: .35rem .45rem; padding-bottom: max(.35rem, env(safe-area-inset-bottom)); }
+  .card { width: 46px; height: 62px; } .card .ic { width: 28px; height: 28px; } .card .lbl { font-size: .6em; }
+  .actions { flex-wrap: nowrap; gap: .25rem; width: 100%; margin: 0; justify-content: stretch; }
+  .act { flex: 1 1 0; min-width: 0; min-height: 48px; padding: .25em .1em; font-size: .66rem; }
+  .act .ic { width: 22px; height: 22px; }
+  .act .cost { display: none; }
+}
