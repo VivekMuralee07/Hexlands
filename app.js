@@ -52,7 +52,7 @@ function toast(msg, kind = '', html = false) {
   if (kind === 'err') Sound.play('error');
   el[html ? 'innerHTML' : 'textContent'] = msg;
   $('#toasts').append(el);
-  setTimeout(() => el.remove(), kind === 'err' ? 3600 : 2800);
+  setTimeout(() => el.classList.add('out'), 1650); setTimeout(() => el.remove(), 2000);   // every pop-up is gone within 2 seconds
   while ($('#toasts').children.length > 3) $('#toasts').firstChild.remove();
 }
 async function post(path, body) {
@@ -454,14 +454,7 @@ function onState(st) {
   if (prev && prev.turn !== st.turn && st.turn === st.you && st.phase === 'main') { toast('Your turn'); Sound.play('turn'); if (navigator.vibrate) navigator.vibrate(50); }
   if (prev && prev.phase === 'lobby' && st.phase === 'setup') Sound.theme('start');
   if (prev && prev.phase !== 'ended' && st.phase === 'ended') { Sound.theme('finish'); recordResult(st); setTimeout(openLeaderboard, 700); confetti(); }
-  if (prev) {
-    const built = x => Object.keys(x.roads).length + Object.values(x.buildings).reduce((a, b) => a + (b.type === 'city' ? 2 : 1), 0);
-    if (built(st) > built(prev)) Sound.play('place');
-    if (st.lastSteal && (!prev.lastSteal || prev.lastSteal.seq !== st.lastSteal.seq)) Sound.play('card');
-    if (st.robber !== prev.robber) Sound.play('robber');
-    const devs = x => x.players.reduce((a, p) => a + p.devCount, 0);
-    if (devs(st) > devs(prev)) Sound.play('card');
-  }
+  if (prev) soundReactions(prev, st);
   if (st.turn !== st.you || st.subphase || !st.rolled || (S.mode && !modePossible(S.mode))) S.mode = null;
   renderGame($('#app'));
 }
@@ -469,7 +462,7 @@ function onState(st) {
 function onRoll(st) {
   const d = st.lastRoll.dice, total = d[0] + d[1];
   drawDice(d, true);
-  Sound.play('dice'); flyGains(st);
+  Sound.play('dice'); flyGains(st); if (total === 7) setTimeout(() => Sound.play('seven'), 900);
   if (total !== 7) { S.hot = { sum: total, until: Date.now() + 2600 }; setTimeout(() => { if (S.screen === 'game') drawDyn(); }, 2700); }
   const g = st.lastRoll.gains[st.you];
   if (g && sum(g)) {
@@ -672,7 +665,7 @@ function drawDyn() {
         + `<path d="M-14,-2 L0,-15 L14,-2Z" fill="${dk}" stroke="#1b1b1b" stroke-width="2" stroke-linejoin="round"/><rect x="-3" y="2" width="6" height="8" rx="1" fill="#3a2410"/><rect x="5" y="1" width="4" height="4" fill="#ffe27a"/>${smoke(7.2, -19)}</g></g>`;
   }
   const rt = b.tiles[st.robber];
-  s += `<use href="#ic-robber" x="${rt.x * U - 74}" y="${rt.y * U - 40}" width="68" height="68" pointer-events="none" filter="url(#f-shadow)"/>`;
+  s += `<use href="#ic-robber" x="${rt.x * U - 58}" y="${rt.y * U - 42}" width="44" height="44" pointer-events="none" filter="url(#f-shadow)"/>`;
   s += highlights();
   $('#dyn').innerHTML = s;
 }
@@ -937,17 +930,41 @@ function bindQty(layer, groups, onChange) {
 }
 
 function openDiscard() {
-  const st = S.state, need = st.pendingDiscards[me()], vals = { wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 0 };
-  openModal('discard', `<h3>The robber strikes</h3><p>You hold more than ${st.opts.discardLimit} cards. Choose ${need} to return to the bank.</p>
-    ${qtyRow('d', vals, st.me.res)}<div class="foot"><span class="muted grow" id="dleft"></span><button class="btn" id="dauto">Pick for me</button><button class="btn primary" id="dgo" disabled>Discard</button></div>`, layer => {
-    const upd = () => { const n = sum(vals); $('#dleft').textContent = `${n} of ${need} chosen`; $('#dgo').disabled = n !== need; RES.forEach(k => { $('#d-' + k).textContent = vals[k]; }); };
-    bindQty(layer, { d: { vals, max: st.me.res } }, upd); upd();
-    $('#dauto').onclick = () => {
-      RES.forEach(k => { vals[k] = 0; });
-      for (let i = 0; i < need; i++) { const k = RES.slice().sort((a, b) => (st.me.res[b] - vals[b]) - (st.me.res[a] - vals[a]))[0]; vals[k]++; }
+  const st = S.state, need = st.pendingDiscards[me()], limit = st.opts.discardLimit;
+  const cards = []; RES.forEach(k => { for (let i = 0; i < st.me.res[k]; i++) cards.push(k); });   // one entry per card in hand
+  const picked = new Set();
+  openModal('discard', `<h3>The robber strikes!</h3><p>You hold more than ${limit} cards. Tap ${need} of them to give back to the bank.</p>
+    <div class="dcards">${cards.map((k, i) => `<button class="dcard ${k}" data-i="${i}" data-res="${k}" style="--d:${i}" aria-pressed="false" aria-label="${RES_LABEL[k]}">${icon(k)}<span class="x" aria-hidden="true">✕</span></button>`).join('')}</div>
+    <div class="dmeter" id="dmeter"></div>
+    <div class="foot"><span class="muted grow" id="dleft"></span><button class="btn" id="dauto">Auto-pick</button><button class="btn primary" id="dgo" disabled>Discard</button></div>`, layer => {
+    const upd = () => {
+      layer.querySelectorAll('.dcard').forEach(b => b.setAttribute('aria-pressed', picked.has(+b.dataset.i)));
+      $('#dleft').textContent = `${picked.size} of ${need} chosen`;
+      $('#dmeter').innerHTML = Array.from({ length: need }, (_, i) => `<i class="${i < picked.size ? 'on' : ''}"></i>`).join('');
+      $('#dgo').disabled = picked.size !== need;
+    };
+    layer.querySelectorAll('.dcard').forEach(b => b.onclick = () => {
+      const i = +b.dataset.i;
+      if (picked.has(i)) picked.delete(i);
+      else if (picked.size < need) picked.add(i);
+      else { const m = $('#dmeter'); m.classList.remove('shake'); void m.offsetWidth; m.classList.add('shake'); Sound.play('error'); return; }
+      upd();
+    });
+    $('#dauto').onclick = () => {   // give back the cards you hold most of
+      picked.clear(); const left = {}; cards.forEach(k => { left[k] = (left[k] || 0) + 1; });
+      for (let n = 0; n < need; n++) { const k = RES.slice().sort((a, b) => (left[b] || 0) - (left[a] || 0))[0]; picked.add(cards.findIndex((c, j) => c === k && !picked.has(j))); left[k]--; }
       upd();
     };
-    $('#dgo').onclick = async () => { const r = await act({ type: 'discard', res: vals }); if (r.ok) closeModal(); };
+    $('#dgo').onclick = async () => {
+      const res = { wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 0 }; picked.forEach(i => { res[cards[i]]++; });
+      $('#dgo').disabled = true; $('#dauto').disabled = true;
+      const els = [...picked].map(i => layer.querySelector(`.dcard[data-i="${i}"]`)), box = layer.querySelector('.modal');
+      Sound.play('discard'); box.classList.add('leaving');
+      await flyAway(els);
+      const r = await act({ type: 'discard', res });
+      if (r.ok) closeModal(); else { els.forEach(e => { e.style.visibility = ''; }); box.classList.remove('leaving'); $('#dauto').disabled = false; upd(); }
+    };
+    upd();
   });
 }
 
@@ -1119,7 +1136,7 @@ function showAward(kind, p, text) {
   const el = document.createElement('div');
   el.className = 'award'; el.style.setProperty('--pc', pl ? pl.color : '#5b7fae');
   el.innerHTML = `<span class="aw-ic">${icon(kind === 'road' ? 'road' : 'knight')}</span><div><b>${title}</b><span>${pl ? `${esc(pl.name)}${p === me() ? ' (you)' : ''} takes it. ` : ''}${esc(text)}</span></div>`;
-  box.append(el); Sound.play('gain'); setTimeout(() => Sound.play('turn'), 160);
+  box.append(el); Sound.play('award');
   setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 520); }, 4200);
   while (box.children.length > 3) box.firstChild.remove();
 }
@@ -1194,6 +1211,64 @@ function confetti() {
     ps.forEach(p => { p.x += p.vx; p.y += p.vy; p.r += p.vr; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.fillStyle = p.c; ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); ctx.restore(); });
     if (t - t0 < 6500) requestAnimationFrame(frame); else cv.remove();
   })(t0);
+}
+
+// ---------- discard animations and table sounds ----------
+const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+// The chosen cards fly from the dialog to the bank. Clones are used so the dialog's edges don't clip them.
+function flyAway(els) {
+  if (reducedMotion()) return Promise.resolve();
+  const bank = $('#players .bank'), bt = bank ? bank.getBoundingClientRect() : { left: innerWidth / 2, top: -60, width: 0, height: 0 };
+  const tx = bt.left + bt.width / 2, ty = bt.top + bt.height / 2;
+  return Promise.all(els.map((el, i) => {
+    const r = el.getBoundingClientRect(), c = el.cloneNode(true);
+    Object.assign(c.style, { position: 'fixed', left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px', margin: 0, zIndex: 90, pointerEvents: 'none', animation: 'none', transition: 'none' });
+    document.body.append(c); el.style.visibility = 'hidden';
+    const dx = tx - (r.left + r.width / 2), dy = ty - (r.top + r.height / 2);
+    const a = c.animate([
+      { transform: 'translateY(-18px) rotate(-4deg) scale(1.07)', opacity: 1 },
+      { transform: `translate(${dx * .12}px, ${dy * .12 - 34}px) rotate(-14deg) scale(1.14)`, opacity: 1, offset: .25 },
+      { transform: `translate(${dx}px, ${dy}px) rotate(${(i % 2 ? 1 : -1) * 38}deg) scale(.25)`, opacity: 0 },
+    ], { duration: 720, delay: i * 70, easing: 'cubic-bezier(.5,0,.75,.35)', fill: 'both' });
+    return a.finished.then(() => c.remove(), () => c.remove());
+  }));
+}
+// Other players' discards: face-down cards fly from their card to the bank.
+function flyDiscardCards(i, n) {
+  if (reducedMotion()) return;
+  const from = $$('#players .pcard')[i], to = $('#players .bank'); if (!from || !to) return;
+  const a = from.getBoundingClientRect(), b = to.getBoundingClientRect();
+  const sx = a.left + a.width / 2 - 17, sy = a.top + a.height / 2 - 17, ex = b.left + b.width / 2 - 17, ey = b.top + b.height / 2 - 17;
+  for (let c = 0; c < Math.min(n, 8); c++) {
+    const el = document.createElement('div'); el.className = 'fly'; el.innerHTML = icon('cards'); document.body.append(el);
+    el.animate([
+      { transform: `translate(${sx}px, ${sy}px) scale(.7)`, opacity: 0 },
+      { transform: `translate(${sx + 8}px, ${sy - 16}px) scale(1.1) rotate(-8deg)`, opacity: 1, offset: .2 },
+      { transform: `translate(${ex}px, ${ey}px) scale(.5) rotate(${(c % 2 ? 1 : -1) * 40}deg)`, opacity: .2 },
+    ], { duration: 760, delay: c * 60, easing: 'cubic-bezier(.5,0,.7,.4)', fill: 'both' }).onfinish = () => el.remove();
+  }
+}
+function soundReactions(prev, st) {
+  const cnt = x => ({ r: Object.keys(x.roads).length, s: Object.values(x.buildings).filter(b => b.type === 'settlement').length, c: Object.values(x.buildings).filter(b => b.type === 'city').length });
+  const a = cnt(prev), b = cnt(st);
+  if (b.c > a.c) Sound.play('city'); else if (b.s > a.s) Sound.play('settle'); else if (b.r > a.r) Sound.play('road');
+  if (st.lastSteal && (!prev.lastSteal || prev.lastSteal.seq !== st.lastSteal.seq)) Sound.play('steal');
+  if (st.robber !== prev.robber) Sound.play('robber');
+  const devs = x => x.players.reduce((n, p) => n + p.devCount, 0);
+  if (devs(st) > devs(prev)) Sound.play('devbuy');
+  if (st.trade && (!prev.trade || prev.trade.id !== st.trade.id)) Sound.play('offer');
+  // new lines in the log: trades make a coin sound, other players' discards fly to the bank
+  const base = S.logAt != null ? S.logAt : Math.max(0, ...prev.log.map(l => l.at));
+  let newest = base;
+  for (const l of st.log) {
+    if (l.at <= base) continue;
+    newest = Math.max(newest, l.at);
+    if (l.chat != null) continue;
+    if (/ traded /.test(l.text)) Sound.play('coin');
+    const d = /^(.+?) discarded (\d+) cards\.$/.exec(l.text);
+    if (d) { const i = st.players.findIndex(p => p.name === d[1]); if (i >= 0 && i !== me()) { Sound.play('discard'); flyDiscardCards(i, +d[2]); } }
+  }
+  S.logAt = newest;
 }
 
 // ---------- boot ----------

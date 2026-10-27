@@ -53,21 +53,44 @@
   }
 
   // ---------- effects ----------
+  // Physical-sounding effects in the spirit of a tabletop game: wooden knocks for pieces, a dice cup,
+  // card slides, a soft bell for your turn, coins for trades.
   const NOTE = { wood: 293.66, brick: 329.63, sheep: 392.0, wheat: 440.0, ore: 523.25 };
+  function sweep(t, f0, f1, dur, peak, q = 1.2, type = 'bandpass') {
+    const s = ctx.createBufferSource(); s.buffer = noiseBuf;
+    const f = ctx.createBiquadFilter(); f.type = type; f.Q.value = q;
+    f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    s.connect(f); f.connect(envGain(sfxBus, t, peak, Math.min(0.02, dur / 3), dur));
+    s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.08);
+  }
+  function knock(t, f = 190, peak = 0.5, len = 0.09) { tone(sfxBus, 'sine', f, t, peak, 0.002, len, { to: f * 0.5 }); noise(sfxBus, t, peak * 0.5, 0.04, 'bandpass', f * 5, 2); }
+  function bell(t, f, peak = 0.22) { [1, 2.76, 5.4].forEach((m, i) => tone(sfxBus, 'sine', f * m, t, peak / (i + 1), 0.003, 1.1 / (i + 1))); }
   const fx = {
-    click(t) { tone(sfxBus, 'triangle', 1700, t, 0.22, 0.002, 0.035, { to: 1100 }); noise(sfxBus, t, 0.08, 0.02, 'highpass', 5000); },
-    res(t, k) { fx.click(t); const f = NOTE[k] || 440; tone(sfxBus, 'sine', f, t + 0.01, 0.35, 0.004, 0.28); tone(sfxBus, 'sine', f * 4, t + 0.01, 0.06, 0.002, 0.08); },
-    place(t) { tone(sfxBus, 'sine', 210, t, 0.5, 0.003, 0.12, { to: 95 }); noise(sfxBus, t, 0.18, 0.05, 'lowpass', 900); },
-    dice(t) {
-      for (let i = 0; i < 7; i++) noise(sfxBus, t + i * 0.055 + Math.random() * 0.03, 0.22 - i * 0.02, 0.03, 'bandpass', 2200 + Math.random() * 1800, 4);
-      tone(sfxBus, 'sine', 160, t + 0.42, 0.3, 0.002, 0.08, { to: 90 });
+    click(t) { tone(sfxBus, 'triangle', 1700, t, 0.45, 0.002, 0.035, { to: 1100 }); noise(sfxBus, t, 0.18, 0.02, 'highpass', 5000); },
+    res(t, k) { fx.click(t); const f = NOTE[k] || 440; tone(sfxBus, 'sine', f, t + 0.01, 0.5, 0.004, 0.26); tone(sfxBus, 'sine', f * 2, t + 0.01, 0.12, 0.003, 0.12); },
+    road(t) { knock(t, 240, 0.42, 0.06); knock(t + 0.085, 190, 0.5, 0.09); },                       // two quick wooden clacks
+    settle(t) { knock(t, 150, 0.95, 0.12); tone(sfxBus, 'triangle', 660, t + 0.07, 0.2, 0.004, 0.25); },
+    city(t) { knock(t, 120, 0.65, 0.14); knock(t + 0.11, 150, 0.55, 0.12); [523, 659, 784].forEach((f, i) => tone(sfxBus, 'triangle', f, t + 0.2 + i * 0.07, 0.12, 0.004, 0.42)); },
+    place(t) { fx.settle(t); },
+    dice(t) {                                                                                         // shaken in a cup, then tumbling
+      for (let i = 0; i < 9; i++) noise(sfxBus, t + i * 0.045 + Math.random() * 0.02, 0.16, 0.03, 'bandpass', 1800 + Math.random() * 2200, 5);
+      let at = t + 0.42, gap = 0.09;
+      for (let i = 0; i < 7; i++) { tone(sfxBus, 'square', 900 + Math.random() * 900, at, 0.12 * (1 - i * 0.1), 0.001, 0.025, { filter: 3500 }); noise(sfxBus, at, 0.2 * (1 - i * 0.1), 0.03, 'bandpass', 2500 + Math.random() * 1500, 4); at += gap; gap *= 0.8; }
+      knock(at + 0.02, 170, 0.35, 0.1);
     },
-    gain(t) { [659.25, 880, 1318.5].forEach((f, i) => tone(sfxBus, 'sine', f, t + i * 0.07, 0.22, 0.004, 0.35)); },
-    card(t) { const s = ctx.createBufferSource(); s.buffer = noiseBuf; const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 2; f.frequency.setValueAtTime(800, t); f.frequency.exponentialRampToValueAtTime(5000, t + 0.18); s.connect(f); f.connect(envGain(sfxBus, t, 0.25, 0.02, 0.18)); s.start(t); s.stop(t + 0.25); },
-    turn(t) { tone(sfxBus, 'sine', 880, t, 0.25, 0.005, 0.5); tone(sfxBus, 'sine', 1318.5, t + 0.12, 0.2, 0.005, 0.6); },
-    error(t) { tone(sfxBus, 'square', 150, t, 0.12, 0.004, 0.09, { filter: 900 }); tone(sfxBus, 'square', 120, t + 0.11, 0.12, 0.004, 0.12, { filter: 900 }); },
-    tick(t) { tone(sfxBus, 'square', 1500, t, 0.1, 0.002, 0.03, { filter: 3000 }); },
-    robber(t) { tone(sfxBus, 'sawtooth', 110, t, 0.18, 0.02, 0.5, { to: 70, filter: 600 }); },
+    card(t) { sweep(t, 700, 5200, 0.18, 3.0, 2); },                                                   // a card sliding
+    gain(t) { sweep(t, 700, 5200, 0.18, 2.0, 2); [660, 880].forEach((f, i) => tone(sfxBus, 'sine', f, t + 0.12 + i * 0.06, 0.16, 0.003, 0.2)); },
+    steal(t) { sweep(t, 900, 4200, 0.16, 0.9, 2); sweep(t + 0.1, 4200, 900, 0.16, 0.8, 2); },
+    devbuy(t) { noise(sfxBus, t, 0.7, 0.05, 'bandpass', 3500, 1); noise(sfxBus, t + 0.07, 0.55, 0.05, 'bandpass', 2500, 1); tone(sfxBus, 'sine', 500, t + 0.1, 0.12, 0.01, 0.16, { to: 900 }); },
+    turn(t) { bell(t, 784); bell(t + 0.17, 1046.5); },                                                 // soft two-note bell
+    robber(t) { tone(sfxBus, 'sine', 90, t, 1.0, 0.005, 0.35, { to: 45 }); tone(sfxBus, 'sawtooth', 70, t + 0.12, 0.2, 0.02, 0.5, { to: 50, filter: 300 }); noise(sfxBus, t, 0.2, 0.12, 'lowpass', 400); },
+    seven(t) { tone(sfxBus, 'sawtooth', 110, t, 0.3, 0.02, 0.55, { to: 82, filter: 500 }); tone(sfxBus, 'sawtooth', 116.5, t, 0.24, 0.02, 0.55, { to: 87, filter: 500 }); knock(t, 70, 0.9, 0.3); },
+    discard(t) { sweep(t, 6000, 400, 0.4, 0.9, 0.9, 'lowpass'); [0, 0.07, 0.14].forEach(d => tone(sfxBus, 'sine', 520, t + d, 0.14, 0.002, 0.1, { to: 200 })); },
+    offer(t) { tone(sfxBus, 'sine', 988, t, 0.3, 0.003, 0.22); tone(sfxBus, 'sine', 1319, t + 0.1, 0.3, 0.003, 0.32); },
+    coin(t) { [2093, 2637, 3136].forEach((f, i) => tone(sfxBus, 'sine', f, t + i * 0.055, 0.25, 0.001, 0.36)); noise(sfxBus, t, 0.12, 0.05, 'highpass', 7000); },
+    award(t) { [392, 523, 659, 784].forEach((f, i) => tone(sfxBus, 'sawtooth', f, t + i * 0.1, 0.1, 0.01, 0.38, { filter: 2200 })); tone(sfxBus, 'triangle', 1046.5, t + 0.42, 0.2, 0.01, 0.8); bell(t + 0.42, 1568, 0.1); },
+    error(t) { tone(sfxBus, 'square', 150, t, 0.3, 0.004, 0.09, { filter: 900 }); tone(sfxBus, 'square', 120, t + 0.11, 0.3, 0.004, 0.12, { filter: 900 }); },
+    tick(t) { tone(sfxBus, 'square', 1500, t, 0.4, 0.002, 0.03, { filter: 3000 }); },
   };
 
   // ---------- beat themes ----------
@@ -140,5 +163,19 @@
     setSfx(on) { state.sfx = on; save('sfx', on); if (on) Sound.play('click'); },
     setMusic(on) { state.music = on; save('music', on); if (!on) stopTheme(); },
     _themes: THEMES,
+    // Test hook: renders one effect offline and reports its loudest sample and how long it stays audible.
+    async _render(name, arg, dur = 2.5) {
+      const rate = 44100, off = new OfflineAudioContext(1, rate * dur, rate), saved = [ctx, out, sfxBus, noiseBuf];
+      try {
+        ctx = off; out = off.createDynamicsCompressor(); out.threshold.value = -14; out.ratio.value = 4; out.connect(off.destination);
+        sfxBus = off.createGain(); sfxBus.gain.value = 0.55; sfxBus.connect(out);
+        noiseBuf = off.createBuffer(1, rate, rate); const nd = noiseBuf.getChannelData(0); for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+        fx[name](0.005, arg);
+        const d = (await off.startRendering()).getChannelData(0);
+        let peak = 0, last = 0;
+        for (let i = 0; i < d.length; i++) { const a = Math.abs(d[i]); if (a > peak) peak = a; if (a > 0.01) last = i; }
+        return { peak: +peak.toFixed(3), activeMs: Math.round(last / rate * 1000) };
+      } finally { [ctx, out, sfxBus, noiseBuf] = saved; }
+    },
   };
 })();

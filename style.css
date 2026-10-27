@@ -565,3 +565,35 @@ body { background: radial-gradient(130% 100% at 50% 0%, #29d3e6 0%, #129cc9 28%,
 .lobby { grid-template-areas: "opts room" "map room"; }
 .lb-opts { grid-area: opts; } .lb-room { grid-area: room; } .lb-map { grid-area: map; }
 @media (max-width: 760px) { .lobby { grid-template-areas: "opts" "room" "map"; } }
+
+/* pop-up notifications: top right, gone within 2 seconds */
+.toasts { left: auto; right: .6rem; top: 2.9rem; bottom: auto; transform: none; justify-items: end; max-width: min(78vw, 320px); }
+.toast { animation: toastin .22s ease-out; }
+.toast.out { animation: toastout .35s ease-in forwards; }
+@keyframes toastin { from { opacity: 0; transform: translateX(18px); } }
+@keyframes toastout { to { opacity: 0; transform: translateX(18px); } }
+@media (prefers-reduced-motion: reduce) { .toast, .toast.out { animation: none; } }
+
+/* ===== discard: tap the cards themselves ===== */
+.modal:has(.dcards) { width: min(660px, 100%); }
+.modal.leaving { opacity: 0; transform: scale(.96); transition: opacity .3s .25s, transform .3s .25s; }
+.dcards { display: flex; flex-wrap: wrap; justify-content: center; gap: 9px; padding: 24px 4px 10px; min-height: 120px; }
+.dcard { --c: #345; position: relative; width: 58px; height: 80px; padding: 0; border-radius: 9px; border: 2px solid rgba(255, 255, 255, .75); display: grid; place-items: center; cursor: pointer;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--c) 70%, #fff) 0%, var(--c) 55%, color-mix(in srgb, var(--c) 60%, #000) 100%);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, .4); transition: transform .18s cubic-bezier(.3, 1.6, .5, 1), box-shadow .18s, border-color .18s;
+  animation: dealin .5s cubic-bezier(.2, 1.2, .4, 1) both; animation-delay: calc(var(--d) * 30ms); }
+.dcard.wood { --c: var(--wood); } .dcard.brick { --c: var(--brick); } .dcard.sheep { --c: var(--sheep); } .dcard.wheat { --c: var(--wheat); } .dcard.ore { --c: var(--ore); }
+.dcard::after { content: ''; position: absolute; inset: 0; border-radius: 7px; background: linear-gradient(120deg, rgba(255, 255, 255, .4), transparent 46%); pointer-events: none; }
+.dcard .ic { width: 30px; height: 30px; padding: 4px; box-sizing: content-box; border-radius: 50%; background: rgba(255, 255, 255, .6); }
+.dcard:hover { transform: translateY(-6px); }
+.dcard[aria-pressed=true] { transform: translateY(-18px) rotate(-4deg) scale(1.07); border-color: #ff6b57; box-shadow: 0 0 0 3px rgba(255, 107, 87, .75), 0 14px 24px rgba(0, 0, 0, .5); animation: none; }
+.dcard .x { position: absolute; top: -10px; right: -10px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: #ff6b57; color: #fff; font-size: .8rem; font-weight: 800; border: 2px solid #fff; transform: scale(0); transition: transform .18s cubic-bezier(.3, 1.9, .5, 1); z-index: 1; }
+.dcard[aria-pressed=true] .x { transform: scale(1); }
+@keyframes dealin { from { opacity: 0; transform: translateY(46px) rotate(9deg) scale(.8); } }
+.dmeter { display: flex; justify-content: center; gap: 6px; margin: .5rem 0 .2rem; }
+.dmeter i { width: 28px; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, .2); transition: background .15s, transform .15s; }
+.dmeter i.on { background: #ff6b57; transform: scaleY(1.35); }
+.dmeter.shake { animation: shakex .3s; }
+@keyframes shakex { 25% { transform: translateX(-7px); } 75% { transform: translateX(7px); } }
+@media (max-width: 760px) { .dcard { width: 46px; height: 64px; } .dcard .ic { width: 24px; height: 24px; } .dcards { gap: 7px; padding-top: 20px; } }
+@media (prefers-reduced-motion: reduce) { .dcard { animation: none; } .modal.leaving { transition: none; } }

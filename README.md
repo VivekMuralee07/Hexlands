@@ -9,6 +9,7 @@ A multiplayer island-settling game for 2–4 players in the browser. Gather wood
 - Flat, colorful board with a slim border and a map-name label: moving sea, windmills, chimney smoke, flying resource cards, confetti on a win
 - Bank bar and player cards: points badge (crown for the leader), development cards, knights, cards in hand, longest road, and roads, settlements and cities left to build
 - Robber: a ring appears around the number token of every hex where it can go
+- Discarding on a 7: your cards are shown one by one; tap the ones to give back (a meter fills as you pick, Auto-pick helps), then they fly to the bank. Other players' discards fly to the bank too.
 - Tap to build: once you have rolled and can afford a road, settlement or city, every legal spot glows on the map. Tap a spot to build there, with no button first. The Road, Settle and City buttons still work as filters.
 - A bar above the map shows the instruction, move timer, dice and setup order, so nothing covers the board
 - Longest Road and Largest Army are announced on screen the moment they change hands
@@ -121,7 +122,7 @@ In testing, medium beat easy in 99% of games, and hard beat medium in about 60% 
 
 ## Sound
 
-All sound is generated in the browser, so there are no audio files. A beat theme plays when a game starts and a victory theme when it finishes. Buttons click, each resource card has its own note, and dice, builds, steals, the robber, new cards, the last 5 seconds of your clock, and your turn have sounds. Use the speaker and music buttons to switch effects and music on or off; the choice is remembered. Browsers only allow sound after your first tap.
+All sound is generated in the browser, so there are no audio files. A beat theme plays when a game starts and a victory theme when it finishes. Effects are modeled on a physical table: wooden knocks for roads, settlements and cities (each different), a dice cup that rattles and tumbles, card slides when you collect, steal or buy a card, a soft two-note bell for your turn, coins for trades, a quiet ping for a trade offer, a low thump for the robber and a darker sting for a 7, a whoosh when cards are discarded, a short fanfare when someone takes Longest Road or Largest Army, and a tick in the last 5 seconds of your clock. Tapping a resource card plays its own note. Use the speaker and music buttons to switch effects and music on or off; the choice is remembered. Browsers only allow sound after your first tap.
 
 ## Leaderboard
 
