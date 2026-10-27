@@ -98,7 +98,7 @@
     <g transform="translate(0 -7)"><g><animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="8s" repeatCount="indefinite"/>${[0, 90, 180, 270].map(r => `<g transform="rotate(${r})"><rect x="-.9" y="-16" width="1.8" height="16" fill="#6b4a12"/><path d="M1,-15 h7 v7 h-7z" fill="#fff" stroke="#b9a070" stroke-width=".5"/></g>`).join('')}</g><circle r="1.8" fill="#4a3210"/></g></g>`;
   t.pasture += `<g transform="translate(40 6)"><ellipse rx="14" ry="6.5" fill="#1d86b8"/><ellipse rx="12.5" ry="5.4" fill="#45c8f0"/><path d="M-8,-1 q4,-2 8,0" stroke="#fff" stroke-opacity=".7" stroke-width="1" fill="none"/><circle cx="6" cy="1" r="2.2" fill="#5fcf5f"/></g>`;
   // Plain, flat tiles: one colour per resource and no scenery
-  const PLAIN = {"forest": "#1b6e34", "hills": "#e8645a", "pasture": "#a3d65f", "fields": "#f6c93a", "mountains": "#c3c7cb", "desert": "#d9cf96"};
+  const PLAIN = {"forest": "#14943a", "hills": "#e2632a", "pasture": "#92b40a", "fields": "#f3ba23", "mountains": "#a3a9a5", "desert": "#cac284"};
   Object.keys(t).forEach(k => { t[k] = `<rect x="-60" y="-60" width="120" height="120" fill="${PLAIN[k]}"/>`; });
   const symbols = Object.keys(t).map(k => `<symbol id="t-${k}" viewBox="-60 -60 120 120" overflow="visible">${t[k]}</symbol>`).join('');
 
@@ -153,6 +153,7 @@
     <filter id="f-blur2" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="6"/></filter>
     <linearGradient id="g-wood" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d99d58"/><stop offset=".5" stop-color="#9a6030"/><stop offset="1" stop-color="#5f3716"/></linearGradient>
     <pattern id="p-grain" width="60" height="9" patternUnits="userSpaceOnUse"><path d="M0,2 q15,-2 30,0 t30,0 M0,6.5 q15,2 30,0 t30,0" stroke="#4a2a0e" stroke-width="1.1" fill="none"/></pattern>
+    <radialGradient id="g-bubble" cx=".4" cy=".34" r=".78"><stop offset="0" stop-color="#fff" stop-opacity=".66"/><stop offset=".65" stop-color="#fff" stop-opacity=".24"/><stop offset="1" stop-color="#fff" stop-opacity=".12"/></radialGradient>
     <clipPath id="c-hex"><polygon points="${HEX}"/></clipPath>
     ${pine}${oak}${bricks}${sheep}${tuft}${wheat}${cactus}${ore}
   </defs>${symbols}${iconSymbols}`;

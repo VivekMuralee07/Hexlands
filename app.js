@@ -98,10 +98,10 @@ function bounds(b, pad = 70) {
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   const add = (x, y, r) => { x0 = Math.min(x0, x - r); y0 = Math.min(y0, y - r); x1 = Math.max(x1, x + r); y1 = Math.max(y1, y + r); };
   b.tiles.forEach(t => add(t.x * U, t.y * U, 62));
-  (b.ports || []).forEach(p => { add(p.x * U, p.y * U, 34); add(p.x * U + 27, p.y * U - 46, 6); });   // plate, plus the boat above it
+  (b.ports || []).forEach(p => { add(p.x * U, p.y * U, 34); add(p.x * U, p.y * U - 44, 5); });   // the ship and its pennants   // plate, plus the boat above it
   return { x: x0 - pad, y: y0 - pad, w: x1 - x0 + 2 * pad, h: y1 - y0 + 2 * pad };
 }
-const SIDE = { forest: '#124b23', hills: '#9e443d', pasture: '#6f9241', fields: '#a78927', mountains: '#85878a', desert: '#948d66' };
+const SIDE = { forest: '#0e6527', hills: '#9a431d', pasture: '#637a07', fields: '#a57e18', mountains: '#6f7370', desert: '#89845a' };
 function shade(hex, f) {
   const n = parseInt(hex.slice(1), 16);
   const ch = [n >> 16, (n >> 8) & 255, n & 255].map(c => Math.max(0, Math.min(255, Math.round(f < 0 ? c * (1 + f) : c + (255 - c) * f))));
@@ -121,18 +121,25 @@ function tokenSvg(n, x, y) {
   return `<g transform="translate(${x} ${y})" pointer-events="none">${red ? '<circle r="37" fill="#ff5a3c" opacity=".3" filter="url(#f-blur2)"/>' : ''}<circle r="31" fill="url(#g-token)" stroke="${red ? '#b3261e' : '#8a6a3a'}" stroke-width="2.4" filter="url(#f-shadow)"/>`
     + `<circle r="26.5" fill="none" stroke="#c9b48a" stroke-width="1"/><text y="${n >= 10 ? 7 : 9}" text-anchor="middle" font-family="Alegreya SC, Georgia, serif" font-weight="800" font-size="${n >= 10 ? 29 : 35}" fill="${col}">${n}</text>${dots}</g>`;
 }
-const RES_COLOR = { wood: '#1b6e34', brick: '#e8645a', sheep: '#a3d65f', wheat: '#f6c93a', ore: '#c3c7cb' };
+const RES_COLOR = { wood: '#14943a', brick: '#e2632a', sheep: '#92b40a', wheat: '#f3ba23', ore: '#a3a9a5' };
 function portSvg(p) {
-  const px = p.x * U, py = p.y * U, any = p.type === 'any', col = any ? '#c4d0de' : RES_COLOR[p.type];
-  const pier = p.vx.map(([x, y]) => `<line x1="${px}" y1="${py}" x2="${x * U}" y2="${y * U}" stroke="#fff" stroke-opacity=".92" stroke-width="3.6" stroke-linecap="round" stroke-dasharray="0.1 7"/>`
-    + `<circle cx="${x * U}" cy="${y * U}" r="5" fill="#8a5a2b" stroke="#2c1e0e" stroke-width="1.4"/>`).join('');
-  const plate = any
-    ? `<text y="7.5" text-anchor="middle" font-family="Alegreya Sans, sans-serif" font-weight="800" font-size="21" fill="#1b3350">3:1</text>`
-    : `<use href="#ic-${p.type}" x="-25" y="-12.5" width="25" height="25"/><text x="14" y="7" text-anchor="middle" font-family="Alegreya Sans, sans-serif" font-weight="800" font-size="19" fill="#1b3350">2:1</text>`;
-  const boat = `<g transform="translate(27 -23)"><g><animateTransform attributeName="transform" type="translate" values="0 0;0 -2.5;0 0" dur="2.6s" repeatCount="indefinite"/>`
-    + `<path d="M-11,5 h22 l-5,7 h-12z" fill="#8a5a2b" stroke="#2c1e0e" stroke-width="1.3" stroke-linejoin="round"/><path d="M0,4 V-14 L11,2z" fill="#fff" stroke="#8aa0b8" stroke-width="1"/><path d="M0,4 V-10 L-8,2z" fill="${col}" stroke="#2c3e55" stroke-width=".9"/></g></g>`;
-  return `<g>${pier}</g><g transform="translate(${px} ${py})" filter="url(#f-shadow)"><title>${any ? 'Harbor: trade any 3 identical cards for 1' : `Harbor: trade 2 ${RES_LABEL[p.type]} for 1`}</title>`
-    + `<ellipse cy="23" rx="32" ry="6" fill="#fff" opacity=".28"/><rect x="-33" y="-21" width="66" height="42" rx="14" fill="${col}" stroke="#fff" stroke-width="3.4"/><rect x="-27" y="-15" width="54" height="30" rx="10" fill="#fff"/>${plate}${boat}</g>`;
+  const px = p.x * U, py = p.y * U, any = p.type === 'any';
+  // short wooden jetties at the two coast corners, pointing out towards the ship
+  const dock = p.vx.map(([x, y]) => {
+    const X = x * U, Y = y * U, dx = px - X, dy = py - Y, len = Math.hypot(dx, dy) || 1, L = Math.min(30, len * .62);
+    const ex = X + dx / len * L, ey = Y + dy / len * L;
+    return `<line x1="${X}" y1="${Y}" x2="${ex}" y2="${ey}" stroke="#7a4310" stroke-width="15" stroke-linecap="butt"/>`
+      + `<line x1="${X}" y1="${Y}" x2="${ex}" y2="${ey}" stroke="#e9a23a" stroke-width="12" stroke-linecap="butt"/>`
+      + `<line x1="${X}" y1="${Y}" x2="${ex}" y2="${ey}" stroke="#b86a1a" stroke-width="12" stroke-dasharray="1.8 5.2"/>`;
+  }).join('');
+  const sym = any ? `<text x="0" y="-9" text-anchor="middle" font-family="Alegreya Sans, sans-serif" font-weight="800" font-size="24" fill="#5c3b2a">?</text>` : `<use href="#ic-${p.type}" x="-11" y="-27" width="22" height="22"/>`;
+  const ship = `<g transform="translate(${px} ${py})" filter="url(#f-shadow)"><title>${any ? 'Harbor: trade any 3 identical cards for 1' : `Harbor: trade 2 ${RES_LABEL[p.type]} for 1`}</title><g><animateTransform attributeName="transform" type="translate" values="0 0;0 -2.5;0 0" dur="2.8s" repeatCount="indefinite"/>`
+    + `<ellipse cy="23" rx="25" ry="5.5" fill="#bfe9fb" opacity=".85"/><ellipse cy="24" rx="19" ry="3.5" fill="#fff" opacity=".7"/>`
+    + `<rect x="-1.3" y="-40" width="2.6" height="12" fill="#6b3d12"/><path d="M2,-41 h13 M4,-36.5 h11" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/>`
+    + `<path d="M-18,-28 Q-25,-9 -16,7 H16 Q25,-9 18,-28 Q0,-35 -18,-28Z" fill="#fff" stroke="#c4d1de" stroke-width="1.6" stroke-linejoin="round"/>`
+    + `${sym}<text x="0" y="2.5" text-anchor="middle" font-family="Alegreya Sans, sans-serif" font-weight="700" font-size="12" fill="#6b4a38">${any ? '3:1' : '2:1'}</text>`
+    + `<path d="M-20,8 H20 L14,20 Q0,25 -14,20Z" fill="#d98b2b" stroke="#7a4310" stroke-width="2" stroke-linejoin="round"/><path d="M-19,10.5 H19" stroke="#f6c866" stroke-width="2.4"/></g></g>`;
+  return `<g>${dock}</g>${ship}`;
 }
 const FRAME_PAD = 14, VIEW_PAD = 26, TOP_EXTRA = () => 12;
 const rrPath = (x, y, w, h, r) => `M${x + r},${y}h${w - 2 * r}a${r},${r} 0 0 1 ${r},${r}v${h - 2 * r}a${r},${r} 0 0 1 ${-r},${r}h${-(w - 2 * r)}a${r},${r} 0 0 1 ${-r},${-r}v${-(h - 2 * r)}a${r},${r} 0 0 1 ${r},${-r}z`;
@@ -554,7 +561,7 @@ function buildShell(app) {
       <button class="btn small" id="quit">Leave</button>
     </header>
     <aside class="players" id="players"></aside>
-    <section class="center"><div class="infobar" id="infobar"><div class="banner" id="banner"></div><div class="clock" id="clock" hidden></div><div class="dice" id="dice"></div><div class="setupstrip" id="setupstrip" hidden></div></div><main class="board-wrap" id="wrap">
+    <section class="center"><div class="infobar" id="infobar"><div class="banner" id="banner"></div><div class="placing" id="placing" hidden></div><div class="clock" id="clock" hidden></div><div class="dice" id="dice"></div><div class="setupstrip" id="setupstrip" hidden></div></div><main class="board-wrap" id="wrap">
       <svg id="board" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
         <rect x="-5000" y="-5000" width="10000" height="10000" fill="#0a68a6"/><rect x="-5000" y="-5000" width="10000" height="10000" fill="url(#p-waves)"/>
         <g id="static"></g><g id="dyn"></g>
@@ -584,7 +591,7 @@ function buildShell(app) {
 function updateGame() {
   const st = S.state;
   $('#meta').innerHTML = `Room <b>${st.code}</b><span class="extra">, ${esc(st.mapName)}, first to ${st.vpTarget} points, ${st.devLeft} development cards left</span>`;
-  drawDyn(); drawPlayers(); drawBanner(); drawHand(); drawActions(); drawLog(); drawOffer(); drawClock(); drawSetupStrip();
+  drawDyn(); drawPlayers(); drawBanner(); drawHand(); drawActions(); drawLog(); drawOffer(); drawClock(); drawSetupStrip(); drawPlacing();
   syncModals();
 }
 
@@ -669,21 +676,35 @@ function drawDyn() {
   s += highlights();
   $('#dyn').innerHTML = s;
 }
+function pieceGlyph(kind, col) {
+  const dk = shade(col, -.38);
+  if (kind === 'city') return `<path d="M-18,12 V-2 H-4 V12Z" fill="${col}" stroke="#1b1b1b" stroke-width="2"/><path d="M-4,12 V-15 H11 V12Z" fill="${col}" stroke="#1b1b1b" stroke-width="2"/><path d="M11,12 V1 H19 V12Z" fill="${col}" stroke="#1b1b1b" stroke-width="2"/><path d="M-6,-15 L3.5,-26 L13,-15Z" fill="${dk}" stroke="#1b1b1b" stroke-width="2" stroke-linejoin="round"/><path d="M-20,-1 L-11,-9 L-2,-1Z" fill="${dk}" stroke="#1b1b1b" stroke-width="2" stroke-linejoin="round"/>`;
+  return `<path d="M-11,10 V-3 H11 V10Z" fill="${col}" stroke="#1b1b1b" stroke-width="2" stroke-linejoin="round"/><path d="M-14,-2 L0,-15 L14,-2Z" fill="${dk}" stroke="#1b1b1b" stroke-width="2" stroke-linejoin="round"/><rect x="-3" y="2" width="6" height="8" rx="1" fill="#3a2410"/>`;
+}
 function highlights() {
   const mode = currentMode(); if (!mode) return '';
-  const V = S.board.vertices, st = S.state;
-  const spot = (v, kind) => kind === 'city'
-    ? `<circle class="spot city" cx="${V[v].x * U}" cy="${V[v].y * U}" r="23"/><circle cx="${V[v].x * U}" cy="${V[v].y * U}" r="24" fill="transparent" data-v="${v}" data-k="city" style="cursor:pointer"/>`
-    : `<circle class="spot" cx="${V[v].x * U}" cy="${V[v].y * U}" r="12"/><circle cx="${V[v].x * U}" cy="${V[v].y * U}" r="22" fill="transparent" data-v="${v}" data-k="settle" style="cursor:pointer"/>`;
-  const edge = e => { const [a, c] = S.board.edges[e].v.map(i => V[i]); const xy = `x1="${a.x * U}" y1="${a.y * U}" x2="${c.x * U}" y2="${c.y * U}"`; return `<line class="espot" ${xy}/><line class="ehit" ${xy} data-e="${e}"/>`; };
-  if (mode === 'setupSettle') return validSettle(false).map(v => spot(v, 'settle')).join('');
-  if (mode === 'settle') return validSettle(true).map(v => spot(v, 'settle')).join('');
-  if (mode === 'city') return myCitySpots().map(v => spot(v, 'city')).join('');
-  if (mode === 'setupRoad') return validRoads(st.setup.last).map(edge).join('');
-  if (mode === 'road' || mode === 'freeRoad') return validRoads().map(edge).join('');
-  if (mode === 'auto') { const b = buildable(); return b.road.map(edge).join('') + b.settle.map(v => spot(v, 'settle')).join('') + b.city.map(v => spot(v, 'city')).join(''); }
+  const V = S.board.vertices, st = S.state, col = st.players[me()].color;
   if (mode === 'robber') return (st.robberOptions || []).map(id => S.board.tiles[id]).map(t => `<g class="rspot" data-t="${t.id}" transform="translate(${t.x * U} ${t.y * U})"><polygon points="${ART.HEX}" transform="scale(.92)" fill="transparent"/><circle class="rdisc" r="39"/><circle class="rdot" r="8"/></g>`).join('');
-  return '';
+  const sets = { road: [], settle: [], city: [] };
+  if (mode === 'setupSettle') sets.settle = validSettle(false);
+  else if (mode === 'settle') sets.settle = validSettle(true);
+  else if (mode === 'city') sets.city = myCitySpots();
+  else if (mode === 'setupRoad') sets.road = validRoads(st.setup.last);
+  else if (mode === 'road' || mode === 'freeRoad') sets.road = validRoads();
+  else if (mode === 'auto') Object.assign(sets, buildable());
+  const kinds = Object.values(sets).filter(a => a.length).length, big = kinds === 1, mixed = kinds > 1;
+  const road = e => {
+    const [a, c] = S.board.edges[e].v.map(i => V[i]), mx = (a.x + c.x) / 2 * U, my = (a.y + c.y) / 2 * U, ang = Math.atan2(c.y - a.y, c.x - a.x) * 180 / Math.PI;
+    const r = big ? 20 : 13, xy = `x1="${a.x * U}" y1="${a.y * U}" x2="${c.x * U}" y2="${c.y * U}"`;
+    return `<line class="ehit" ${xy} data-e="${e}"/><g class="hs" data-e="${e}" transform="translate(${mx} ${my})"><circle class="hc" r="${r}"/><circle r="${big ? 20 : 17}" fill="transparent"/>`
+      + (mixed ? `<g class="hg" transform="rotate(${ang}) scale(${r / 27})"><rect x="-17" y="-6" width="34" height="12" rx="6" fill="${col}" stroke="#1b1b1b" stroke-width="2.5"/></g>` : '') + `</g>`;
+  };
+  const spot = (v, kind) => {
+    const city = kind === 'city', r = city ? (big ? 25 : 17) : (big ? 21 : 15), k = city ? r / 30 : r / 22;
+    return `<g class="hs" data-v="${v}" data-k="${kind}" transform="translate(${V[v].x * U} ${V[v].y * U})"><circle class="hc ${city ? 'city' : ''}" r="${r}"/><circle r="${big ? r : 20}" fill="transparent"/>`
+      + (mixed ? `<g class="hg" transform="scale(${k}) translate(0 ${city ? 6 : 2})">${pieceGlyph(city ? 'city' : 'settle', col)}</g>` : '') + `</g>`;
+  };
+  return sets.road.map(road).join('') + sets.settle.map(v => spot(v, 'settle')).join('') + sets.city.map(v => spot(v, 'city')).join('');
 }
 
 async function onBoardTap(el) {
@@ -1139,6 +1160,31 @@ function showAward(kind, p, text) {
   box.append(el); Sound.play('award');
   setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 520); }, 4200);
   while (box.children.length > 3) box.firstChild.remove();
+}
+
+// ---------- the piece you are placing ----------
+function cardGlyph(kind, col) {
+  const dk = shade(col, -.38);
+  const body = kind === 'road'
+    ? `<path d="M-6,-19 L0,-25 L6,-19 V19 L0,25 L-6,19Z" fill="${col}" stroke="${dk}" stroke-width="2.4" stroke-linejoin="round"/><path d="M-2.4,-17 V17" stroke="#fff" stroke-opacity=".5" stroke-width="2.4" stroke-linecap="round"/>`
+    : kind === 'city' ? `<g transform="translate(0 7) scale(.86)">${pieceGlyph('city', col)}</g>` : `<g transform="translate(0 3) scale(1.45)">${pieceGlyph('settle', col)}</g>`;
+  return `<svg viewBox="-28 -30 56 60" aria-hidden="true">${body}</svg>`;
+}
+function drawPlacing() {
+  const el = $('#placing'); if (!el) return;
+  const mode = currentMode(), st = S.state; let kinds = [];
+  if (mode === 'setupSettle' || mode === 'settle') kinds = ['settle'];
+  else if (mode === 'setupRoad' || mode === 'road' || mode === 'freeRoad') kinds = ['road'];
+  else if (mode === 'city') kinds = ['city'];
+  else if (mode === 'auto') { const b = buildable(); kinds = [b.road.length && 'road', b.settle.length && 'settle', b.city.length && 'city'].filter(Boolean); }
+  if (!kinds.length) { el.hidden = true; el.innerHTML = ''; return; }
+  const col = st.players[me()].color, label = { road: 'Road', settle: 'Settlement', city: 'City' };
+  const live = st.phase === 'main' && !st.subphase;
+  el.hidden = false;
+  el.innerHTML = kinds.map(k => live
+    ? `<button class="pcardx" data-pk="${k}" aria-pressed="${S.mode === k}" title="${label[k]}: tap a circle on the map to build it" aria-label="${label[k]}">${cardGlyph(k, col)}</button>`
+    : `<span class="pcardx" title="${label[k]}">${cardGlyph(k, col)}</span>`).join('');
+  el.querySelectorAll('[data-pk]').forEach(b => b.onclick = () => { S.mode = S.mode === b.dataset.pk ? null : b.dataset.pk; updateGame(); });
 }
 
 // ---------- move clock and setup order ----------

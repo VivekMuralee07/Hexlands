@@ -597,3 +597,21 @@ body { background: radial-gradient(130% 100% at 50% 0%, #29d3e6 0%, #129cc9 28%,
 @keyframes shakex { 25% { transform: translateX(-7px); } 75% { transform: translateX(7px); } }
 @media (max-width: 760px) { .dcard { width: 46px; height: 64px; } .dcard .ic { width: 24px; height: 24px; } .dcards { gap: 7px; padding-top: 20px; } }
 @media (prefers-reduced-motion: reduce) { .dcard { animation: none; } .modal.leaving { transition: none; } }
+
+/* ===== placement: glass bubbles, piece card ===== */
+.hs { cursor: pointer; }
+.hc { fill: url(#g-bubble); stroke: rgba(10, 40, 20, .45); stroke-width: 2.4; transition: fill .12s; }
+.hc.city { stroke: #b88a00; stroke-width: 3; }
+.hs:hover .hc { fill: rgba(255, 255, 255, .78); }
+.hg { opacity: .92; pointer-events: none; }
+@media (prefers-reduced-motion: no-preference) { .hs .hc { animation: hpulse 1.3s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: center; } }
+@keyframes hpulse { from { transform: scale(.93); } to { transform: scale(1.06); } }
+.placing { display: flex; gap: .4rem; align-items: center; }
+.pcardx { width: 46px; height: 46px; padding: 3px; border-radius: 12px; display: grid; place-items: center; border: 3px solid #fff; cursor: pointer;
+  background: linear-gradient(#49a8bd, #a8d7f1); box-shadow: 0 4px 10px rgba(0, 0, 0, .35), inset 0 -3px 0 rgba(0, 70, 110, .15); animation: pbob 1.6s ease-in-out infinite alternate; }
+span.pcardx { cursor: default; }
+.pcardx svg { width: 100%; height: 100%; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .3)); }
+.pcardx[aria-pressed=true] { border-color: #ffd23f; box-shadow: 0 0 0 2px #ffd23f, 0 4px 10px rgba(0, 0, 0, .35); }
+@keyframes pbob { from { transform: translateY(0); } to { transform: translateY(-3px); } }
+@media (max-width: 760px) { .pcardx { width: 40px; height: 40px; } }
+@media (prefers-reduced-motion: reduce) { .pcardx { animation: none; } }
