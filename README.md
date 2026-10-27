@@ -12,6 +12,7 @@ A multiplayer island-settling game for 2–4 players in the browser. Gather wood
 - Discarding on a 7: your cards are shown one by one; tap the ones to give back (a meter fills as you pick, Auto-pick helps), then they fly to the bank. Other players' discards fly to the bank too.
 - Placement spots are glassy circles: big ones when you are placing one kind of piece (setup, or a single build), smaller ones with the piece drawn inside when roads, settlements and cities are all possible. A light-blue card above the map shows the piece you are placing.
 - Harbors are little ships with a billowing sail showing the symbol and ratio (? for 3:1), tied to the coast by wooden jetties
+- Stolen cards (robber or Knight) and Monopoly cards fly across the screen from the player who lost them to the player who gets them. Only the thief and the victim see which card it was; everyone else sees a face-down card.
 - Tap to build: once you have rolled and can afford a road, settlement or city, every legal spot glows on the map. Tap a spot to build there, with no button first. The Road, Settle and City buttons still work as filters.
 - A bar above the map shows the instruction, move timer, dice and setup order, so nothing covers the board
 - Longest Road and Largest Army are announced on screen the moment they change hands

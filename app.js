@@ -142,7 +142,7 @@ function portSvg(p) {
     + `<path d="M-20,8 H20 L14,20 Q0,25 -14,20Z" fill="#d98b2b" stroke="#7a4310" stroke-width="2" stroke-linejoin="round"/><path d="M-19,10.5 H19" stroke="#f6c866" stroke-width="2.4"/></g></g>`;
   return `<g>${dock}</g>${ship}`;
 }
-const FRAME_PAD = 14, VIEW_PAD = 26, TOP_EXTRA = () => 12;
+const FRAME_PAD = 7, VIEW_PAD = 11, TOP_EXTRA = () => 20;
 const rrPath = (x, y, w, h, r) => `M${x + r},${y}h${w - 2 * r}a${r},${r} 0 0 1 ${r},${r}v${h - 2 * r}a${r},${r} 0 0 1 ${-r},${r}h${-(w - 2 * r)}a${r},${r} 0 0 1 ${-r},${-r}v${-(h - 2 * r)}a${r},${r} 0 0 1 ${r},${-r}z`;
 // A wooden frame around the sea, with brass studs and a name plate. Everything outside it is the table.
 function frameSvg(b) {
@@ -151,7 +151,7 @@ function frameSvg(b) {
   const name = String(b.name || '').toUpperCase(), pw = Math.max(150, name.length * 10 + 40);
   return `<path fill-rule="evenodd" fill="#0a68a6" d="M${o.x},${o.y}h${o.w}v${o.h}h${-o.w}z ${rrPath(x - 3, y - 3, w + 6, h + 6, r + 3)}"/>`
     + `<path d="${ring(0)}" fill="none" stroke="#3f94cf" stroke-width="3" stroke-linejoin="round"/>`
-    + `<g transform="translate(${x + w / 2} ${y})"><rect x="${-pw / 2}" y="-14" width="${pw}" height="28" rx="14" fill="#0c3d73" stroke="#3f94cf" stroke-width="3"/><text y="5.5" text-anchor="middle" font-family="Alegreya Sans, sans-serif" font-weight="800" font-size="14" letter-spacing="1.6" fill="#fff">${esc(name)}</text></g>`;
+    + `<g transform="translate(${x + w / 2} ${y - 9})"><rect x="${-pw / 2}" y="-14" width="${pw}" height="28" rx="14" fill="#0c3d73" stroke="#3f94cf" stroke-width="3"/><text y="5.5" text-anchor="middle" font-family="Alegreya Sans, sans-serif" font-weight="800" font-size="14" letter-spacing="1.6" fill="#fff">${esc(name)}</text></g>`;
 }
 function staticLayer(b) {
   const v = bounds(b, 140);
@@ -561,12 +561,12 @@ function buildShell(app) {
       <button class="btn small" id="quit">Leave</button>
     </header>
     <aside class="players" id="players"></aside>
-    <section class="center"><div class="infobar" id="infobar"><div class="banner" id="banner"></div><div class="placing" id="placing" hidden></div><div class="clock" id="clock" hidden></div><div class="dice" id="dice"></div><div class="setupstrip" id="setupstrip" hidden></div></div><main class="board-wrap" id="wrap">
+    <section class="center"><div class="infobar" id="infobar"><div class="banner" id="banner"></div><div class="placing" id="placing" hidden></div><div class="clock" id="clock" hidden></div><div class="setupstrip" id="setupstrip" hidden></div></div><main class="board-wrap" id="wrap">
       <svg id="board" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
         <rect x="-5000" y="-5000" width="10000" height="10000" fill="#0a68a6"/>
         <g id="static"></g><g id="dyn"></g>
       </svg>
-      <div class="awards" id="awards"></div><div class="offer" id="offer"></div>
+      <div class="dice" id="dice"></div><div class="awards" id="awards"></div><div class="offer" id="offer"></div>
       <div class="zoom"><button class="btn" id="zin" aria-label="Zoom in">+</button><button class="btn" id="zout" aria-label="Zoom out">−</button><button class="btn" id="zfit" aria-label="Fit board">⤢</button></div>
     </main></section>
     <aside class="side" id="side"><div class="panel"><h3>Ship's log</h3><div class="log" id="log"></div>
@@ -657,30 +657,30 @@ function drawDyn() {
       + `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#000" stroke-opacity=".22" stroke-width="12.5" stroke-dasharray="2 7"/>`
       + `<line x1="${x1}" y1="${y1 - 2.5}" x2="${x2}" y2="${y2 - 2.5}" stroke="#fff" stroke-opacity=".4" stroke-width="3" stroke-linecap="round"/></g>`;
   }
-  const smoke = (cx, cy) => `<circle cx="${cx}" cy="${cy}" r="1.5" fill="#fff" opacity="0"><animate attributeName="cy" values="${cy};${cy - 15}" dur="3.2s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;.75;0" dur="3.2s" repeatCount="indefinite"/><animate attributeName="r" values="1.5;5" dur="3.2s" repeatCount="indefinite"/></circle>`;
   for (const [v, bd] of Object.entries(st.buildings)) {
-    const x = V[v].x * U, y = V[v].y * U, col = st.players[bd.p].color, dk = shade(col, -.38), lt = shade(col, .4);
+    const x = V[v].x * U, y = V[v].y * U, col = st.players[bd.p].color, city = bd.type === 'city';
     const pop = fresh('b' + v + bd.type) ? 'pop' : '';
-    s += bd.type === 'city'
-      ? `<g transform="translate(${x} ${y}) scale(1.35)" filter="url(#f-shadow)"><g class="bld ${pop}">`
-        + `<path d="M-18,12 V-2 H-4 V12Z" fill="${col}" stroke="#1b1b1b" stroke-width="2"/><path d="M-4,12 V-15 H11 V12Z" fill="${col}" stroke="#1b1b1b" stroke-width="2"/><path d="M11,12 V1 H19 V12Z" fill="${col}" stroke="#1b1b1b" stroke-width="2"/>`
-        + `<path d="M-4,12 V-15 H0 V12Z" fill="${lt}" opacity=".4"/><path d="M-6,-15 L3.5,-26 L13,-15Z" fill="${dk}" stroke="#1b1b1b" stroke-width="2" stroke-linejoin="round"/><path d="M-20,-1 L-11,-9 L-2,-1Z" fill="${dk}" stroke="#1b1b1b" stroke-width="2" stroke-linejoin="round"/>`
-        + `<rect x="-1" y="-10" width="4" height="5" fill="#ffe27a"/><rect x="5" y="-10" width="4" height="5" fill="#ffe27a"/><rect x="-12" y="3" width="4" height="4" fill="#ffe27a"/><rect x="2" y="3" width="5" height="9" fill="#3a2410"/>`
-        + `<path d="M3.5,-26 V-37" stroke="#1b1b1b" stroke-width="1.6"/><path d="M3.5,-37 l11,3.5 l-11,3.5z" fill="#ffd23f" stroke="#7a5512" stroke-width="1"><animateTransform attributeName="transform" type="rotate" values="-7 3.5 -37;7 3.5 -37;-7 3.5 -37" dur="1.6s" repeatCount="indefinite"/></path>${smoke(-12, -4)}</g></g>`
-      : `<g transform="translate(${x} ${y}) scale(1.35)" filter="url(#f-shadow)"><g class="bld ${pop}">`
-        + `<rect x="5" y="-17" width="4.5" height="9" fill="${dk}" stroke="#1b1b1b" stroke-width="1.4"/><path d="M-11,10 V-3 H11 V10Z" fill="${col}" stroke="#1b1b1b" stroke-width="2" stroke-linejoin="round"/><path d="M-11,10 V-3 H0 V10Z" fill="${lt}" opacity=".35"/>`
-        + `<path d="M-14,-2 L0,-15 L14,-2Z" fill="${dk}" stroke="#1b1b1b" stroke-width="2" stroke-linejoin="round"/><rect x="-3" y="2" width="6" height="8" rx="1" fill="#3a2410"/><rect x="5" y="1" width="4" height="4" fill="#ffe27a"/>${smoke(7.2, -19)}</g></g>`;
+    s += `<g transform="translate(${x} ${y}) scale(${city ? 1.05 : 1.35})" filter="url(#f-shadow)"><g class="bld ${pop}">${city ? cityHouseSvg(col) : houseSvg(col)}</g></g>`;
   }
   const rt = b.tiles[st.robber];
   s += `<use href="#ic-robber" x="${rt.x * U - 58}" y="${rt.y * U - 42}" width="44" height="44" pointer-events="none" filter="url(#f-shadow)"/>`;
   s += highlights();
   $('#dyn').innerHTML = s;
 }
-function pieceGlyph(kind, col) {
-  const dk = shade(col, -.38);
-  if (kind === 'city') return `<path d="M-18,12 V-2 H-4 V12Z" fill="${col}" stroke="#1b1b1b" stroke-width="2"/><path d="M-4,12 V-15 H11 V12Z" fill="${col}" stroke="#1b1b1b" stroke-width="2"/><path d="M11,12 V1 H19 V12Z" fill="${col}" stroke="#1b1b1b" stroke-width="2"/><path d="M-6,-15 L3.5,-26 L13,-15Z" fill="${dk}" stroke="#1b1b1b" stroke-width="2" stroke-linejoin="round"/><path d="M-20,-1 L-11,-9 L-2,-1Z" fill="${dk}" stroke="#1b1b1b" stroke-width="2" stroke-linejoin="round"/>`;
-  return `<path d="M-11,10 V-3 H11 V10Z" fill="${col}" stroke="#1b1b1b" stroke-width="2" stroke-linejoin="round"/><path d="M-14,-2 L0,-15 L14,-2Z" fill="${dk}" stroke="#1b1b1b" stroke-width="2" stroke-linejoin="round"/><rect x="-3" y="2" width="6" height="8" rx="1" fill="#3a2410"/>`;
+// Barn-style pieces: lighter left roof, darker right roof, ridge line, dark door, thick dark outline.
+function houseSvg(col) {
+  const ink = shade(col, -.6), lt = shade(col, .3), dk = shade(col, -.2), body = 'M-13,10 L-14,-3 L-7,-14 L7,-14 L14,-3 L13,10Z';
+  return `<path d="${body}" fill="${col}"/><path d="M-14,-3 L-7,-14 H0 V-3Z" fill="${lt}"/><path d="M0,-14 H7 L14,-3 H0Z" fill="${dk}"/>`
+    + `<path d="${body}" fill="none" stroke="${ink}" stroke-width="2.2" stroke-linejoin="round"/><path d="M-14,-3 H14 M0,-14 V-3" stroke="${ink}" stroke-width="1.5" fill="none"/>`
+    + `<path d="M-2.6,10 V6.6 a2.6,2.6 0 0 1 5.2,0 V10Z" fill="#150808"/>`;
 }
+function cityHouseSvg(col) {
+  const ink = shade(col, -.6), lt = shade(col, .3), dk = shade(col, -.2), main = 'M-23,12 L-24,-3 L-15,-17 L1,-17 L10,-3 L9,12Z', wing = 'M9,12 V0 L12,-4 H22 L24,0 V12Z';
+  return `<path d="${main}" fill="${col}"/><path d="M-24,-3 L-15,-17 H-7 V-3Z" fill="${lt}"/><path d="M-7,-17 H1 L10,-3 H-7Z" fill="${dk}"/><path d="${wing}" fill="${col}"/><path d="M9,0 L12,-4 H22 L24,0Z" fill="${dk}"/>`
+    + `<path d="${main}" fill="none" stroke="${ink}" stroke-width="2.2" stroke-linejoin="round"/><path d="${wing}" fill="none" stroke="${ink}" stroke-width="2.2" stroke-linejoin="round"/><path d="M-24,-3 H10 M-7,-17 V-3" stroke="${ink}" stroke-width="1.5" fill="none"/>`
+    + `<path d="M-9.6,12 V8.4 a2.6,2.6 0 0 1 5.2,0 V12Z" fill="#150808"/><rect x="-18" y="1" width="3.6" height="4.8" rx=".8" fill="#150808"/><rect x="-1" y="1" width="3.6" height="4.8" rx=".8" fill="#150808"/><rect x="14.5" y="4" width="4.2" height="3.6" rx=".8" fill="#150808"/>`;
+}
+function pieceGlyph(kind, col) { return kind === 'city' ? cityHouseSvg(col) : houseSvg(col); }
 function highlights() {
   const mode = currentMode(); if (!mode) return '';
   const V = S.board.vertices, st = S.state, col = st.players[me()].color;
@@ -1294,11 +1294,46 @@ function flyDiscardCards(i, n) {
     ], { duration: 760, delay: c * 60, easing: 'cubic-bezier(.5,0,.7,.4)', fill: 'both' }).onfinish = () => el.remove();
   }
 }
+// ---------- cards travelling from one player to another ----------
+// Each card is drawn like the real card and flies in an arc from where it left to where it lands.
+// Only the thief and the victim know which card was stolen; everyone else sees a face-down card.
+function anchorOf(i, kind) {
+  if (i === S.state.you && kind !== 'back') { const c = $(`#hand .card.${kind}`); if (c) return c; }
+  return $$('#players .pcard')[i];
+}
+function flyCard(from, to, kind, delay = 0) {
+  if (reducedMotion() || !from || !to) return;
+  const el = document.createElement('div'); el.className = 'fcard ' + (kind === 'back' ? 'back' : kind);
+  el.innerHTML = kind === 'back' ? '<svg class="ic" viewBox="-14 -14 28 28"><polygon points="0,-12 10.4,-6 10.4,6 0,12 -10.4,6 -10.4,-6" fill="#f0cd78" stroke="#8a6a1c" stroke-width="1.6"/></svg>' : icon(kind);
+  document.body.append(el);
+  const a = from.getBoundingClientRect(), b = to.getBoundingClientRect();
+  const sx = a.left + a.width / 2 - 23, sy = a.top + a.height / 2 - 32, ex = b.left + b.width / 2 - 23, ey = b.top + b.height / 2 - 32;
+  const dx = ex - sx, dy = ey - sy, len = Math.hypot(dx, dy) || 1, arc = Math.min(130, len * .25);
+  const mx = (sx + ex) / 2 - dy / len * arc, my = (sy + ey) / 2 + dx / len * arc;   // bow the path sideways
+  el.animate([
+    { transform: `translate(${sx}px, ${sy}px) scale(.55)`, opacity: 0 },
+    { transform: `translate(${sx}px, ${sy - 14}px) scale(1.15) rotate(-6deg)`, opacity: 1, offset: .14 },
+    { transform: `translate(${mx}px, ${my}px) scale(1.3) rotate(10deg)`, opacity: 1, offset: .55 },
+    { transform: `translate(${ex}px, ${ey}px) scale(.75)`, opacity: 1, offset: .92 },
+    { transform: `translate(${ex}px, ${ey}px) scale(.4)`, opacity: 0 },
+  ], { duration: 1150, delay, easing: 'cubic-bezier(.45,.05,.35,1)', fill: 'both' }).onfinish = () => {
+    el.remove(); to.classList.remove('landed'); void to.offsetWidth; to.classList.add('landed'); setTimeout(() => to.classList.remove('landed'), 650);
+  };
+}
+function animateSteal(st) {
+  const s = st.lastSteal, kind = s.card || 'back';
+  flyCard(anchorOf(s.from, kind), anchorOf(s.to, kind), kind);
+}
+function animateMonopoly(st) {
+  const m = st.lastMonopoly; let n = 0;
+  Object.entries(m.takes).forEach(([i, cnt]) => { for (let c = 0; c < Math.min(cnt, 6); c++, n++) flyCard(anchorOf(+i, m.res), anchorOf(m.by, m.res), m.res, n * 90); });
+}
 function soundReactions(prev, st) {
   const cnt = x => ({ r: Object.keys(x.roads).length, s: Object.values(x.buildings).filter(b => b.type === 'settlement').length, c: Object.values(x.buildings).filter(b => b.type === 'city').length });
   const a = cnt(prev), b = cnt(st);
   if (b.c > a.c) Sound.play('city'); else if (b.s > a.s) Sound.play('settle'); else if (b.r > a.r) Sound.play('road');
-  if (st.lastSteal && (!prev.lastSteal || prev.lastSteal.seq !== st.lastSteal.seq)) Sound.play('steal');
+  if (st.lastSteal && (!prev.lastSteal || prev.lastSteal.seq !== st.lastSteal.seq)) { Sound.play('steal'); animateSteal(st); }
+  if (st.lastMonopoly && (!prev.lastMonopoly || prev.lastMonopoly.seq !== st.lastMonopoly.seq)) { Sound.play('steal'); animateMonopoly(st); }
   if (st.robber !== prev.robber) Sound.play('robber');
   const devs = x => x.players.reduce((n, p) => n + p.devCount, 0);
   if (devs(st) > devs(prev)) Sound.play('devbuy');

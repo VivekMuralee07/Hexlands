@@ -436,7 +436,20 @@ test('rule invariants hold during full bot games on every map (no isolated roads
 
 test('roads are never drawn through an SVG filter (a filter hides perfectly vertical roads)', () => {
   const src = require('fs').readFileSync(require('path').join(__dirname, 'app.js'), 'utf8');
-  const i = src.indexOf("class=\"${fresh('r' + e)"), j = src.indexOf("const smoke");
+  const i = src.indexOf("class=\"${fresh('r' + e)"), j = src.indexOf("for (const [v, bd] of Object.entries(st.buildings))");
   assert.ok(i > 0 && j > i, 'found the road drawing code');
   assert.ok(!/filter=/.test(src.slice(i, j)), 'road markup must not use the filter attribute');
+});
+
+test('Monopoly records how many cards each player gave up, for the animation', () => {
+  const g = finishSetup(started(3, 6));
+  const me = g.turn, a = (me + 1) % 3, b = (me + 2) % 3;
+  g.players.forEach(p => { p.res = empty(); });
+  g.players[a].res.ore = 3; g.players[b].res.ore = 2; g.players[me].res.ore = 1;
+  g.players[me].dev.push({ type: 'monopoly', turn: 0 });
+  assert.equal(g.lastMonopoly, null);
+  g.act(me, { type: 'playDev', card: 'monopoly', res: 'ore' });
+  assert.deepEqual(g.lastMonopoly, { by: me, res: 'ore', takes: { [a]: 3, [b]: 2 }, seq: 1 });
+  assert.equal(g.players[me].res.ore, 6);
+  assert.deepEqual(g.view(a).lastMonopoly, g.lastMonopoly, 'every player is told, since the resource is public');
 });

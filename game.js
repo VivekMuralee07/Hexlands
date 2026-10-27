@@ -98,7 +98,7 @@ class Game {
     this.robber = desert >= 0 ? desert : 0;
     this.vpTarget = Math.max(5, Math.min(20, vpTarget | 0 || 10));
     this.opts = { discardLimit: 7, discardMode: 'half', timer: 0, friendlyRobber: false, balancedDice: false };
-    this.diceDeck = []; this.lastSum = null; this.clockAt = Date.now();
+    this.lastMonopoly = null; this.diceDeck = []; this.lastSum = null; this.clockAt = Date.now();
     const land = geo.tiles.length;
     this.bank = {}; RES.forEach(k => { this.bank[k] = Math.max(19, land); });
     const dev = [];
@@ -671,8 +671,9 @@ class Game {
       a.res.forEach(r => this.giveFromBank(pi, r, 1));
       this.addLog(`${p.name} played Year of Plenty for ${a.res.map(r => LABEL[r]).join(' and ')}.`);
     } else if (type === 'monopoly') {
-      let got = 0;
-      this.players.forEach((o, i) => { if (i !== pi) { got += o.res[a.res]; p.res[a.res] += o.res[a.res]; o.res[a.res] = 0; } });
+      let got = 0; const takes = {};
+      this.players.forEach((o, i) => { if (i !== pi) { got += o.res[a.res]; if (o.res[a.res]) takes[i] = o.res[a.res]; p.res[a.res] += o.res[a.res]; o.res[a.res] = 0; } });
+      this.lastMonopoly = { by: pi, res: a.res, takes, seq: (this.lastMonopoly ? this.lastMonopoly.seq : 0) + 1 };
       this.addLog(`${p.name} played Monopoly and took ${got} ${LABEL[a.res]}.`);
     }
   }
@@ -819,7 +820,7 @@ class Game {
       setup: this.setup ? { expect: this.setup.expect, last: this.setup.last, round: this.setup.step < this.players.length ? 1 : 2, order: this.setup.order, step: this.setup.step } : null,
       trade: this.trade, largestArmy: this.largestArmy, longestRoad: this.longestRoad,
       bank: this.bank, devLeft: this.devDeck.length, diceCounts: this.diceCounts, log: this.log.slice(-40), winner: this.winner,
-      lastRoll: this.lastRoll, lastSteal: this.lastSteal && (this.lastSteal.from === pi || this.lastSteal.to === pi) ? this.lastSteal : (this.lastSteal ? { ...this.lastSteal, card: null } : null),
+      lastMonopoly: this.lastMonopoly, lastRoll: this.lastRoll, lastSteal: this.lastSteal && (this.lastSteal.from === pi || this.lastSteal.to === pi) ? this.lastSteal : (this.lastSteal ? { ...this.lastSteal, card: null } : null),
     };
   }
 }

@@ -615,3 +615,20 @@ span.pcardx { cursor: default; }
 @keyframes pbob { from { transform: translateY(0); } to { transform: translateY(-3px); } }
 @media (max-width: 760px) { .pcardx { width: 40px; height: 40px; } }
 @media (prefers-reduced-motion: reduce) { .pcardx { animation: none; } }
+
+/* ===== dice at the bottom left of the map ===== */
+.board-wrap .dice { position: absolute; left: .7rem; bottom: .7rem; top: auto; display: flex; align-items: center; gap: .4rem; z-index: 3; }
+.board-wrap .die { width: 52px; height: 52px; padding: 8px; border-radius: 11px; }
+.board-wrap .die i { width: 10px; height: 10px; }
+.board-wrap .die-sum { font-size: 1.7em; }
+@media (max-width: 760px) { .board-wrap .die { width: 42px; height: 42px; padding: 7px; } .board-wrap .die i { width: 8px; height: 8px; } .board-wrap .die-sum { font-size: 1.4em; } }
+/* ===== cards flying between players ===== */
+.fcard { position: fixed; left: 0; top: 0; width: 46px; height: 64px; border-radius: 9px; z-index: 85; pointer-events: none; display: grid; place-items: center; border: 2px solid rgba(255, 255, 255, .85); --c: #345;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--c) 70%, #fff) 0%, var(--c) 55%, color-mix(in srgb, var(--c) 60%, #000) 100%); box-shadow: 0 10px 22px rgba(0, 0, 0, .5); }
+.fcard.wood { --c: var(--wood); } .fcard.brick { --c: var(--brick); } .fcard.sheep { --c: var(--sheep); } .fcard.wheat { --c: var(--wheat); } .fcard.ore { --c: var(--ore); }
+.fcard .ic { width: 26px; height: 26px; padding: 4px; box-sizing: content-box; border-radius: 50%; background: rgba(255, 255, 255, .6); }
+.fcard.back { border-color: #f0cd78; background: repeating-linear-gradient(45deg, #1d4f9c 0 6px, #173f80 6px 12px); }
+.fcard.back .ic { background: none; padding: 0; width: 30px; height: 30px; border-radius: 0; }
+.landed { animation: landed .6s ease-out; }
+@keyframes landed { 30% { transform: scale(1.08); filter: brightness(1.4); } }
+@media (prefers-reduced-motion: reduce) { .landed { animation: none; } }
