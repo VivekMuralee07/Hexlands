@@ -98,7 +98,7 @@ function bounds(b, pad = 70) {
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   const add = (x, y, r) => { x0 = Math.min(x0, x - r); y0 = Math.min(y0, y - r); x1 = Math.max(x1, x + r); y1 = Math.max(y1, y + r); };
   b.tiles.forEach(t => add(t.x * U, t.y * U, 62));
-  (b.ports || []).forEach(p => add(p.x * U, p.y * U, 36));
+  (b.ports || []).forEach(p => { add(p.x * U, p.y * U, 34); add(p.x * U + 27, p.y * U - 46, 6); });   // plate, plus the boat above it
   return { x: x0 - pad, y: y0 - pad, w: x1 - x0 + 2 * pad, h: y1 - y0 + 2 * pad };
 }
 const SIDE = { forest: '#14542a', hills: '#8f3d1d', pasture: '#3f8a26', fields: '#b8860f', mountains: '#4c5663', desert: '#b88a45' };
@@ -134,7 +134,7 @@ function portSvg(p) {
   return `<g>${pier}</g><g transform="translate(${px} ${py})" filter="url(#f-shadow)"><title>${any ? 'Harbor: trade any 3 identical cards for 1' : `Harbor: trade 2 ${RES_LABEL[p.type]} for 1`}</title>`
     + `<ellipse cy="23" rx="32" ry="6" fill="#fff" opacity=".28"/><rect x="-33" y="-21" width="66" height="42" rx="14" fill="${col}" stroke="#fff" stroke-width="3.4"/><rect x="-27" y="-15" width="54" height="30" rx="10" fill="#fff"/>${plate}${boat}</g>`;
 }
-const FRAME_PAD = 22, VIEW_PAD = 40, TOP_EXTRA = () => 0;
+const FRAME_PAD = 14, VIEW_PAD = 26, TOP_EXTRA = () => 12;
 const rrPath = (x, y, w, h, r) => `M${x + r},${y}h${w - 2 * r}a${r},${r} 0 0 1 ${r},${r}v${h - 2 * r}a${r},${r} 0 0 1 ${-r},${r}h${-(w - 2 * r)}a${r},${r} 0 0 1 ${-r},${-r}v${-(h - 2 * r)}a${r},${r} 0 0 1 ${r},${-r}z`;
 // A wooden frame around the sea, with brass studs and a name plate. Everything outside it is the table.
 function frameSvg(b) {

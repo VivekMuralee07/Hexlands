@@ -511,3 +511,44 @@ body { background: radial-gradient(130% 100% at 50% 0%, #29d3e6 0%, #129cc9 28%,
   .act .ic { width: 22px; height: 22px; }
   .act .cost { display: none; }
 }
+
+/* ===== compact bars so the map gets the room ===== */
+.topbar { padding: .15rem .6rem; gap: .35rem; }
+.topbar .brand { font-size: 1.15em; }
+.topbar .btn.small { min-height: 30px; padding: .1em .6em; font-size: .85rem; }
+.topbar .btn.icon-only { min-width: 34px; padding: .1em; }
+.topbar .btn .ic { width: 1.1em; height: 1.1em; }
+.infobar { padding: .2rem .6rem; gap: .2rem .6rem; }
+.infobar .banner { font-size: .98rem; line-height: 1.2; padding: .1rem .2rem; }
+.infobar .die { width: 42px; height: 42px; padding: 7px; border-radius: 9px; }
+.infobar .die i { width: 8px; height: 8px; }
+.infobar .die-sum { font-size: 1.5em; }
+.infobar .clock svg { width: 26px; height: 26px; } .infobar .clock b { font-size: 1.1em; }
+.dock { padding: .3rem .7rem; padding-bottom: max(.3rem, env(safe-area-inset-bottom)); gap: .6rem; }
+.card { width: 44px; height: 60px; border-radius: 8px; } .card .ic { width: 26px; height: 26px; }
+.card .n { min-width: 22px; height: 22px; top: -7px; right: -7px; font-size: .85em; } .card .lbl { font-size: .58em; bottom: 3px; }
+.act { min-height: 48px; min-width: 58px; padding: .2em .4em; }
+.act .ic { width: 22px; height: 22px; }
+.vpb .crown { left: -3px; top: -12px; transform: rotate(-18deg); width: 20px; height: 20px; }
+.vpb .crown .ic { width: 20px; height: 20px; }
+@media (max-width: 760px) {
+  .topbar { padding: .12rem .45rem; padding-top: max(.12rem, env(safe-area-inset-top)); gap: .3rem; }
+  .topbar .btn.small { min-height: 28px; padding: .05em .55em; font-size: .8rem; }
+  .topbar .btn.icon-only { min-width: 32px; }
+  .players { padding: 1.25rem .45rem .2rem; gap: .65rem; }
+  .pcard { min-width: 142px; padding: 1.05rem .4rem .22rem; }
+  .pcard .tag { height: 20px; top: -8px; font-size: .78rem; padding-left: 18px; left: 16px; }
+  .vpb { width: 28px; height: 28px; font-size: .98rem; border-width: 2px; left: -8px; top: -11px; }
+  .stats4 span, .pl { font-size: .74rem; } .stats4 .ic, .pl .ic { width: 1em; height: 1em; }
+  .pieces { margin-top: .1rem; padding-top: .1rem; }
+  .bank { width: 112px; padding: 3px; gap: 2px; } .bk { font-size: .68rem; padding: 1px 4px 1px 2px; }
+  .infobar { padding: .2rem .45rem; flex-wrap: wrap; }
+  .infobar .banner { flex: 1 1 0; min-width: 8.5rem; font-size: .82rem; line-height: 1.15; }
+  .infobar .dice { flex: none; gap: .3rem; }
+  .infobar .die { width: 36px; height: 36px; padding: 6px; border-radius: 8px; } .infobar .die i { width: 7px; height: 7px; }
+  .infobar .die-sum { font-size: 1.35em; }
+  .dock { padding: .25rem .4rem; padding-bottom: max(.25rem, env(safe-area-inset-bottom)); gap: .25rem; }
+  .card { width: 40px; height: 52px; } .card .ic { width: 23px; height: 23px; } .card .lbl { font-size: .54em; } .card .n { min-width: 20px; height: 20px; font-size: .78em; top: -6px; right: -6px; }
+  .hand { gap: .3rem; }
+  .act { min-height: 42px; font-size: .62rem; padding: .15em .05em; } .act .ic { width: 19px; height: 19px; }
+}
