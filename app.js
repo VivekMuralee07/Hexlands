@@ -101,7 +101,7 @@ function bounds(b, pad = 70) {
   (b.ports || []).forEach(p => { add(p.x * U, p.y * U, 34); add(p.x * U + 27, p.y * U - 46, 6); });   // plate, plus the boat above it
   return { x: x0 - pad, y: y0 - pad, w: x1 - x0 + 2 * pad, h: y1 - y0 + 2 * pad };
 }
-const SIDE = { forest: '#0c5c24', hills: '#8d3f1b', pasture: '#5b7006', fields: '#977416', mountains: '#696b69', desert: '#827d57' };
+const SIDE = { forest: '#124b23', hills: '#9e443d', pasture: '#6f9241', fields: '#a78927', mountains: '#85878a', desert: '#948d66' };
 function shade(hex, f) {
   const n = parseInt(hex.slice(1), 16);
   const ch = [n >> 16, (n >> 8) & 255, n & 255].map(c => Math.max(0, Math.min(255, Math.round(f < 0 ? c * (1 + f) : c + (255 - c) * f))));
@@ -111,17 +111,17 @@ function tileSvg(t, attrs = '') {
   return `<g transform="translate(${t.x * U} ${t.y * U})" ${attrs}><g transform="scale(.955)">`
     + `<polygon points="${ART.HEX}" transform="translate(0 9)" fill="#06203f" opacity=".45"/>`
     + `<polygon points="${ART.HEX}" transform="translate(0 5)" fill="${SIDE[t.terrain] || '#444'}"/>`
-    + `<g clip-path="url(#c-hex)"><use href="#t-${t.terrain}" x="-60" y="-60" width="120" height="120"/><rect x="-60" y="-60" width="120" height="120" fill="url(#g-shine)"/></g>`
+    + `<g clip-path="url(#c-hex)"><use href="#t-${t.terrain}" x="-60" y="-60" width="120" height="120"/></g>`
     + `<polygon points="${ART.HEX}" fill="none" stroke="#fff8e0" stroke-width="3.6" stroke-linejoin="round"/>`
     + `<polygon points="${ART.HEX}" transform="scale(.94)" fill="none" stroke="#fff" stroke-opacity=".25" stroke-width="1.5"/></g></g>`;
 }
 function tokenSvg(n, x, y) {
   const pips = 6 - Math.abs(7 - n), red = n === 6 || n === 8, col = red ? '#c9201a' : '#2b1d0e';
-  const dots = Array.from({ length: pips }, (_, i) => `<circle cx="${(i - (pips - 1) / 2) * 5.4}" cy="13.5" r="2.3" fill="${col}"/>`).join('');
-  return `<g transform="translate(${x} ${y})" pointer-events="none">${red ? '<circle r="29" fill="#ff5a3c" opacity=".35" filter="url(#f-blur2)"/>' : ''}<circle r="23" fill="url(#g-token)" stroke="${red ? '#b3261e' : '#8a6a3a'}" stroke-width="2" filter="url(#f-shadow)"/>`
-    + `<circle r="19.5" fill="none" stroke="#c9b48a" stroke-width=".9"/><text y="${n >= 10 ? 4 : 5.5}" text-anchor="middle" font-family="Alegreya SC, Georgia, serif" font-weight="800" font-size="${n >= 10 ? 20 : 25}" fill="${col}">${n}</text>${dots}</g>`;
+  const dots = Array.from({ length: pips }, (_, i) => `<circle cx="${(i - (pips - 1) / 2) * 7}" cy="18.5" r="2.9" fill="${col}"/>`).join('');
+  return `<g transform="translate(${x} ${y})" pointer-events="none">${red ? '<circle r="37" fill="#ff5a3c" opacity=".3" filter="url(#f-blur2)"/>' : ''}<circle r="31" fill="url(#g-token)" stroke="${red ? '#b3261e' : '#8a6a3a'}" stroke-width="2.4" filter="url(#f-shadow)"/>`
+    + `<circle r="26.5" fill="none" stroke="#c9b48a" stroke-width="1"/><text y="${n >= 10 ? 7 : 9}" text-anchor="middle" font-family="Alegreya SC, Georgia, serif" font-weight="800" font-size="${n >= 10 ? 29 : 35}" fill="${col}">${n}</text>${dots}</g>`;
 }
-const RES_COLOR = { wood: '#13943a', brick: '#e3652b', sheep: '#93b40a', wheat: '#f3bb23', ore: '#aaaca9' };
+const RES_COLOR = { wood: '#1b6e34', brick: '#e8645a', sheep: '#a3d65f', wheat: '#f6c93a', ore: '#c3c7cb' };
 function portSvg(p) {
   const px = p.x * U, py = p.y * U, any = p.type === 'any', col = any ? '#c4d0de' : RES_COLOR[p.type];
   const pier = p.vx.map(([x, y]) => `<line x1="${px}" y1="${py}" x2="${x * U}" y2="${y * U}" stroke="#fff" stroke-opacity=".92" stroke-width="3.6" stroke-linecap="round" stroke-dasharray="0.1 7"/>`
@@ -689,7 +689,7 @@ function highlights() {
   if (mode === 'setupRoad') return validRoads(st.setup.last).map(edge).join('');
   if (mode === 'road' || mode === 'freeRoad') return validRoads().map(edge).join('');
   if (mode === 'auto') { const b = buildable(); return b.road.map(edge).join('') + b.settle.map(v => spot(v, 'settle')).join('') + b.city.map(v => spot(v, 'city')).join(''); }
-  if (mode === 'robber') return (st.robberOptions || []).map(id => S.board.tiles[id]).map(t => `<g class="rspot" data-t="${t.id}" transform="translate(${t.x * U} ${t.y * U})"><polygon points="${ART.HEX}" transform="scale(.92)" fill="transparent"/><circle class="rdisc" r="31"/><circle class="rdot" r="8"/></g>`).join('');
+  if (mode === 'robber') return (st.robberOptions || []).map(id => S.board.tiles[id]).map(t => `<g class="rspot" data-t="${t.id}" transform="translate(${t.x * U} ${t.y * U})"><polygon points="${ART.HEX}" transform="scale(.92)" fill="transparent"/><circle class="rdisc" r="39"/><circle class="rdot" r="8"/></g>`).join('');
   return '';
 }
 

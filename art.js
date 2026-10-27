@@ -97,6 +97,9 @@
   t.fields += `<g transform="translate(-37 -20)"><ellipse cx="0" cy="17" rx="12" ry="3" fill="#7a5a1a" opacity=".4"/><path d="M-7,17 L-4,-6 L4,-6 L7,17Z" fill="#fff4d6" stroke="#8a6a3a" stroke-width="1"/><path d="M-6,-6 L0,-15 L6,-6Z" fill="#e0392b" stroke="#7a1d14" stroke-width=".8"/><rect x="-2" y="8" width="4" height="9" fill="#7a4d24"/>
     <g transform="translate(0 -7)"><g><animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="8s" repeatCount="indefinite"/>${[0, 90, 180, 270].map(r => `<g transform="rotate(${r})"><rect x="-.9" y="-16" width="1.8" height="16" fill="#6b4a12"/><path d="M1,-15 h7 v7 h-7z" fill="#fff" stroke="#b9a070" stroke-width=".5"/></g>`).join('')}</g><circle r="1.8" fill="#4a3210"/></g></g>`;
   t.pasture += `<g transform="translate(40 6)"><ellipse rx="14" ry="6.5" fill="#1d86b8"/><ellipse rx="12.5" ry="5.4" fill="#45c8f0"/><path d="M-8,-1 q4,-2 8,0" stroke="#fff" stroke-opacity=".7" stroke-width="1" fill="none"/><circle cx="6" cy="1" r="2.2" fill="#5fcf5f"/></g>`;
+  // Plain, flat tiles: one colour per resource and no scenery
+  const PLAIN = {"forest": "#1b6e34", "hills": "#e8645a", "pasture": "#a3d65f", "fields": "#f6c93a", "mountains": "#c3c7cb", "desert": "#d9cf96"};
+  Object.keys(t).forEach(k => { t[k] = `<rect x="-60" y="-60" width="120" height="120" fill="${PLAIN[k]}"/>`; });
   const symbols = Object.keys(t).map(k => `<symbol id="t-${k}" viewBox="-60 -60 120 120" overflow="visible">${t[k]}</symbol>`).join('');
 
   const icons = {
