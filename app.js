@@ -841,7 +841,7 @@ function drawPlayers() {
       <span class="vpb" title="Victory points (first to ${st.vpTarget})">${crown}${p.vp}</span>
       <div class="tag">${p.bot ? icon('bot', 'boticon') : `<span class="dot ${p.connected ? '' : 'off'}"></span>`}<span class="nm">${esc(p.name)}${i === me() ? ' (you)' : ''}</span>${p.bot ? `<span class="lv lvl-${p.bot}" title="${LEVEL_LABEL[p.bot]} bot">${LEVEL_LABEL[p.bot][0]}</span>` : ''}</div>
       <div class="ptiles">
-        <span class="pt devt" title="Development cards in hand"><i>?</i><b class="cnt">${p.devCount}</b></span>
+        <span class="pt devt" title="Development cards in hand: ${p.devCount}" aria-label="${p.devCount} development cards in hand"><i>?</i><b class="dn${p.devCount > 9 ? ' two' : ''}">${p.devCount}</b></span>
         <span class="pt knt" title="Knights played">${icon('knight')}<b class="cnt">${p.knights}</b></span>
         <span class="pt plain" title="Resource cards in hand">${icon('cards')}<b>${p.cards}</b></span>
         <span class="pt plain" title="Longest road">${ARC}<b>${p.roadLen}</b></span>
