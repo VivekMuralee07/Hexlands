@@ -142,16 +142,13 @@ function portSvg(p) {
     + `<path d="M-20,8 H20 L14,20 Q0,25 -14,20Z" fill="#d98b2b" stroke="#7a4310" stroke-width="2" stroke-linejoin="round"/><path d="M-19,10.5 H19" stroke="#f6c866" stroke-width="2.4"/></g></g>`;
   return `<g>${dock}</g>${ship}`;
 }
-const FRAME_PAD = 7, VIEW_PAD = 11, TOP_EXTRA = () => 20;
+const FRAME_PAD = 7, VIEW_PAD = 7, TOP_EXTRA = () => 24;
 const rrPath = (x, y, w, h, r) => `M${x + r},${y}h${w - 2 * r}a${r},${r} 0 0 1 ${r},${r}v${h - 2 * r}a${r},${r} 0 0 1 ${-r},${r}h${-(w - 2 * r)}a${r},${r} 0 0 1 ${-r},${-r}v${-(h - 2 * r)}a${r},${r} 0 0 1 ${r},${-r}z`;
 // A wooden frame around the sea, with brass studs and a name plate. Everything outside it is the table.
 function frameSvg(b) {
-  const f = bounds(b, FRAME_PAD), o = bounds(b, 6000), r = 30, { x, y, w, h } = f;
-  const ring = inset => rrPath(x + inset, y + inset, w - 2 * inset, h - 2 * inset, Math.max(4, r - inset));
+  const f = bounds(b, FRAME_PAD), { x, y, w } = f;
   const name = String(b.name || '').toUpperCase(), pw = Math.max(150, name.length * 10 + 40);
-  return `<path fill-rule="evenodd" fill="#0a68a6" d="M${o.x},${o.y}h${o.w}v${o.h}h${-o.w}z ${rrPath(x - 3, y - 3, w + 6, h + 6, r + 3)}"/>`
-    + `<path d="${ring(0)}" fill="none" stroke="#3f94cf" stroke-width="3" stroke-linejoin="round"/>`
-    + `<g transform="translate(${x + w / 2} ${y - 9})"><rect x="${-pw / 2}" y="-14" width="${pw}" height="28" rx="14" fill="#0c3d73" stroke="#3f94cf" stroke-width="3"/><text y="5.5" text-anchor="middle" font-family="Alegreya Sans, sans-serif" font-weight="800" font-size="14" letter-spacing="1.6" fill="#fff">${esc(name)}</text></g>`;
+  return `<g transform="translate(${x + w / 2} ${y - 9})"><rect x="${-pw / 2}" y="-14" width="${pw}" height="28" rx="14" fill="#0c3d73" stroke="#3f94cf" stroke-width="3"/><text y="5.5" text-anchor="middle" font-family="Alegreya Sans, sans-serif" font-weight="800" font-size="14" letter-spacing="1.6" fill="#fff">${esc(name)}</text></g>`;
 }
 function staticLayer(b) {
   const v = bounds(b, 140);
@@ -590,6 +587,7 @@ function buildShell(app) {
 }
 
 function updateGame() {
+  validatePick();
   const st = S.state;
   drawDyn(); drawPlayers(); drawBanner(); drawHand(); drawActions(); drawLog(); drawOffer(); drawClock(); drawSetupStrip(); drawPlacing(); drawTrade();
   syncModals();
@@ -682,16 +680,10 @@ function cityHouseSvg(col) {
 }
 function pieceGlyph(kind, col) { return kind === 'city' ? cityHouseSvg(col) : houseSvg(col); }
 function highlights() {
-  const mode = currentMode(); if (!mode) return '';
+  const mode = currentMode(); if (!mode) { S.pick = null; return ''; }
   const V = S.board.vertices, st = S.state, col = st.players[me()].color;
   if (mode === 'robber') return (st.robberOptions || []).map(id => S.board.tiles[id]).map(t => `<g class="rspot" data-t="${t.id}" transform="translate(${t.x * U} ${t.y * U})"><polygon points="${ART.HEX}" transform="scale(.92)" fill="transparent"/><circle class="rdisc" r="39"/><circle class="rdot" r="8"/></g>`).join('');
-  const sets = { road: [], settle: [], city: [] };
-  if (mode === 'setupSettle') sets.settle = validSettle(false);
-  else if (mode === 'settle') sets.settle = validSettle(true);
-  else if (mode === 'city') sets.city = myCitySpots();
-  else if (mode === 'setupRoad') sets.road = validRoads(st.setup.last);
-  else if (mode === 'road' || mode === 'freeRoad') sets.road = validRoads();
-  else if (mode === 'auto') Object.assign(sets, buildable());
+  const sets = modeSets(mode);
   const kinds = Object.values(sets).filter(a => a.length).length, big = kinds === 1, mixed = kinds > 1;
   const road = e => {
     const [a, c] = S.board.edges[e].v.map(i => V[i]), mx = (a.x + c.x) / 2 * U, my = (a.y + c.y) / 2 * U, ang = Math.atan2(c.y - a.y, c.x - a.x) * 180 / Math.PI;
@@ -704,19 +696,55 @@ function highlights() {
     return `<g class="hs" data-v="${v}" data-k="${kind}" transform="translate(${V[v].x * U} ${V[v].y * U})"><circle class="hc ${city ? 'city' : ''}" r="${r}"/><circle r="${big ? r : 20}" fill="transparent"/>`
       + (mixed ? `<g class="hg" transform="scale(${k}) translate(0 ${city ? 6 : 2})">${pieceGlyph(city ? 'city' : 'settle', col)}</g>` : '') + `</g>`;
   };
-  return sets.road.map(road).join('') + sets.settle.map(v => spot(v, 'settle')).join('') + sets.city.map(v => spot(v, 'city')).join('');
+  const P = S.pick, not = (type, id) => !(P && P.type === type && P.id === id);
+  const chk = (x, y) => `<g transform="translate(${x} ${y})"><circle r="10" fill="#2fbf4f" stroke="#fff" stroke-width="2.4"/><path d="M-4.6,.4 L-1.4,3.8 L5,-3.6" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></g>`;
+  let preview = '';
+  if (P && P.type === 'road') {
+    const [a, c] = S.board.edges[P.id].v.map(i => V[i]), ax = a.x * U, ay = a.y * U, cx = c.x * U, cy = c.y * U, k = .2;
+    const x1 = ax + (cx - ax) * k, y1 = ay + (cy - ay) * k, x2 = cx - (cx - ax) * k, y2 = cy - (cy - ay) * k, ln = (w, stroke, extra = '') => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${stroke}" stroke-width="${w}" stroke-linecap="round" ${extra}/>`;
+    preview = `<g class="pv" data-confirm="1" role="button" aria-label="Tap to build this road">${ln(44, 'transparent')}${ln(17, '#1b1b1b')}${ln(12.5, col)}${ln(3, '#fff', 'stroke-opacity=".4" transform="translate(0 -2.5)"')}${chk((x1 + x2) / 2, (y1 + y2) / 2 - 24)}</g>`;
+  } else if (P) {
+    const city = P.type === 'city', x = V[P.id].x * U, y = V[P.id].y * U, r = city ? 36 : 29;
+    preview = `<g class="pv" data-confirm="1" role="button" aria-label="Tap to build"><g transform="translate(${x} ${y})"><circle class="pvring" r="${r}"/><g transform="scale(${city ? 1.05 : 1.35})" filter="url(#f-shadow)">${city ? cityHouseSvg(col) : houseSvg(col)}</g>${chk(city ? 25 : 18, city ? -27 : -23)}</g></g>`;
+  }
+  return sets.road.filter(e => not('road', e)).map(road).join('') + sets.settle.filter(v => not('settle', v)).map(v => spot(v, 'settle')).join('') + sets.city.filter(v => not('city', v)).map(v => spot(v, 'city')).join('') + preview;
 }
 
 async function onBoardTap(el) {
   const mode = currentMode(); if (!mode || !el) return;
-  const t = el.closest('[data-v],[data-e],[data-t]'); if (!t) return;
-  if (t.dataset.v != null) await act({ type: t.dataset.k === 'city' ? 'city' : 'settle', vertex: +t.dataset.v });
-  else if (t.dataset.e != null) await act({ type: 'road', edge: +t.dataset.e });
+  if (mode !== 'robber' && S.pick && el.closest('[data-confirm]')) return confirmPick();   // second tap: the piece itself
+  const t = el.closest('[data-v],[data-e],[data-t]');
+  if (!t) { if (S.pick) { S.pick = null; updateGame(); } return; }                          // tapping the sea or a tile cancels the preview
+  if (t.dataset.v != null) { S.pick = { type: t.dataset.k === 'city' ? 'city' : 'settle', id: +t.dataset.v }; updateGame(); }
+  else if (t.dataset.e != null) { S.pick = { type: 'road', id: +t.dataset.e }; updateGame(); }
   else if (t.dataset.t != null && mode === 'robber') {
     const tile = +t.dataset.t, victims = robberVictims(tile);
     if (victims.length > 1) return openSteal(tile, victims);
     act({ type: 'robber', tile, victim: victims[0] });
   }
+}
+// The tapped spot shows the piece in your color with a green tick. Tapping that piece builds it.
+async function confirmPick() {
+  const p = S.pick; if (!p || S.placing) return;
+  S.placing = true;
+  try { await act(p.type === 'road' ? { type: 'road', edge: p.id } : { type: p.type, vertex: p.id }); } finally { S.placing = false; }
+  S.pick = null; updateGame();
+}
+function validatePick() {
+  if (!S.pick) return;
+  const mode = S.state && currentMode();
+  if (!mode || mode === 'robber' || !(modeSets(mode)[S.pick.type] || []).includes(S.pick.id)) S.pick = null;
+}
+function pickText() { return `Tap the ${S.pick.type === 'road' ? 'road' : S.pick.type === 'city' ? 'city' : 'settlement'} to place it, or tap another spot`; }
+function modeSets(mode) {
+  const sets = { road: [], settle: [], city: [] }, st = S.state;
+  if (mode === 'setupSettle') sets.settle = validSettle(false);
+  else if (mode === 'settle') sets.settle = validSettle(true);
+  else if (mode === 'city') sets.city = myCitySpots();
+  else if (mode === 'setupRoad') sets.road = validRoads(st.setup.last);
+  else if (mode === 'road' || mode === 'freeRoad') sets.road = validRoads();
+  else if (mode === 'auto') Object.assign(sets, buildable());
+  return sets;
 }
 function robberVictims(tile) {
   const st = S.state, set = new Set();
@@ -845,6 +873,7 @@ function drawBanner() {
     const m = currentMode();
     t = !st.rolled ? 'Your turn: roll the dice' : m === 'road' ? 'Tap a glowing edge to build a road' : m === 'settle' ? 'Tap a glowing corner to settle' : m === 'city' ? 'Tap one of your settlements to upgrade it' : m === 'auto' && autoCount() ? 'Tap a glowing spot to build, tap your cards to trade, or end your turn' : 'Build, trade, or end your turn';
   } else t = p.bot ? `${p.name} is thinking…` : `${p.name}'s turn`;
+  if (S.pick && mine) t = pickText();
   b.textContent = t; b.classList.toggle('you', mine || !!st.pendingDiscards[me()]);
 }
 
@@ -1043,6 +1072,7 @@ const TW_ICON = {
 function drawTrade() {
   const el = $('#tradewin'); if (!el) return;
   const st = S.state, ok = S.tw && myTurn() && st.phase === 'main' && st.rolled && !st.subphase;
+  $('#wrap').classList.toggle('trading', !!ok);
   if (!ok) { if (S.tw) S.tw = null; el.hidden = true; el.innerHTML = ''; return; }
   const T = S.tw, hand = st.me.res, ratios = st.me.ratios, col = st.players[me()].color;
   RES.forEach(k => { T.give[k] = Math.min(T.give[k] || 0, hand[k]); T.get[k] = T.get[k] || 0; });

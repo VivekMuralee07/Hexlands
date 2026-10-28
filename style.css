@@ -737,3 +737,18 @@ span.pcardx { cursor: default; }
   .ppieces { padding: 2px 1px; } .pp .ic { width: 13px; height: 13px; } .pp b { font-size: .66rem; }
   .yourturn { font-size: .62rem; padding: .15rem 0; }
 }
+
+/* ===== preview piece: tap the circle, then tap the piece to build it ===== */
+.pv, .pv * { pointer-events: all; } .pv { cursor: pointer; }
+.pvring { fill: rgba(255, 255, 255, .2); stroke: #fff; stroke-width: 2.5; stroke-dasharray: 5 4; }
+@media (prefers-reduced-motion: no-preference) { .pv { animation: pvpulse .85s ease-in-out infinite alternate; } }
+@keyframes pvpulse { from { opacity: .68; } to { opacity: 1; } }
+/* ===== message and Leave icons: small, bottom left above your cards, dice beside them ===== */
+.gbtns { top: auto; right: auto; left: .6rem; bottom: .7rem; flex-direction: column; gap: .35rem; }
+.gbtn { width: 30px; height: 30px; border-radius: 8px; border-width: 1.5px; }
+.gbtn .ic { width: 17px; height: 17px; }
+.board-wrap .dice { left: calc(.6rem + 30px + .6rem); }
+.board-wrap.trading .gbtns { display: none; }
+@media (max-width: 1100px) { .side { bottom: 12.5rem; } }
+/* the soft dark edge around the map area went too, so the sea is flat */
+.board-wrap::after { box-shadow: none; }
