@@ -823,6 +823,7 @@ function drawPlayers() {
       ${turn ? `<div class="yourturn">${i === me() ? 'Your turn' : esc(p.name) + "'s turn"}<span class="tm"></span></div>` : ''}
     </div>`;
   }).join('');
+  $('#players').style.setProperty('--np', st.players.length);
   $$('[data-skip]').forEach(b => b.onclick = () => act({ type: 'skip' }));
   $$('[data-pile]').forEach(b => b.onclick = openDevPile);
 }
@@ -842,7 +843,7 @@ function drawBanner() {
   else if (st.subphase === 'roadBuilding') t = mine ? `Place ${plural(st.freeRoads, 'free road')}` : `${p.name} is placing free roads`;
   else if (mine) {
     const m = currentMode();
-    t = !st.rolled ? 'Your turn: roll the dice' : m === 'road' ? 'Tap a glowing edge to build a road' : m === 'settle' ? 'Tap a glowing corner to settle' : m === 'city' ? 'Tap one of your settlements to upgrade it' : m === 'auto' && autoCount() ? 'Tap a glowing spot to build, or trade, or end your turn' : 'Build, trade, or end your turn';
+    t = !st.rolled ? 'Your turn: roll the dice' : m === 'road' ? 'Tap a glowing edge to build a road' : m === 'settle' ? 'Tap a glowing corner to settle' : m === 'city' ? 'Tap one of your settlements to upgrade it' : m === 'auto' && autoCount() ? 'Tap a glowing spot to build, tap your cards to trade, or end your turn' : 'Build, trade, or end your turn';
   } else t = p.bot ? `${p.name} is thinking…` : `${p.name}'s turn`;
   b.textContent = t; b.classList.toggle('you', mine || !!st.pendingDiscards[me()]);
 }
@@ -851,11 +852,25 @@ const DEV_ORDER = ['knight', 'vp', 'roadBuilding', 'yearOfPlenty', 'monopoly'];
 function drawHand() {
   const st = S.state, r = st.me.res, held = {};
   st.me.dev.forEach(d => { const h = held[d.type] || (held[d.type] = { n: 0, fresh: 0 }); h.n++; if (d.fresh) h.fresh++; });
-  $('#hand').innerHTML = RES.map(k => `<div class="card ${k} ${r[k] ? '' : 'zero'}" data-res="${k}" role="button" tabindex="0" title="${RES_LABEL[k]}: ${r[k]}">${icon(k)}<span class="lbl">${RES_LABEL[k]}</span>${r[k] ? `<span class="n">${r[k]}</span>` : ''}</div>`).join('')
+  $('#hand').innerHTML = RES.map(k => `<div class="card ${k} ${r[k] ? '' : 'zero'}" data-res="${k}" role="button" tabindex="0" title="${RES_LABEL[k]}: ${r[k]}. Tap to trade.">${icon(k)}<span class="lbl">${RES_LABEL[k]}</span>${r[k] ? `<span class="n">${r[k]}</span>` : ''}</div>`).join('')
     + '<span class="hsep"></span>'
     + (DEV_ORDER.filter(t => held[t]).map(t => `<button class="card devc ${t}" data-dev="${t}" title="${DEV[t].name} x${held[t].n}${held[t].fresh ? ` (${held[t].fresh} bought this turn)` : ''}">${icon(t)}<span class="lbl">${DEV[t].name.split(' ')[0]}</span><span class="n">${held[t].n}</span></button>`).join('')
       || `<button class="card devc zero" data-dev="none" title="No development cards yet">${icon('dev')}<span class="lbl">Dev</span></button>`);
   $$('#hand [data-dev]').forEach(b => b.onclick = () => { S.tw = null; if (S.mode) S.mode = null; updateGame(); openDev(); });
+  $$('#hand [data-res]').forEach(c => { c.onclick = () => handTap(c.dataset.res); c.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handTap(c.dataset.res); } }; });
+}
+// Tapping one of your resources opens the trade window with that card offered; keep tapping to offer more.
+function handTap(k) {
+  const st = S.state;
+  if (st.phase !== 'main') return toast('Trading opens once setup is finished.');
+  if (!myTurn()) return toast('You can trade on your turn.');
+  if (!st.rolled) return toast('Roll the dice before trading.');
+  if (st.subphase) return toast('Finish the current step before trading.');
+  if (!st.me.res[k]) return toast(`You have no ${RES_LABEL[k]} to offer.`);
+  if (!S.tw) { S.mode = null; S.tw = { give: {}, get: {} }; }
+  if (S.tw.get[k]) return toast('You are already asking for that.', 'err');
+  if ((S.tw.give[k] || 0) < st.me.res[k]) S.tw.give[k] = (S.tw.give[k] || 0) + 1;
+  updateGame();
 }
 function openDevPile() {
   const st = S.state, tot = st.devPile.total, played = st.devPile.played, mine = {};
@@ -884,18 +899,11 @@ function drawActions() {
     if ($('#kn')) $('#kn').onclick = () => act({ type: 'playDev', card: 'knight' });
     return;
   }
-  box.innerHTML = btn('b-road', 'Road', 'road', COST.road, canAfford(COST.road) && P.pieces.road > 0 && validRoads().length, m === 'road')
-    + btn('b-settle', 'Settle', 'settlement', COST.settlement, canAfford(COST.settlement) && P.pieces.settlement > 0 && validSettle(true).length, m === 'settle')
-    + btn('b-city', 'City', 'city', COST.city, canAfford(COST.city) && P.pieces.city > 0 && myCitySpots().length, m === 'city')
-    + btn('b-dev', 'Dev card', 'dev', COST.dev, canAfford(COST.dev) && st.devLeft > 0)
-    + btn('b-trade', 'Trade', 'any', null, sum(st.me.res) > 0)
+  // No build or trade buttons: every legal spot glows on the map once you can afford it, and tapping your cards opens trading.
+  box.innerHTML = btn('b-dev', 'Dev card', 'dev', COST.dev, canAfford(COST.dev) && st.devLeft > 0)
     + `<button class="act go" id="b-end">${icon('vp')}End turn</button>`;
-  // Tint build icons in the player's color
   $$('#actions .act .ic').forEach(i => { i.style.color = P.color; });
-  const toggle = k => () => { S.mode = S.mode === k ? null : k; updateGame(); };
-  $('#b-road').onclick = toggle('road'); $('#b-settle').onclick = toggle('settle'); $('#b-city').onclick = toggle('city');
   $('#b-dev').onclick = async () => { const r = await act({ type: 'buyDev' }); if (r.ok && r.result) toast(`${icon(r.result.card)} You drew ${DEV[r.result.card].name}`, 'gain', true); };
-  $('#b-trade').onclick = () => { S.mode = null; S.tw = S.tw ? null : { give: {}, get: {} }; updateGame(); };
   $('#b-end').onclick = () => { S.mode = null; act({ type: 'endTurn' }); };
 }
 function diceIcon() { return `<svg class="ic" viewBox="0 0 32 32"><rect x="4" y="4" width="24" height="24" rx="5" fill="#fffdf6" stroke="#182730" stroke-width="2"/><circle cx="11" cy="11" r="2.4" fill="#182730"/><circle cx="16" cy="16" r="2.4" fill="#182730"/><circle cx="21" cy="21" r="2.4" fill="#182730"/></svg>`; }

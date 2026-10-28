@@ -703,3 +703,37 @@ span.pcardx { cursor: default; }
 .gbtn .ic { width: 22px; height: 22px; } .gbtn:hover { border-color: #ffd23f; }
 .gbtn.drawer-toggle { display: none; }
 @media (max-width: 1100px) { .gbtn.drawer-toggle { display: grid; } }
+
+/* ===== phones: bank on its own row, 2-4 players share the width ===== */
+@media (max-width: 760px) {
+  .players { display: grid; grid-template-columns: repeat(var(--np, 4), minmax(0, 1fr)); gap: 1.4rem .3rem; padding: .35rem .35rem .3rem; overflow: visible; align-content: start; }
+  .players .bank { grid-column: 1 / -1; flex-wrap: nowrap; justify-content: center; width: auto; gap: 3px; padding: 3px; }
+  .bk { font-size: .74rem; padding: 2px 4px 2px 3px; }
+  .pcard { min-width: 0; flex: none; container-type: inline-size; padding: 1.25rem .35rem .3rem; }
+  .pcard .badges { display: none; }
+  .yourturn { margin: .3rem -.35rem -.3rem; font-size: .8rem; }
+}
+/* Each card shrinks its own contents to the width it gets: 3 players, then 4 players. */
+@container (max-width: 135px) {
+  .vpb { width: 30px; height: 30px; font-size: 1rem; border-width: 2px; left: -6px; top: -12px; }
+  .vpb .crown { top: -15px; width: 19px; height: 19px; } .vpb .crown .ic { width: 19px; height: 19px; }
+  .pcard .tag { height: 20px; top: -8px; left: 18px; padding: 0 .3rem 0 16px; font-size: .76rem; gap: .2rem; }
+  .ptiles { grid-template-columns: 24px 24px 1fr 1fr; gap: 3px; }
+  .pt { height: 28px; } .pt .cnt { min-width: 15px; height: 15px; font-size: .6rem; top: -6px; right: -6px; }
+  .pt.devt i { font-size: .95rem; } .pt.knt .ic { width: 16px; height: 16px; }
+  .pt.plain .ic { width: 13px; height: 13px; } .pt.plain b { font-size: .76rem; }
+  .pp .ic { width: 15px; height: 15px; } .pp b { font-size: .76rem; }
+  .yourturn { font-size: .7rem; }
+}
+@container (max-width: 100px) {
+  .vpb { width: 25px; height: 25px; font-size: .86rem; left: -5px; top: -11px; }
+  .vpb .crown { top: -13px; width: 16px; height: 16px; } .vpb .crown .ic { width: 16px; height: 16px; }
+  .pcard .tag { height: 17px; top: -7px; left: 13px; padding: 0 .2rem 0 14px; font-size: .66rem; gap: .15rem; }
+  .pcard .tag .lv, .pcard .tag .dot, .pcard .tag .boticon { display: none; }
+  .ptiles { grid-template-columns: 20px 20px 1fr 1fr; gap: 2px; margin: 1px 0 2px; }
+  .pt { height: 25px; border-width: 1px; } .pt .cnt { min-width: 13px; height: 13px; font-size: .54rem; top: -5px; right: -5px; border-width: 1px; padding: 0 2px; }
+  .pt.devt i { font-size: .8rem; } .pt.knt .ic { width: 13px; height: 13px; }
+  .pt.plain .ic { width: 11px; height: 11px; } .pt.plain b { font-size: .66rem; }
+  .ppieces { padding: 2px 1px; } .pp .ic { width: 13px; height: 13px; } .pp b { font-size: .66rem; }
+  .yourturn { font-size: .62rem; padding: .15rem 0; }
+}

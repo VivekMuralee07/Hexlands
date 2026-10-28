@@ -18,7 +18,8 @@ A multiplayer island-settling game for 2–4 players in the browser. Gather wood
 - House colors: in the waiting room tap your house to pick from 10 colors (no duplicates). The host can recolor bots. Colors are kept when the game starts.
 - Clean game screen: no top bar. The map has two small icons in its top-right corner: messages (phones and narrow windows; wide windows keep the log in its own column) and Leave. Sound and music are in the waiting room and on the home screen, and the rules are on the home screen.
 - Stolen cards (robber or Knight) and Monopoly cards fly across the screen from the player who lost them to the player who gets them. Only the thief and the victim see which card it was; everyone else sees a face-down card.
-- Tap to build: once you have rolled and can afford a road, settlement or city, every legal spot glows on the map. Tap a spot to build there, with no button first. The Road, Settle and City buttons still work as filters.
+- Tap to build: once you have rolled and can afford a road, settlement or city, every legal spot glows on the map. Tap a spot to build there. There are no Road, Settle, City or Trade buttons; the bottom bar only has Roll dice, Dev card and End turn.
+- Tap any resource card in your hand to trade: it opens the trade window with that card offered. Keep tapping cards to offer more.
 - A bar above the map shows the instruction, move timer, dice and setup order, so nothing covers the board
 - Longest Road and Largest Army are announced on screen the moment they change hands
 - Bigger number tokens, pieces, dice and harbor plates; light gaps between hexes
