@@ -643,22 +643,23 @@ function drawDyn() {
   if (S.hot && S.hot.until > Date.now()) s += b.tiles.filter(t => t.number === S.hot.sum && t.id !== st.robber).map(t => `<polygon class="hot" points="${ART.HEX}" transform="translate(${t.x * U} ${t.y * U}) scale(.95)"/>`).join('');
   for (const [e, p] of Object.entries(st.roads)) {
     const [a, c] = b.edges[e].v.map(i => V[i]);
-    const ax = a.x * U, ay = a.y * U, cx = c.x * U, cy = c.y * U, k = 0.2;
+    const ax = a.x * U, ay = a.y * U, cx = c.x * U, cy = c.y * U, k = 0.14;
     const x1 = ax + (cx - ax) * k, y1 = ay + (cy - ay) * k, x2 = cx - (cx - ax) * k, y2 = cy - (cy - ay) * k, col = st.players[p].color;
     const isCut = cut.has(+e);
     // The soft shadow is drawn by hand. An SVG filter on a perfectly vertical road has a zero-width box,
     // and browsers then paint nothing at all, so vertical roads used to disappear.
     s += `<g class="${fresh('r' + e) ? 'road-new' : ''}"${isCut ? ' opacity=".5"' : ''}>${isCut ? '<title>Cut off by an opposing settlement. The road stays, but it no longer links back to your towns.</title>' : ''}`
-      + `<line x1="${x1}" y1="${y1 + 3.5}" x2="${x2}" y2="${y2 + 3.5}" stroke="#001a3a" stroke-opacity=".38" stroke-width="19" stroke-linecap="round"/>`
-      + `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#1b1b1b" stroke-width="17" stroke-linecap="round"/>`
-      + `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${col}" stroke-width="12.5" stroke-linecap="round"/>`
-      + `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#000" stroke-opacity=".22" stroke-width="12.5" stroke-dasharray="2 7"/>`
-      + `<line x1="${x1}" y1="${y1 - 2.5}" x2="${x2}" y2="${y2 - 2.5}" stroke="#fff" stroke-opacity=".4" stroke-width="3" stroke-linecap="round"/></g>`;
+      + `<line x1="${x1}" y1="${y1 + 3.5}" x2="${x2}" y2="${y2 + 3.5}" stroke="#001a3a" stroke-opacity=".4" stroke-width="26" stroke-linecap="round"/>`
+      + `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#fff" stroke-opacity=".9" stroke-width="27" stroke-linecap="round"/>`
+      + `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#1b1b1b" stroke-width="22.5" stroke-linecap="round"/>`
+      + `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${col}" stroke-width="16.5" stroke-linecap="round"/>`
+      + `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#000" stroke-opacity=".22" stroke-width="16.5" stroke-dasharray="2.5 9"/>`
+      + `<line x1="${x1}" y1="${y1 - 3.5}" x2="${x2}" y2="${y2 - 3.5}" stroke="#fff" stroke-opacity=".4" stroke-width="4" stroke-linecap="round"/></g>`;
   }
   for (const [v, bd] of Object.entries(st.buildings)) {
     const x = V[v].x * U, y = V[v].y * U, col = st.players[bd.p].color, city = bd.type === 'city';
     const pop = fresh('b' + v + bd.type) ? 'pop' : '';
-    s += `<g transform="translate(${x} ${y}) scale(${city ? 1.05 : 1.35})" filter="url(#f-shadow)"><g class="bld ${pop}">${city ? cityHouseSvg(col) : houseSvg(col)}</g></g>`;
+    s += `<g transform="translate(${x} ${y}) scale(${city ? 1.3 : 1.72})" filter="url(#f-shadow)"><g class="bld ${pop}">${city ? cityHouseSvg(col, true) : houseSvg(col, true)}</g></g>`;
   }
   const rt = b.tiles[st.robber];
   s += `<use href="#ic-robber" x="${rt.x * U - 58}" y="${rt.y * U - 42}" width="44" height="44" pointer-events="none" filter="url(#f-shadow)"/>`;
@@ -666,17 +667,19 @@ function drawDyn() {
   $('#dyn').innerHTML = s;
 }
 // Barn-style pieces: lighter left roof, darker right roof, ridge line, dark door, thick dark outline.
-function houseSvg(col) {
+function houseSvg(col, halo) {
   const ink = shade(col, -.6), lt = shade(col, .3), dk = shade(col, -.2), body = 'M-13,10 L-14,-3 L-7,-14 L7,-14 L14,-3 L13,10Z';
-  return `<path d="${body}" fill="${col}"/><path d="M-14,-3 L-7,-14 H0 V-3Z" fill="${lt}"/><path d="M0,-14 H7 L14,-3 H0Z" fill="${dk}"/>`
-    + `<path d="${body}" fill="none" stroke="${ink}" stroke-width="2.2" stroke-linejoin="round"/><path d="M-14,-3 H14 M0,-14 V-3" stroke="${ink}" stroke-width="1.5" fill="none"/>`
-    + `<path d="M-2.6,10 V6.6 a2.6,2.6 0 0 1 5.2,0 V10Z" fill="#150808"/>`;
+  return (halo ? `<path d="${body}" fill="#fff" stroke="#fff" stroke-width="8" stroke-linejoin="round"/>` : '')
+    + `<path d="${body}" fill="${col}"/><path d="M-14,-3 L-7,-14 H0 V-3Z" fill="${lt}"/><path d="M0,-14 H7 L14,-3 H0Z" fill="${dk}"/>`
+    + `<path d="${body}" fill="none" stroke="${ink}" stroke-width="3.2" stroke-linejoin="round"/><path d="M-14,-3 H14 M0,-14 V-3" stroke="${ink}" stroke-width="2" fill="none"/>`
+    + `<path d="M-3,10 V6.4 a3,3 0 0 1 6,0 V10Z" fill="#150808"/>`;
 }
-function cityHouseSvg(col) {
+function cityHouseSvg(col, halo) {
   const ink = shade(col, -.6), lt = shade(col, .3), dk = shade(col, -.2), main = 'M-23,12 L-24,-3 L-15,-17 L1,-17 L10,-3 L9,12Z', wing = 'M9,12 V0 L12,-4 H22 L24,0 V12Z';
-  return `<path d="${main}" fill="${col}"/><path d="M-24,-3 L-15,-17 H-7 V-3Z" fill="${lt}"/><path d="M-7,-17 H1 L10,-3 H-7Z" fill="${dk}"/><path d="${wing}" fill="${col}"/><path d="M9,0 L12,-4 H22 L24,0Z" fill="${dk}"/>`
-    + `<path d="${main}" fill="none" stroke="${ink}" stroke-width="2.2" stroke-linejoin="round"/><path d="${wing}" fill="none" stroke="${ink}" stroke-width="2.2" stroke-linejoin="round"/><path d="M-24,-3 H10 M-7,-17 V-3" stroke="${ink}" stroke-width="1.5" fill="none"/>`
-    + `<path d="M-9.6,12 V8.4 a2.6,2.6 0 0 1 5.2,0 V12Z" fill="#150808"/><rect x="-18" y="1" width="3.6" height="4.8" rx=".8" fill="#150808"/><rect x="-1" y="1" width="3.6" height="4.8" rx=".8" fill="#150808"/><rect x="14.5" y="4" width="4.2" height="3.6" rx=".8" fill="#150808"/>`;
+  return (halo ? `<path d="${main}" fill="#fff" stroke="#fff" stroke-width="8" stroke-linejoin="round"/><path d="${wing}" fill="#fff" stroke="#fff" stroke-width="8" stroke-linejoin="round"/>` : '')
+    + `<path d="${main}" fill="${col}"/><path d="M-24,-3 L-15,-17 H-7 V-3Z" fill="${lt}"/><path d="M-7,-17 H1 L10,-3 H-7Z" fill="${dk}"/><path d="${wing}" fill="${col}"/><path d="M9,0 L12,-4 H22 L24,0Z" fill="${dk}"/>`
+    + `<path d="${main}" fill="none" stroke="${ink}" stroke-width="3.2" stroke-linejoin="round"/><path d="${wing}" fill="none" stroke="${ink}" stroke-width="3.2" stroke-linejoin="round"/><path d="M-24,-3 H10 M-7,-17 V-3" stroke="${ink}" stroke-width="2" fill="none"/>`
+    + `<path d="M-10,12 V8.2 a3,3 0 0 1 6,0 V12Z" fill="#150808"/><rect x="-18" y="1" width="3.8" height="5" rx=".8" fill="#150808"/><rect x="-1" y="1" width="3.8" height="5" rx=".8" fill="#150808"/><rect x="14.5" y="4" width="4.4" height="3.8" rx=".8" fill="#150808"/>`;
 }
 function pieceGlyph(kind, col) { return kind === 'city' ? cityHouseSvg(col) : houseSvg(col); }
 function highlights() {
@@ -687,24 +690,24 @@ function highlights() {
   const kinds = Object.values(sets).filter(a => a.length).length, big = kinds === 1, mixed = kinds > 1;
   const road = e => {
     const [a, c] = S.board.edges[e].v.map(i => V[i]), mx = (a.x + c.x) / 2 * U, my = (a.y + c.y) / 2 * U, ang = Math.atan2(c.y - a.y, c.x - a.x) * 180 / Math.PI;
-    const r = big ? 20 : 13, xy = `x1="${a.x * U}" y1="${a.y * U}" x2="${c.x * U}" y2="${c.y * U}"`;
-    return `<line class="ehit" ${xy} data-e="${e}"/><g class="hs" data-e="${e}" transform="translate(${mx} ${my})"><circle class="hc" r="${r}"/><circle r="${big ? 20 : 17}" fill="transparent"/>`
+    const r = big ? 25 : 14, xy = `x1="${a.x * U}" y1="${a.y * U}" x2="${c.x * U}" y2="${c.y * U}"`;
+    return `<line class="ehit" ${xy} data-e="${e}"/><g class="hs" data-e="${e}" transform="translate(${mx} ${my})"><circle class="hc" r="${r}"/><circle r="${big ? 25 : 21}" fill="transparent"/>`
       + (mixed ? `<g class="hg" transform="rotate(${ang}) scale(${r / 27})"><rect x="-17" y="-6" width="34" height="12" rx="6" fill="${col}" stroke="#1b1b1b" stroke-width="2.5"/></g>` : '') + `</g>`;
   };
   const spot = (v, kind) => {
-    const city = kind === 'city', r = city ? (big ? 25 : 17) : (big ? 21 : 15), k = city ? r / 30 : r / 22;
-    return `<g class="hs" data-v="${v}" data-k="${kind}" transform="translate(${V[v].x * U} ${V[v].y * U})"><circle class="hc ${city ? 'city' : ''}" r="${r}"/><circle r="${big ? r : 20}" fill="transparent"/>`
+    const city = kind === 'city', r = city ? (big ? 32 : 20) : (big ? 27 : 17), k = city ? r / 30 : r / 22;
+    return `<g class="hs" data-v="${v}" data-k="${kind}" transform="translate(${V[v].x * U} ${V[v].y * U})"><circle class="hc ${city ? 'city' : ''}" r="${r}"/><circle r="${big ? r : 23}" fill="transparent"/>`
       + (mixed ? `<g class="hg" transform="scale(${k}) translate(0 ${city ? 6 : 2})">${pieceGlyph(city ? 'city' : 'settle', col)}</g>` : '') + `</g>`;
   };
   const P = S.pick, not = (type, id) => !(P && P.type === type && P.id === id);
   let preview = '';
   if (P && P.type === 'road') {
-    const [a, c] = S.board.edges[P.id].v.map(i => V[i]), ax = a.x * U, ay = a.y * U, cx = c.x * U, cy = c.y * U, k = .2;
+    const [a, c] = S.board.edges[P.id].v.map(i => V[i]), ax = a.x * U, ay = a.y * U, cx = c.x * U, cy = c.y * U, k = .14;
     const x1 = ax + (cx - ax) * k, y1 = ay + (cy - ay) * k, x2 = cx - (cx - ax) * k, y2 = cy - (cy - ay) * k, ln = (w, stroke, extra = '') => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${stroke}" stroke-width="${w}" stroke-linecap="round" ${extra}/>`;
-    preview = `<g class="pv" data-confirm="1" role="button" aria-label="Tap to build this road">${ln(44, 'transparent')}${ln(17, '#1b1b1b')}${ln(12.5, col)}${ln(3, '#fff', 'stroke-opacity=".4" transform="translate(0 -2.5)"')}</g>`;
+    preview = `<g class="pv" data-confirm="1" role="button" aria-label="Tap to build this road">${ln(52, 'transparent')}${ln(27, '#fff', 'stroke-opacity=".9"')}${ln(22.5, '#1b1b1b')}${ln(16.5, col)}${ln(4, '#fff', 'stroke-opacity=".4" transform="translate(0 -3.5)"')}</g>`;
   } else if (P) {
-    const city = P.type === 'city', x = V[P.id].x * U, y = V[P.id].y * U, r = city ? 36 : 29;
-    preview = `<g class="pv" data-confirm="1" role="button" aria-label="Tap to build"><g transform="translate(${x} ${y})"><circle class="pvring" r="${r}"/><g transform="scale(${city ? 1.05 : 1.35})" filter="url(#f-shadow)">${city ? cityHouseSvg(col) : houseSvg(col)}</g></g></g>`;
+    const city = P.type === 'city', x = V[P.id].x * U, y = V[P.id].y * U, r = city ? 48 : 40;
+    preview = `<g class="pv" data-confirm="1" role="button" aria-label="Tap to build"><g transform="translate(${x} ${y})"><circle class="pvring" r="${r}"/><g transform="scale(${city ? 1.3 : 1.72})" filter="url(#f-shadow)">${city ? cityHouseSvg(col, true) : houseSvg(col, true)}</g></g></g>`;
   }
   return sets.road.filter(e => not('road', e)).map(road).join('') + sets.settle.filter(v => not('settle', v)).map(v => spot(v, 'settle')).join('') + sets.city.filter(v => not('city', v)).map(v => spot(v, 'city')).join('') + preview;
 }

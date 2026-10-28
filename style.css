@@ -752,3 +752,6 @@ span.pcardx { cursor: default; }
 @media (max-width: 1100px) { .side { bottom: 12.5rem; } }
 /* the soft dark edge around the map area went too, so the sea is flat */
 .board-wrap::after { box-shadow: none; }
+
+/* bigger tap area along a road spot */
+.ehit { stroke-width: 46px; }
