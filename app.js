@@ -697,15 +697,14 @@ function highlights() {
       + (mixed ? `<g class="hg" transform="scale(${k}) translate(0 ${city ? 6 : 2})">${pieceGlyph(city ? 'city' : 'settle', col)}</g>` : '') + `</g>`;
   };
   const P = S.pick, not = (type, id) => !(P && P.type === type && P.id === id);
-  const chk = (x, y) => `<g transform="translate(${x} ${y})"><circle r="10" fill="#2fbf4f" stroke="#fff" stroke-width="2.4"/><path d="M-4.6,.4 L-1.4,3.8 L5,-3.6" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></g>`;
   let preview = '';
   if (P && P.type === 'road') {
     const [a, c] = S.board.edges[P.id].v.map(i => V[i]), ax = a.x * U, ay = a.y * U, cx = c.x * U, cy = c.y * U, k = .2;
     const x1 = ax + (cx - ax) * k, y1 = ay + (cy - ay) * k, x2 = cx - (cx - ax) * k, y2 = cy - (cy - ay) * k, ln = (w, stroke, extra = '') => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${stroke}" stroke-width="${w}" stroke-linecap="round" ${extra}/>`;
-    preview = `<g class="pv" data-confirm="1" role="button" aria-label="Tap to build this road">${ln(44, 'transparent')}${ln(17, '#1b1b1b')}${ln(12.5, col)}${ln(3, '#fff', 'stroke-opacity=".4" transform="translate(0 -2.5)"')}${chk((x1 + x2) / 2, (y1 + y2) / 2 - 24)}</g>`;
+    preview = `<g class="pv" data-confirm="1" role="button" aria-label="Tap to build this road">${ln(44, 'transparent')}${ln(17, '#1b1b1b')}${ln(12.5, col)}${ln(3, '#fff', 'stroke-opacity=".4" transform="translate(0 -2.5)"')}</g>`;
   } else if (P) {
     const city = P.type === 'city', x = V[P.id].x * U, y = V[P.id].y * U, r = city ? 36 : 29;
-    preview = `<g class="pv" data-confirm="1" role="button" aria-label="Tap to build"><g transform="translate(${x} ${y})"><circle class="pvring" r="${r}"/><g transform="scale(${city ? 1.05 : 1.35})" filter="url(#f-shadow)">${city ? cityHouseSvg(col) : houseSvg(col)}</g>${chk(city ? 25 : 18, city ? -27 : -23)}</g></g>`;
+    preview = `<g class="pv" data-confirm="1" role="button" aria-label="Tap to build"><g transform="translate(${x} ${y})"><circle class="pvring" r="${r}"/><g transform="scale(${city ? 1.05 : 1.35})" filter="url(#f-shadow)">${city ? cityHouseSvg(col) : houseSvg(col)}</g></g></g>`;
   }
   return sets.road.filter(e => not('road', e)).map(road).join('') + sets.settle.filter(v => not('settle', v)).map(v => spot(v, 'settle')).join('') + sets.city.filter(v => not('city', v)).map(v => spot(v, 'city')).join('') + preview;
 }
