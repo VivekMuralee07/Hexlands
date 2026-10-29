@@ -28,17 +28,19 @@ function profile(g, pi) {
 function scarcity(g) {
   if (g._scarcity) return g._scarcity;
   const tot = { wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 0 };
-  g.board.tiles.forEach(t => { const r = PRODUCES[t.terrain]; if (r) tot[r] += PIPS(t.number); });
+  g.board.tiles.forEach(t => { const r = PRODUCES[t.terrain]; if (r && !hiddenTile(g, t)) tot[r] += PIPS(t.number); });
   const avg = RES.reduce((a, k) => a + tot[k], 0) / 5;
   const w = {}; RES.forEach(k => { w[k] = Math.sqrt(Math.min(1.8, Math.max(0.6, avg / Math.max(1, tot[k])))); });
   return (g._scarcity = w);
 }
 
+const hiddenTile = (g, t) => typeof g.isHidden === 'function' && g.isHidden(t.id);
 function vertexScore(g, pi, v, level, prof = profile(g, pi)) {
   const V = g.board.vertices[v], sc = scarcity(g), seen = new Set();
   let s = 0;
   for (const h of V.hexes) {
     const t = g.board.tiles[h], r = PRODUCES[t.terrain];
+    if (hiddenTile(g, t)) { s += 3.2; continue; }   // fog: nobody knows what is under it, so count an average tile
     if (!r) continue;
     let w = level === 'hard' ? sc[r] : 1;
     if (level !== 'easy' && prof[r] === 0) w *= 1.3;

@@ -398,7 +398,7 @@ function botStep(g, rng) {
   }
   if (g.subphase === 'discard') { const k = +Object.keys(g.pendingDiscards)[0]; return g.autoDiscard(k); }
   if (g.subphase === 'robber') {
-    const t = pick(g.board.tiles.filter(x => x.id !== g.robber)).id;
+    const t = pick(g.legalRobberTiles(pi).map(id => g.board.tiles[id])).id;
     return g.act(pi, { type: 'robber', tile: t, victim: pick(g.robberVictims(pi, t)) });
   }
   if (g.subphase === 'roadBuilding') return g.act(pi, { type: 'road', edge: pick(g.validRoads(pi)) });

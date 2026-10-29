@@ -29,7 +29,7 @@ class GameError extends Error {}
 const fail = msg => { throw new GameError(msg); };
 
 function buildGeometry(rawTiles) {
-  const tiles = rawTiles.map(t => ({ q: t.q, r: t.r, terrain: t.terrain, number: t.number ?? null }));
+  const tiles = rawTiles.map(t => ({ q: t.q, r: t.r, terrain: t.terrain, number: t.number ?? null, fog: !!t.fog }));
   const vertices = [], edges = [], vmap = new Map(), emap = new Map();
   tiles.forEach((t, ti) => {
     t.id = ti; t.x = r3(SQ3 * (t.q + t.r / 2)); t.y = r3(1.5 * t.r); t.vertices = []; t.edges = [];
@@ -57,7 +57,29 @@ function buildGeometry(rawTiles) {
   return { tiles, vertices, edges };
 }
 
-function placePorts(geo, rng) {
+// Lake harbors: one ship floating in each lake tile, tied to the forest tile straight outward from it.
+function placeLakePorts(geo, map) {
+  const { tiles, vertices, edges } = geo, byPos = new Map(tiles.map(t => [t.q + ',' + t.r, t])), type = map.portType || 'wood', ports = [];
+  for (const L of map.lake) {
+    const outer = byPos.get(2 * L.q + ',' + 2 * L.r);
+    if (!outer || outer.terrain === 'desert') continue;
+    const lx = SQ3 * (L.q + L.r / 2), ly = 1.5 * L.r;
+    let best = null, bd = Infinity;
+    for (const id of outer.edges) {
+      const e = edges[id]; if (e.hexes.length !== 1) continue;
+      const [a, b] = e.v.map(i => vertices[i]), d = Math.hypot((a.x + b.x) / 2 - lx, (a.y + b.y) / 2 - ly);
+      if (d < bd) { bd = d; best = e; }
+    }
+    if (!best) continue;
+    const k = 1.55 / Math.hypot(lx - outer.x, ly - outer.y);
+    ports.push({ edge: best.id, type, x: r3(outer.x + (lx - outer.x) * k), y: r3(outer.y + (ly - outer.y) * k), vx: best.v.map(v => [vertices[v].x, vertices[v].y]) });
+    best.v.forEach(v => { vertices[v].port = type; });
+  }
+  return ports;
+}
+
+function placePorts(geo, rng, map) {
+  if (map && map.lake) return placeLakePorts(geo, map);
   const { tiles, vertices, edges } = geo;
   const cx = tiles.reduce((a, t) => a + t.x, 0) / tiles.length;
   const cy = tiles.reduce((a, t) => a + t.y, 0) / tiles.length;
@@ -94,26 +116,11 @@ class Game {
   constructor({ code, map, vpTarget = 10, rng = Math.random }) {
     this.code = code;
     this.rng = rng;
-    const geo = buildGeometry(map.tiles);
-    this.board = { name: map.name, key: map.key, ...geo };
-    this.board.ports = placePorts(geo, rng);
-    const desert = geo.tiles.findIndex(t => t.terrain === 'desert');
-    this.robber = desert >= 0 ? desert : 0;
     this.vpTarget = Math.max(5, Math.min(20, vpTarget | 0 || 10));
     this.opts = { discardLimit: 7, discardMode: 'half', timer: 0, friendlyRobber: false, balancedDice: false };
     this.events = []; this.eventSeq = 0; this.devPlayedCount = {};
     this.lastMonopoly = null; this.diceDeck = []; this.lastSum = null; this.clockAt = Date.now();
-    const land = geo.tiles.length;
-    this.bank = {}; RES.forEach(k => { this.bank[k] = Math.max(19, land); });
-    const dev = [];
-    const scale = land > 30 ? 2 : 1;
-    for (let s = 0; s < scale; s++) {
-      for (let i = 0; i < 14; i++) dev.push('knight');
-      for (let i = 0; i < 5; i++) dev.push('vp');
-      ['roadBuilding', 'yearOfPlenty', 'monopoly'].forEach(t => dev.push(t, t));
-    }
-    this.devDeck = shuffle(dev, rng);
-    this.devTotal = {}; dev.forEach(c => { this.devTotal[c] = (this.devTotal[c] || 0) + 1; });
+    this.boardVersion = 0; this.initBoard(map);
     this.players = [];
     this.phase = 'lobby';
     this.buildings = {}; this.roads = {};
@@ -123,6 +130,40 @@ class Game {
     this.setup = null; this.winner = null; this.log = []; this.lastRoll = null; this.version = 0;
     this.forcedDice = null;
     this.diceCounts = Array(13).fill(0);
+  }
+
+  // Builds everything that depends on the map. Also used when the host picks another map in the waiting room.
+  initBoard(map) {
+    const geo = buildGeometry(map.tiles);
+    this.board = { name: map.name, key: map.key, ...geo };
+    this.board.ports = placePorts(geo, this.rng, map);
+    const desert = geo.tiles.findIndex(t => t.terrain === 'desert');
+    this.robber = desert >= 0 ? desert : 0;
+    this.revealed = new Set();                       // fog tiles that a road or settlement has uncovered
+    const land = geo.tiles.length;
+    this.bank = {}; RES.forEach(k => { this.bank[k] = Math.max(19, land); });
+    const dev = [], scale = land > 30 ? 2 : 1;
+    for (let s = 0; s < scale; s++) {
+      for (let i = 0; i < 14; i++) dev.push('knight');
+      for (let i = 0; i < 5; i++) dev.push('vp');
+      ['roadBuilding', 'yearOfPlenty', 'monopoly'].forEach(t => dev.push(t, t));
+    }
+    this.devDeck = shuffle(dev, this.rng);
+    this.devTotal = {}; dev.forEach(c => { this.devTotal[c] = (this.devTotal[c] || 0) + 1; });
+  }
+  setMap(map) {
+    if (this.phase !== 'lobby') fail('The map cannot change after the game starts.');
+    this.initBoard(map); this.boardVersion++; this.version++;
+    this.addLog(`The host chose ${this.board.name}.`);
+  }
+  isHidden(id) { const t = this.board.tiles[id]; return !!(t && t.fog && !this.revealed.has(id)); }
+  // A road or settlement next to a fog tile uncovers it for everyone.
+  revealTiles(ids, pi) {
+    const fresh = ids.filter(id => this.isHidden(id)); if (!fresh.length) return;
+    const NAME = { forest: 'Forest', hills: 'Hills', pasture: 'Pasture', fields: 'Fields', mountains: 'Mountains', desert: 'Desert' };
+    fresh.forEach(id => this.revealed.add(id)); this.boardVersion++;
+    this.emit('reveal', { p: pi, tiles: fresh });
+    this.addLog(`${this.players[pi].name} revealed ${fresh.map(id => `${NAME[this.board.tiles[id].terrain]} ${this.board.tiles[id].number}`).join(', ')}.`);
   }
 
   // ----- players -----
@@ -282,7 +323,7 @@ class Game {
     return this.board.tiles[tile].vertices.some(v => { const b = this.buildings[v]; return b && b.p !== pi && this.isProtected(b.p); });
   }
   legalRobberTiles(pi) {
-    const all = this.board.tiles.map(t => t.id).filter(id => id !== this.robber);
+    const all = this.board.tiles.map(t => t.id).filter(id => id !== this.robber && !this.isHidden(id));
     if (!this.opts.friendlyRobber) return all;
     const ok = all.filter(id => !this.tileHasProtected(id, pi));
     if (ok.length) return ok;
@@ -364,6 +405,7 @@ class Game {
   }
   canSettle(pi, v, needRoad) {
     if (!this.board.vertices[v] || !this.vertexFree(v)) return false;
+    if (!this.board.vertices[v].hexes.some(h => this.board.tiles[h].terrain !== 'desert')) return false;   // nothing grows next to only desert
     if (!needRoad) return true;
     return this.board.vertices[v].edges.some(e => this.roads[e] === pi);
   }
@@ -498,7 +540,7 @@ class Game {
       this.mustBeTurn(pi);
       if (this.setup.expect !== 'settlement') fail('Place a road next to your settlement.');
       if (!this.canSettle(pi, v, false)) fail('Settlements must be at least two roads apart.');
-      this.buildings[v] = { p: pi, type: 'settlement' };
+      this.buildings[v] = { p: pi, type: 'settlement' }; this.revealTiles(this.board.vertices[v].hexes, pi);
       this.players[pi].pieces.settlement--;
       this.setup.last = v; this.setup.expect = 'road';
       if (this.setup.step >= this.players.length) {
@@ -517,7 +559,7 @@ class Game {
     if (this.players[pi].pieces.settlement <= 0) fail('You have no settlements left.');
     if (!this.canSettle(pi, v, true)) fail('Settlements need a free spot touching your road, two roads from any town.');
     this.pay(pi, COST.settlement);
-    this.buildings[v] = { p: pi, type: 'settlement' };
+    this.buildings[v] = { p: pi, type: 'settlement' }; this.revealTiles(this.board.vertices[v].hexes, pi);
     this.players[pi].pieces.settlement--;
     this.addLog(`${this.players[pi].name} built a settlement.`);
     this.updateLongestRoad();
@@ -529,7 +571,7 @@ class Game {
       this.mustBeTurn(pi);
       if (this.setup.expect !== 'road') fail('Place a settlement first.');
       if (!this.canRoad(pi, e, this.setup.last)) fail('The road must touch the settlement you just placed.');
-      this.roads[e] = pi; this.players[pi].pieces.road--;
+      this.roads[e] = pi; this.players[pi].pieces.road--; this.revealTiles(this.board.edges[e].hexes, pi);
       this.updateLongestRoad();
       this.setup.step++;
       if (this.setup.step >= this.setup.order.length) {
@@ -543,7 +585,7 @@ class Game {
     if (this.subphase === 'roadBuilding') {
       this.mustBeTurn(pi);
       if (!this.canRoad(pi, e)) fail('Roads must connect to your network.');
-      this.roads[e] = pi; this.players[pi].pieces.road--; this.freeRoads--;
+      this.roads[e] = pi; this.players[pi].pieces.road--; this.revealTiles(this.board.edges[e].hexes, pi); this.freeRoads--;
       this.addLog(`${this.players[pi].name} placed a free road.`);
       if (this.freeRoads <= 0 || this.players[pi].pieces.road <= 0 || !this.validRoads(pi).length) { this.subphase = null; this.freeRoads = 0; }
       this.updateLongestRoad();
@@ -553,7 +595,7 @@ class Game {
     if (this.players[pi].pieces.road <= 0) fail('You have no roads left.');
     if (!this.canRoad(pi, e)) fail('Roads must connect to your network.');
     this.pay(pi, COST.road);
-    this.roads[e] = pi; this.players[pi].pieces.road--;
+    this.roads[e] = pi; this.players[pi].pieces.road--; this.revealTiles(this.board.edges[e].hexes, pi);
     this.addLog(`${this.players[pi].name} built a road.`);
     this.updateLongestRoad();
   }
@@ -640,6 +682,7 @@ class Game {
     if (this.subphase !== 'robber') fail('You cannot move the robber now.');
     const t = a.tile | 0;
     if (!this.board.tiles[t]) fail('Pick a land tile.');
+    if (this.isHidden(t)) fail('That tile is still hidden in the fog. Pick a tile you can see.');
     if (!this.legalRobberTiles(pi).includes(t)) fail(this.opts.friendlyRobber && t !== this.robber ? 'Friendly robber: players with 2 points or fewer are protected. Pick another tile.' : 'The robber must move to a different tile.');
     const victims = this.robberVictims(pi, t);
     let victim = a.victim;
@@ -825,8 +868,8 @@ class Game {
   boardView() {
     const { tiles, vertices, edges, ports, name } = this.board;
     return {
-      name,
-      tiles: tiles.map(t => ({ id: t.id, q: t.q, r: t.r, x: t.x, y: t.y, terrain: t.terrain, number: t.number, vertices: t.vertices })),
+      name, key: this.board.key,
+      tiles: tiles.map(t => { const hid = this.isHidden(t.id); return { id: t.id, q: t.q, r: t.r, x: t.x, y: t.y, terrain: hid ? 'fog' : t.terrain, number: hid ? null : t.number, fog: !!t.fog, vertices: t.vertices }; }),
       vertices: vertices.map(v => ({ id: v.id, x: v.x, y: v.y, port: v.port, edges: v.edges, adj: v.adj, hexes: v.hexes })),
       edges: edges.map(e => ({ id: e.id, v: e.v })),
       ports,

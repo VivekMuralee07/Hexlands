@@ -57,9 +57,13 @@ function makeGame(code, spec, seed, vpTarget) {
 
 function broadcast(room) {
   room.touched = Date.now();
+  // Tiles uncovered from the fog (or a new map) change the board, so everyone gets it again.
+  const bv = room.game.boardVersion, boardMsg = room.boardSent !== bv ? `event: board\ndata: ${JSON.stringify(room.game.boardView())}\n\n` : null;
+  room.boardSent = bv;
   for (const [token, set] of room.clients) {
     const pi = room.game.indexOf(token);
     if (pi < 0) { for (const r of set) r.end(); room.clients.delete(token); continue; }
+    if (boardMsg) for (const r of set) r.write(boardMsg);
     const msg = `event: state\ndata: ${JSON.stringify(room.game.view(pi))}\n\n`;
     for (const r of set) r.write(msg);
   }
@@ -125,7 +129,7 @@ async function api(req, res, url) {
     const code = newCode(), token = newToken();
     const { game } = makeGame(code, body.map, body.seed, Number(body.vpTarget) || 10);
     game.addPlayer(body.name, token);
-    rooms.set(code, { game, clients: new Map(), touched: Date.now() });
+    rooms.set(code, { game, clients: new Map(), touched: Date.now(), boardSent: game.boardVersion });
     return sendJson(res, 200, { code, token });
   }
   if (req.method === 'POST' && route === '/api/join') {
@@ -157,6 +161,16 @@ async function api(req, res, url) {
     if (!room) throw new GameError('This room no longer exists.');
     const pi = room.game.indexOf(body.token);
     if (pi < 0) throw new GameError('You are not in this room.');
+    if (body.action && body.action.type === 'setMap') {   // the host swaps the map in the waiting room
+      const g = room.game;
+      if (g.phase !== 'lobby') throw new GameError('The map cannot change after the game starts.');
+      if (!g.isHost(pi)) throw new GameError('Only the host can choose the map.');
+      const preset = String(body.action.preset || '');
+      if (!maps.PRESETS[preset]) throw new GameError('Unknown map.');
+      g.setMap(maps.generatePreset(preset, crypto.randomInt(1, 2 ** 31)));
+      broadcast(room);
+      return sendJson(res, 200, { ok: true, result: null });
+    }
     const result = room.game.act(pi, body.action);
     broadcast(room);
     return sendJson(res, 200, { ok: true, result: result || null });

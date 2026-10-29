@@ -280,3 +280,35 @@ test('Android verification file: the .well-known copy wins, then the flat copy, 
     assert.equal(await get(dir), real, 'the .well-known file takes priority');
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('the host picks another map in the waiting room; fog is hidden over the wire and uncovered for everyone', async () => {
+  const c = await post('/api/create', { name: 'Hosty', map: { preset: 'classic' } });
+  const code = c.body.code, host = c.body.token;
+  const j = await post('/api/join', { code, name: 'Guest' }), guest = j.body.token;
+  const L = listen(code, host), G = listen(code, guest);
+  try {
+    await L.waitFor(s => s.phase === 'lobby'); await G.waitFor(s => s.phase === 'lobby');
+    assert.equal(L.last('board').name, 'Classic Island');
+    const denied = await post('/api/action', { code, token: guest, action: { type: 'setMap', preset: 'greenforest' } });
+    assert.equal(denied.status, 400); assert.match(denied.body.error, /Only the host/);
+    assert.equal((await post('/api/action', { code, token: host, action: { type: 'setMap', preset: 'nowhere' } })).status, 400);
+    assert.equal((await post('/api/action', { code, token: host, action: { type: 'setMap', preset: 'greenforest' } })).status, 200);
+    await L.waitFor(s => s.mapName === 'Green Forest'); await G.waitFor(s => s.mapName === 'Green Forest');
+    for (const x of [L, G]) {
+      const b = x.last('board'), fog = b.tiles.filter(t => t.terrain === 'fog');
+      assert.equal(b.key, 'greenforest'); assert.equal(b.tiles.length, 55); assert.equal(fog.length, 30);
+      assert.ok(fog.every(t => t.number === null)); assert.equal(b.ports.length, 6);
+    }
+    assert.equal((await post('/api/action', { code, token: host, action: { type: 'start' } })).status, 200);
+    await L.waitFor(s => s.phase === 'setup'); await G.waitFor(s => s.phase === 'setup');
+    const g = rooms.get(code).game, spot = g.validSettlements(g.turn, false).find(v => g.board.vertices[v].hexes.some(h => g.board.tiles[h].fog));
+    const nBoards = x => x.events.filter(e => e.type === 'board').length, before = new Map([[L, nBoards(L)], [G, nBoards(G)]]), version = L.last('state').version;
+    assert.equal((await post('/api/action', { code, token: g.players[g.turn].token, action: { type: 'settle', vertex: spot } })).status, 200);
+    await L.waitFor(s => s.version > version); await G.waitFor(s => s.version > version);
+    for (const x of [L, G]) {
+      assert.ok(nBoards(x) > before.get(x), 'a fresh board arrives');
+      assert.ok(x.last('board').tiles.filter(t => t.terrain === 'fog').length < 30, 'the touched tiles are uncovered for every player');
+    }
+    assert.equal((await post('/api/action', { code, token: host, action: { type: 'setMap', preset: 'classic' } })).status, 400, 'no map change once the game started');
+  } finally { L.close(); G.close(); }
+});

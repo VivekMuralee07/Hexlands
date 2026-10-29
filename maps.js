@@ -145,9 +145,38 @@ function assignNumbers(tiles, rng) {
   tiles.forEach(t => { if (t.terrain === 'desert') t.number = null; });
 }
 
+// Categories for the map picker: every country is under "countries", everything else is a misc map.
+Object.keys(PRESETS).forEach(k => { PRESETS[k].category = 'countries'; });
+PRESETS.classic.category = 'misc';
+
+// Green Forest: a hexagon of radius 4 around a lake. The middle is a desert island, the ring around it is
+// water, the next two rings are forest, and everything else is fog. Fog hides a random resource that is
+// never wood, and is revealed when a road or settlement touches it. Every harbor sits in the lake and is 2:1 wood.
+const LAKE = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
+PRESETS.greenforest = {
+  name: 'Green Forest', category: 'misc',
+  blurb: 'A forest around a lake island, with wood harbors. Fog hides every other resource.',
+  generate(rng) {
+    const tiles = [];
+    for (let q = -4; q <= 4; q++) for (let r = -4; r <= 4; r++) {
+      const s = -q - r, d = Math.max(Math.abs(q), Math.abs(r), Math.abs(s));
+      if (d > 4 || d === 1) continue;                                   // ring 1 is the lake: no tile there
+      const corner = d === 3 && (q === 0 || r === 0 || s === 0);       // the six corners of ring 3 are fog
+      const fog = d === 4 || corner;
+      tiles.push({ q, r, terrain: d === 0 ? 'desert' : 'forest', number: null, fog });
+    }
+    const hidden = tiles.filter(t => t.fog), others = ['hills', 'pasture', 'fields', 'mountains'];
+    const bag = hidden.map((_, i) => others[i % others.length]);        // an even spread, never wood
+    shuffle(bag, rng); hidden.forEach((t, i) => { t.terrain = bag[i]; });
+    assignNumbers(tiles, rng);
+    return { name: 'Green Forest', tiles, lake: LAKE.map(([q, r]) => ({ q, r })), portType: 'wood' };
+  },
+};
+
 function generatePreset(key, seed) {
   const p = PRESETS[key] || PRESETS.classic;
   const rng = makeRng(seed || Date.now());
+  if (p.generate) return { key, ...p.generate(rng) };
   const coords = maskToCoords(p.mask);
   const deserts = Math.min(p.deserts, Math.max(0, coords.length - 5));
   const counts = apportion(p.weights, coords.length - deserts);
@@ -196,7 +225,7 @@ function buildCustom(tiles, seed) {
 }
 
 function presetList() {
-  return Object.keys(PRESETS).map(k => ({ key: k, name: PRESETS[k].name, blurb: PRESETS[k].blurb }));
+  return Object.keys(PRESETS).map(k => ({ key: k, name: PRESETS[k].name, blurb: PRESETS[k].blurb, category: PRESETS[k].category }));
 }
 
 module.exports = { PRESETS, TERRAINS, PRODUCES, generatePreset, validateCustom, buildCustom, presetList, makeRng, shuffle };

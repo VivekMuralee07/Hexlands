@@ -512,3 +512,92 @@ test('development card pile: totals, what has been played, and the view for ever
   assert.deepEqual(v.devPile.played, { knight: 1 }); assert.equal(v.devPile.total.knight, 14); assert.equal(v.devPlayed, true, 'the existing once-per-turn flag is untouched');
   assert.ok(v.players.every(p => p.devReveal === undefined && typeof p.devCount === 'number'), 'other players only show how many cards they hold, never which');
 });
+
+test('map categories: 15 countries and the misc maps (Classic Island and Green Forest)', () => {
+  const list = maps.presetList();
+  assert.ok(list.every(m => ['countries', 'misc'].includes(m.category)));
+  assert.equal(list.filter(m => m.category === 'countries').length, 15);
+  assert.deepEqual(list.filter(m => m.category === 'misc').map(m => m.key).sort(), ['classic', 'greenforest']);
+});
+
+test('Green Forest: lake island, 24 visible forest tiles, 30 fog tiles that never hide wood, six wood harbors in the lake', () => {
+  const dist = t => Math.max(Math.abs(t.q), Math.abs(t.r), Math.abs(t.q + t.r));
+  for (let seed = 1; seed <= 12; seed++) {
+    const g = mk(2, seed, 'greenforest'), T = g.board.tiles, at = (q, r) => T.find(t => t.q === q && t.r === r);
+    assert.equal(T.length, 55, 'a hexagon of radius 4 without the six lake tiles');
+    assert.deepEqual([T[g.robber].terrain, T[g.robber].q, T[g.robber].r], ['desert', 0, 0], 'the robber starts on the island');
+    for (const [q, r] of [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]]) assert.equal(at(q, r), undefined, 'water around the island');
+    const fog = T.filter(t => t.fog), seen = T.filter(t => !t.fog && t.terrain !== 'desert');
+    assert.equal(fog.length, 30); assert.equal(seen.length, 24);
+    assert.ok(seen.every(t => t.terrain === 'forest'));
+    assert.ok(fog.every(t => ['hills', 'pasture', 'fields', 'mountains'].includes(t.terrain)), 'fog never hides wood');
+    for (const k of ['hills', 'pasture', 'fields', 'mountains']) assert.ok(fog.some(t => t.terrain === k), k + ' hides in the fog');
+    assert.ok(T.every(t => (t.terrain === 'desert') === (t.number === null)));
+    assert.ok(T.filter(t => dist(t) === 4).every(t => t.fog) && T.filter(t => dist(t) === 2).every(t => !t.fog && t.terrain === 'forest'));
+    const P = g.board.ports;
+    assert.equal(P.length, 6); assert.ok(P.every(p => p.type === 'wood'), 'every harbor is 2:1 wood');
+    const portVerts = g.board.vertices.filter(v => v.port);
+    assert.equal(portVerts.length, 12, 'six harbors on twelve different corners'); assert.ok(portVerts.every(v => v.port === 'wood'));
+    assert.ok(P.every(p => g.board.edges[p.edge].hexes.length === 1 && dist(T[g.board.edges[p.edge].hexes[0]]) === 2 && Math.hypot(p.x, p.y) < 2.1), 'tied to the inner forest ring, floating in the lake');
+  }
+});
+
+test('fog: hidden in the board view until a settlement or road touches it, then uncovered for everyone', () => {
+  const g = mk(3, 6, 'greenforest'); g.act(0, { type: 'start' });
+  let bv = g.boardView();
+  assert.equal(bv.key, 'greenforest');
+  assert.equal(bv.tiles.filter(t => t.terrain === 'fog').length, 30);
+  assert.ok(bv.tiles.filter(t => t.fog).every(t => t.terrain === 'fog' && t.number === null), 'neither terrain nor number leaks');
+  // a settlement uncovers every fog tile around its corner
+  const pi = g.turn, spot = g.validSettlements(pi, false).find(v => g.board.vertices[v].hexes.some(h => g.board.tiles[h].fog));
+  const around = g.board.vertices[spot].hexes.filter(h => g.board.tiles[h].fog), v0 = g.boardVersion;
+  g.act(pi, { type: 'settle', vertex: spot });
+  assert.ok(g.boardVersion > v0, 'clients are told the board changed');
+  assert.deepEqual(g.events.filter(e => e.type === 'reveal').pop().tiles.slice().sort((a, b) => a - b), around.slice().sort((a, b) => a - b));
+  bv = g.boardView();
+  around.forEach(h => { assert.notEqual(bv.tiles[h].terrain, 'fog'); assert.ok(bv.tiles[h].number >= 2); });
+  assert.equal(bv.tiles.filter(t => t.terrain === 'fog').length, 30 - around.length);
+  assert.ok(JSON.stringify(g.log).includes('revealed'));
+  g.act(pi, { type: 'road', edge: g.board.vertices[spot].edges.find(e => g.roads[e] === undefined) });
+  finishSetup(g);
+  // a road uncovers the fog tiles beside it
+  const cur = g.turn; g.forcedDice = [[1, 2]]; g.act(cur, { type: 'roll' });
+  const F = g.board.tiles.find(t => g.isHidden(t.id));
+  const x = F.vertices.find(v => !g.buildings[v] && g.board.vertices[v].adj.every(a => !g.buildings[a]));
+  g.buildings[x] = { p: cur, type: 'settlement' };                      // pretend a settlement is already here
+  const e = g.board.vertices[x].edges.find(id => g.board.edges[id].hexes.includes(F.id) && g.roads[id] === undefined);
+  g.players[cur].res = { wood: 1, brick: 1, sheep: 0, wheat: 0, ore: 0 };
+  g.act(cur, { type: 'road', edge: e });
+  assert.ok(g.revealed.has(F.id) && g.boardView().tiles[F.id].terrain !== 'fog');
+});
+
+test('fog: nobody can put the robber on a tile hidden in the fog, and the desert island cannot be settled', () => {
+  const g = mk(3, 6, 'greenforest'); g.act(0, { type: 'start' }); finishSetup(g);
+  const pi = g.turn; g.forcedDice = [[3, 4]]; g.act(pi, { type: 'roll' });
+  assert.equal(g.subphase, 'robber');
+  const hid = g.board.tiles.find(t => g.isHidden(t.id));
+  assert.throws(() => g.act(pi, { type: 'robber', tile: hid.id }), /hidden in the fog/);
+  assert.ok(g.legalRobberTiles(pi).length > 0 && g.legalRobberTiles(pi).every(id => !g.isHidden(id)));
+  const island = g.board.tiles[g.robber].vertices;
+  assert.equal(island.filter(v => g.canSettle(0, v, false)).length, 0, 'nothing grows beside only desert');
+});
+
+test('fog: bots cannot see under the fog either (a corner next to fog scores the same whatever is hidden)', () => {
+  const g = mk(3, 11, 'greenforest'); g.act(0, { type: 'start' });
+  const v = g.board.vertices.find(x => x.hexes.some(h => g.board.tiles[h].fog) && x.hexes.some(h => !g.board.tiles[h].fog && g.board.tiles[h].terrain !== 'desert'));
+  const before = bots.vertexScore(g, 0, v.id, 'hard');
+  g.board.tiles.filter(t => t.fog).forEach(t => { t.terrain = 'mountains'; t.number = 6; });
+  assert.equal(bots.vertexScore(g, 0, v.id, 'hard'), before);
+});
+
+test('the host can change the map in the waiting room, and only there', () => {
+  const g = mk(2, 3), v0 = g.boardVersion;
+  g.setMap(maps.generatePreset('greenforest', 4));
+  assert.equal(g.board.key, 'greenforest'); assert.ok(g.boardVersion > v0);
+  assert.equal(g.board.tiles.length, 55); assert.equal(g.revealed.size, 0); assert.equal(g.bank.wood, 55);
+  assert.deepEqual(g.devTotal, { knight: 28, vp: 10, roadBuilding: 4, yearOfPlenty: 4, monopoly: 4 }, 'a big map gets the bigger deck');
+  g.setMap(maps.generatePreset('classic', 4));
+  assert.equal(g.board.tiles.length, 19); assert.equal(g.bank.wood, 19);
+  g.act(0, { type: 'start' });
+  assert.throws(() => g.setMap(maps.generatePreset('greenforest', 1)), /cannot change/);
+});

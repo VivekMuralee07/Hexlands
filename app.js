@@ -7,8 +7,8 @@ const U = 60;
 const RES = ['wood', 'brick', 'sheep', 'wheat', 'ore'];
 const RES_LABEL = { wood: 'Wood', brick: 'Brick', sheep: 'Sheep', wheat: 'Hay', ore: 'Ore' };
 const TERRAINS = ['forest', 'hills', 'pasture', 'fields', 'mountains', 'desert'];
-const TERRAIN_LABEL = { forest: 'Forest', hills: 'Hills', pasture: 'Pasture', fields: 'Fields', mountains: 'Mountains', desert: 'Desert', sea: 'Sea' };
-const TERRAIN_RES = { forest: 'wood', hills: 'brick', pasture: 'sheep', fields: 'wheat', mountains: 'ore', desert: null };
+const TERRAIN_LABEL = { forest: 'Forest', hills: 'Hills', pasture: 'Pasture', fields: 'Fields', mountains: 'Mountains', desert: 'Desert', sea: 'Sea', fog: 'Hidden' };
+const TERRAIN_RES = { forest: 'wood', hills: 'brick', pasture: 'sheep', fields: 'wheat', mountains: 'ore', desert: null, fog: null };
 const COST = { road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 }, city: { wheat: 2, ore: 3 }, dev: { sheep: 1, wheat: 1, ore: 1 } };
 const DEV = {
   knight: { name: 'Knight', text: 'Move the robber and steal a card. Three knights earn Largest Army.' },
@@ -109,6 +109,7 @@ function shade(hex, f) {
   return '#' + ch.map(c => c.toString(16).padStart(2, '0')).join('');
 }
 function tileSvg(t, attrs = '') {
+  if (t.terrain === 'fog') return '';   // fog is drawn as a cloud by fogLayer
   return `<g transform="translate(${t.x * U} ${t.y * U})" ${attrs}><g transform="scale(.955)">`
     + `<polygon points="${ART.HEX}" transform="translate(0 9)" fill="#7a4a10" opacity=".35"/>`
     + `<polygon points="${ART.HEX}" transform="translate(0 5)" fill="${SIDE[t.terrain] || '#444'}"/>`
@@ -150,9 +151,27 @@ function frameSvg(b) {
   const name = String(b.name || '').toUpperCase(), pw = Math.max(150, name.length * 10 + 40);
   return `<g transform="translate(${x + w / 2} ${y - 9})"><rect x="${-pw / 2}" y="-14" width="${pw}" height="28" rx="14" fill="#0c3d73" stroke="#3f94cf" stroke-width="3"/><text y="5.5" text-anchor="middle" font-family="Alegreya Sans, sans-serif" font-weight="800" font-size="14" letter-spacing="1.6" fill="#fff">${esc(name)}</text></g>`;
 }
+// Fog: a fluffy grey cloud in place of the tile, with a wobbly outline that is the same every time.
+function cloudPath(t, scale, amp) {
+  const N = 48, pts = [], seed = (t.id || 0) * 1.7 + 3, P6 = Math.PI / 3;
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2, k = (((a + P6 / 2) % P6) + P6) % P6 - P6 / 2;       // angle from the middle of the nearest hexagon face
+    const edge = 60 * Math.cos(Math.PI / 6) / Math.cos(k), wob = amp * (Math.sin(a * 7 + seed) * .6 + Math.sin(a * 13 + seed * 2.3) * .4);
+    pts.push([Math.cos(a) * (edge + wob) * scale, Math.sin(a) * (edge + wob) * scale]);
+  }
+  const mid = (p, q) => [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2].map(n => n.toFixed(1)).join(' ');
+  let d = `M${mid(pts[N - 1], pts[0])}`;
+  for (let i = 0; i < N; i++) d += ` Q${pts[i][0].toFixed(1)} ${pts[i][1].toFixed(1)} ${mid(pts[i], pts[(i + 1) % N])}`;
+  return d + 'Z';
+}
+function fogLayer(b) {
+  const fog = b.tiles.filter(t => t.terrain === 'fog'); if (!fog.length) return '';
+  const cloud = (fill, sc, amp, extra = '') => fog.map(t => `<path d="${cloudPath(t, sc, amp)}" transform="translate(${t.x * U} ${t.y * U})" fill="${fill}" ${extra}/>`).join('');
+  return `<g>${cloud('#a9afb8', 1.03, 5, 'stroke="#a9afb8" stroke-width="5" stroke-linejoin="round"')}${cloud('#c9ccd1', .97, 4)}${cloud('#e3e5e8', .72, 3, 'opacity=".8"')}</g>`;
+}
 function staticLayer(b) {
   const v = bounds(b, 140);
-  const poly = (sc, fill, op = 1) => b.tiles.map(t => `<polygon points="${ART.HEX}" transform="translate(${t.x * U} ${t.y * U}) scale(${sc})" fill="${fill}" opacity="${op}"/>`).join('');
+  const poly = (sc, fill, op = 1) => b.tiles.filter(t => t.terrain !== 'fog').map(t => `<polygon points="${ART.HEX}" transform="translate(${t.x * U} ${t.y * U}) scale(${sc})" fill="${fill}" opacity="${op}"/>`).join('');
   let seed = 12345; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const sparkles = Array.from({ length: 30 }, () => {
     const x = v.x + rnd() * v.w, y = v.y + rnd() * v.h, sc = .6 + rnd() * .9, dur = 2.4 + rnd() * 2.6, begin = rnd() * 4;
@@ -160,6 +179,7 @@ function staticLayer(b) {
   }).join('');
   const sorted = b.tiles.slice().sort((p, q) => p.y - q.y || p.x - q.x);
   return [[1.31, '#4f9fcb'], [1.27, '#7bd0f9'], [1.2, '#dfeadd'], [1.17, '#f0d9a2'], [1.09, '#dfb86d']].map(([sc, col]) => `<g>${poly(sc, col)}</g>`).join('')
+    + fogLayer(b)
     + (b.ports || []).map(portSvg).join('')
     + sorted.map(t => tileSvg(t)).join('')
     + sorted.filter(t => t.number).map(t => tokenSvg(t.number, t.x * U, t.y * U)).join('')
@@ -172,7 +192,7 @@ function boardPreviewSvg(b) {
 }
 function terrainCounts(tiles) {
   const c = {}; tiles.forEach(t => { c[t.terrain] = (c[t.terrain] || 0) + 1; });
-  return TERRAINS.filter(k => c[k]).map(k => `<span>${k === 'desert' ? '<svg class="ic" viewBox="-60 -60 120 120"><polygon points="' + ART.HEX + '" fill="#e2c98c"/></svg>' : icon(TERRAIN_RES[k])} ${c[k]} ${TERRAIN_LABEL[k]}</span>`).join('');
+  return TERRAINS.filter(k => c[k]).map(k => `<span>${k === 'desert' ? '<svg class="ic" viewBox="-60 -60 120 120"><polygon points="' + ART.HEX + '" fill="#e2c98c"/></svg>' : icon(TERRAIN_RES[k])} ${c[k]} ${TERRAIN_LABEL[k]}</span>`).join('') + (c.fog ? `<span><svg class="ic" viewBox="-62 -62 124 124"><path d="${cloudPath({ id: 1 }, 1, 4)}" fill="#c9ccd1"/></svg> ${c.fog} Hidden</span>` : '');
 }
 
 // ---------- screens ----------
@@ -243,17 +263,18 @@ async function loadPreview(reseed) {
 
 function renderCreate(app) {
   const custom = S.custom && S.custom.tiles.length;
+  const cat = S.mapTab || ((S.maps.find(m => m.key === S.mapKey) || {}).category) || 'misc';
   app.innerHTML = `<div class="page">
     <div class="page-head"><button class="btn" id="back">Back</button><h2>Choose your island</h2></div>
     <div class="create-grid">
-      <div class="map-list" id="maplist">
-        ${S.maps.map(mp => `<button class="map-opt" data-map="${mp.key}" aria-pressed="${S.mapKey === mp.key}"><b>${esc(mp.name)}</b><span>${esc(mp.blurb)}</span></button>`).join('')}
-        <button class="map-opt" data-map="custom" aria-pressed="${S.mapKey === 'custom'}"><b>Your own map</b><span>${custom ? `${custom} tiles you designed` : 'Paint every tile and number yourself.'}</span></button>
-      </div>
+      <div class="map-col">${mapTabsHtml(cat, 'data-tab')}<div class="map-list" id="maplist">
+        ${S.maps.filter(mp => mp.category === cat).map(mp => `<button class="map-opt" data-map="${mp.key}" aria-pressed="${S.mapKey === mp.key}"><b>${esc(mp.name)}</b><span>${esc(mp.blurb)}</span></button>`).join('')}
+${cat === 'misc' ? `<button class="map-opt" data-map="custom" aria-pressed="${S.mapKey === 'custom'}"><b>Your own map</b><span>${custom ? `${custom} tiles you designed` : 'Paint every tile and number yourself.'}</span></button>` : ''}
+      </div></div>
       <div class="stack">
         <div class="preview" id="preview"></div>
         <div class="preview-meta"><div class="terrain-counts" id="counts"></div>
-          <div class="row"><button class="btn small" id="reroll">${S.mapKey === 'custom' ? 'Reshuffle harbors' : 'Shuffle tiles'}</button><button class="btn small" id="edit">${S.mapKey === 'custom' ? 'Edit map' : 'Copy into editor'}</button></div></div>
+          <div class="row"><button class="btn small" id="reroll">${S.mapKey === 'custom' ? 'Reshuffle harbors' : 'Shuffle tiles'}</button><button class="btn small" id="edit"${S.mapKey === 'greenforest' ? ' disabled title="Fog maps cannot be copied"' : ''}>${S.mapKey === 'custom' ? 'Edit map' : 'Copy into editor'}</button></div></div>
         <div class="panel row">
           <span class="grow"><b>Next: the waiting room</b><br><span class="muted" style="font-size:.88em">Pick points to win, discard limit, move timer, friendly robber and balanced dice there, and add bots.</span></span>
           <button class="btn primary" id="create">Create room</button>
@@ -261,6 +282,7 @@ function renderCreate(app) {
       </div>
     </div></div>`;
   $('#back').onclick = () => go('home');
+  $$('[data-tab]').forEach(b => b.onclick = () => { S.mapTab = b.dataset.tab; renderCreate(app); });
   $$('#maplist .map-opt').forEach(b => b.onclick = () => {
     const k = b.dataset.map;
     if (k === 'custom' && !(S.custom && S.custom.tiles.length)) { S.mapKey = 'custom'; return go('editor'); }
@@ -420,8 +442,8 @@ function startSession(sess) {
   let opened = false;
   es.addEventListener('board', e => {
     const fresh = S.boardFor !== sess.code;
-    S.board = JSON.parse(e.data); S.boardFor = sess.code;
-    if (fresh || !S.vb) { S.base = bounds(S.board, VIEW_PAD); S.base.y -= TOP_EXTRA(); S.base.h += TOP_EXTRA(); S.vb = { ...S.base }; S.shellReady = false; }
+    S.board = JSON.parse(e.data); S.boardFor = sess.code; S.boardRev = (S.boardRev || 0) + 1; S.shellReady = false;
+    if (fresh || !S.vb || S.shownKey !== S.board.key) { S.shownKey = S.board.key; S.base = bounds(S.board, VIEW_PAD); S.base.y -= TOP_EXTRA(); S.base.h += TOP_EXTRA(); S.vb = { ...S.base }; S.shellReady = false; }
   });
   es.addEventListener('state', e => { opened = true; onState(JSON.parse(e.data)); });
   es.onerror = () => {
@@ -507,7 +529,7 @@ function renderLobby(app) {
   const me = st.you, host = st.players[me] && st.players[me].host;
   const link = `${location.origin}/room/${st.code}`;
   const prevBox = $('#lobby-preview');
-  const keepPreview = prevBox && prevBox.dataset.code === st.code && prevBox.innerHTML;
+  const pk = `${st.code}:${S.boardRev || 0}`, keepPreview = prevBox && prevBox.dataset.code === pk && prevBox.innerHTML;
   app.innerHTML = `<div class="page">
     <div class="page-head"><button class="btn" id="leave">Leave room</button><h2>Waiting room</h2><button class="info-btn inline" id="info" aria-label="How to play" title="How to play">i</button></div>
     <div class="lobby">
@@ -525,11 +547,13 @@ function renderLobby(app) {
         <div class="row">${soundButtons()}<span class="muted" style="font-size:.88em">Sound effects and music</span></div>
         ${host ? `<button class="btn primary" id="start" ${st.players.length < 2 ? 'disabled' : ''}>Start game</button>` : ''}
       </div>
-      <div class="stack lb-map"><div class="preview" id="lobby-preview" data-code="${st.code}"></div>
-        <p class="muted">${esc(st.mapName)}. Turn order is drawn at random when the game starts.</p></div>
+      <div class="stack lb-map"><div class="preview" id="lobby-preview" data-code="${pk}"></div>
+        <div class="row lb-maphead"><span class="grow"><b>${esc(st.mapName)}</b><br><span class="muted" style="font-size:.88em">Turn order is drawn at random when the game starts.</span></span>${host ? `<button class="btn small" id="changemap">Change map</button>${S.board && S.board.key !== 'custom' ? '<button class="btn small" id="shufflemap" title="Same map, new random tiles">Shuffle</button>' : ''}` : ''}</div></div>
     </div></div>`;
   if (keepPreview) $('#lobby-preview').innerHTML = keepPreview;
   else if (S.board) $('#lobby-preview').innerHTML = boardPreviewSvg(S.board);
+  if ($('#changemap')) $('#changemap').onclick = () => openMapPicker();
+  if ($('#shufflemap')) $('#shufflemap').onclick = () => act({ type: 'setMap', preset: S.board.key });
   $('#info').onclick = openRules;
   $('#leave').onclick = async () => { try { await post('/api/leave', S.session); } catch {} leaveToHome(); };
   $('#copy').onclick = async () => { try { await navigator.clipboard.writeText(link); toast('Invite link copied'); } catch { prompt('Copy this link', link); } };
@@ -1430,6 +1454,11 @@ function processEvents(prev, st) {
   S.evSeq = newest;
 }
 function animateEvent(e) {
+  if (e.type === 'reveal') {   // tiles uncovered from the fog
+    const parts = e.tiles.map(id => S.board.tiles[id]).filter(t => t && t.number).map(t => `${icon(TERRAIN_RES[t.terrain])} ${t.number}`);
+    if (parts.length) toast(`${esc(S.state.players[e.p].name)} revealed ${parts.join(' ')}`, '', true);
+    return;
+  }
   const bank = k => $(`#players .bank .bk.${k}`) || $('#players .bank');
   const each = (cards, fn, after = 0) => Object.entries(cards).forEach(([k, n]) => { for (let c = 0; c < Math.min(n, 4); c++) fn(k, after + c * 180); });
   if (e.type === 'bank') {
@@ -1492,6 +1521,22 @@ function openColorPicker(seat) {
   openModal('colors', `<h3>Choose a house color</h3><p>${seat === me() ? 'This is the color of your roads, settlements and cities.' : `${esc(p.name)} is a bot. Pick its color.`}</p><div class="cgrid">${cells}</div><div class="foot"><button class="btn" id="cclose">Close</button></div>`, layer => {
     $('#cclose').onclick = closeModal;
     layer.querySelectorAll('.cpick').forEach(b => b.onclick = async () => { const r = await act({ type: 'setColor', seat, color: b.dataset.c }); if (r.ok) closeModal(); });
+  });
+}
+
+// ---------- map categories ----------
+function mapTabsHtml(cat, attr) {
+  const n = k => S.maps.filter(m => m.category === k).length;
+  return `<div class="maptabs" role="tablist">${[['countries', 'Countries'], ['misc', 'Misc maps']].map(([k, l]) => `<button class="maptab" role="tab" ${attr}="${k}" aria-selected="${cat === k}">${l}<small>${n(k)}</small></button>`).join('')}</div>`;
+}
+async function openMapPicker(tab) {
+  if (!S.maps.length) { try { S.maps = (await (await fetch('/api/maps')).json()).maps; } catch { return toast('Could not load the maps.', 'err'); } }
+  const cur = S.board && S.board.key, cat = tab || ((S.maps.find(m => m.key === cur) || {}).category) || 'misc';
+  const list = S.maps.filter(m => m.category === cat).map(mp => `<button class="map-opt" data-pick="${mp.key}" aria-pressed="${cur === mp.key}"><b>${esc(mp.name)}</b><span>${esc(mp.blurb)}</span></button>`).join('');
+  openModal('maps', `<h3>Choose the map</h3>${mapTabsHtml(cat, 'data-mtab')}<div class="map-list pick">${list}</div><div class="foot"><button class="btn" id="mclose">Close</button></div>`, layer => {
+    $('#mclose').onclick = closeModal;
+    layer.querySelectorAll('[data-mtab]').forEach(b => b.onclick = () => openMapPicker(b.dataset.mtab));
+    layer.querySelectorAll('[data-pick]').forEach(b => b.onclick = async () => { const r = await act({ type: 'setMap', preset: b.dataset.pick }); if (r.ok) closeModal(); });
   });
 }
 
