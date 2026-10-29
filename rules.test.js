@@ -579,7 +579,8 @@ test('fog: hidden in the board view until a settlement or road touches it, then 
 
 test('fog: nobody can put the robber on a tile hidden in the fog, and the desert island cannot be settled', () => {
   const g = mk(3, 6, 'greenforest'); g.act(0, { type: 'start' }); finishSetup(g);
-  const pi = g.turn; g.forcedDice = [[3, 4]]; g.act(pi, { type: 'roll' });
+  const pi = g.turn; g.players.forEach(p => { p.res = empty(); });             // uncovered tiles pay cards, so start the 7 with empty hands (no discards)
+  g.forcedDice = [[3, 4]]; g.act(pi, { type: 'roll' });
   assert.equal(g.subphase, 'robber');
   const hid = g.board.tiles.find(t => g.isHidden(t.id));
   assert.throws(() => g.act(pi, { type: 'robber', tile: hid.id }), /hidden in the fog/);
@@ -631,4 +632,30 @@ test('fog: an empty bank pays nothing, but the tile still opens', () => {
   assert.deepEqual(g.revealTiles([F.id], 0), []);
   assert.ok(g.revealed.has(F.id)); assert.equal(JSON.stringify(g.players[0].res), before);
   assert.deepEqual(g.events.filter(e => e.type === 'reveal').pop().res, []);
+});
+
+test('fog: a road uncovers every fog tile at either tip, not only the two beside it', () => {
+  const g = mk(3, 6, 'greenforest'); g.act(0, { type: 'start' }); finishSetup(g);
+  const cur = g.turn; g.forcedDice = [[1, 2]]; g.act(cur, { type: 'roll' });
+  const { vertices, edges, tiles } = g.board;
+  let pick = null;
+  for (const F of tiles) {
+    if (!g.isHidden(F.id) || pick) continue;
+    for (const u of F.vertices) {
+      const e = vertices[u].edges.find(id => !edges[id].hexes.includes(F.id));        // the edge at this corner that does not run along F
+      if (e === undefined) continue;
+      const x = edges[e].v.find(v => v !== u);
+      if (!g.buildings[x] && !g.buildings[u] && !vertices[x].hexes.includes(F.id)) { pick = { F, e, x }; break; }
+    }
+  }
+  assert.ok(pick, 'found a road whose tip, but not its side, touches fog');
+  const { F, e, x } = pick;
+  assert.ok(!edges[e].hexes.includes(F.id), 'the fog tile is not beside the road');
+  g.buildings[x] = { p: cur, type: 'settlement' };                                    // pretend a settlement is already here
+  g.players[cur].res = { wood: 1, brick: 1, sheep: 0, wheat: 0, ore: 0 };
+  const known = new Set(g.revealed); g.act(cur, { type: 'road', edge: e });
+  assert.ok(g.revealed.has(F.id), 'the tip of the road opened the fog tile');
+  const pays = {}; [...g.revealed].filter(id => !known.has(id)).forEach(id => { const r = maps.PRODUCES[g.board.tiles[id].terrain]; pays[r] = (pays[r] || 0) + 1; });
+  assert.deepEqual(Object.fromEntries(Object.entries(g.players[cur].res).filter(([, n]) => n)), pays, 'and paid the builder its resource');
+  assert.ok(pays[maps.PRODUCES[F.terrain]] >= 1);
 });

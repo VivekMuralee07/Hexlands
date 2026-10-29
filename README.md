@@ -4,7 +4,7 @@ A multiplayer island-settling game for 2–4 players in the browser. Gather wood
 
 - Join with a 5-character room code or an invite link (`/room/ABCDE`)
 - 17 maps in two categories. Countries (15): India, United States, United Kingdom, Australia, Japan, Italy, Brazil, France, Spain, Germany, China, Canada, Mexico, Argentina and New Zealand. Misc maps (2): Classic Island and Green Forest. There is also a map editor. The host picks the category and map on the create screen, and can change or shuffle the map in the waiting room until the game starts.
-- Green Forest: a hexagon of 55 tiles around a lake with a desert island in the middle. The two rings around the lake are forest, and all six harbors float in the lake and are 2:1 wood. Everything else is fog: 30 tiles hide a random resource that is never wood. A road or settlement next to a fog tile uncovers it for everyone (it then shows its terrain and number), and the player who uncovered it receives one card of that tile's resource from the bank. The log and a toast say so, and the card flies from the bank to the player. The robber cannot be moved onto fog, bots cannot see under it either, and nothing can be settled beside only the desert island.
+- Green Forest: a hexagon of 55 tiles around a lake with a desert island in the middle. The two rings around the lake are forest, and all six harbors float in the lake and are 2:1 wood. Everything else is fog: 30 tiles hide a random resource that is never wood. A road or settlement touching a fog tile (a road counts as touching it with either tip, not only along its side) uncovers it for everyone (it then shows its terrain and number), and the player who uncovered it receives one card of that tile's resource from the bank. The log and a toast say so, and the card flies from the bank to the player. The robber cannot be moved onto fog, bots cannot see under it either, and nothing can be settled beside only the desert island.
 - Bots (Easy, Medium, Hard) can fill any empty seat, up to 4 players in total
 - Host options before each game: points to win, discard limit and amount, move timer, friendly robber, balanced dice
 - Flat, colorful board with a slim border and a map-name label: moving sea, windmills, chimney smoke, flying resource cards, confetti on a win
@@ -36,7 +36,7 @@ Requires Node.js 18 or newer.
 
 ```bash
 npm start            # http://localhost:3000
-npm test             # 68 tests, including full simulated games
+npm test             # 69 tests, including full simulated games
 ```
 
 Open two browser windows (or a phone on the same network at `http://<your-ip>:3000`) to play against yourself.

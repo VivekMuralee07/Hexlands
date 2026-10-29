@@ -156,6 +156,11 @@ class Game {
     this.initBoard(map); this.boardVersion++; this.version++;
     this.addLog(`The host chose ${this.board.name}.`);
   }
+  // Every tile a road touches: the two beside it, and the ones at either tip.
+  roadReach(e) {
+    const { vertices, edges } = this.board;
+    return [...new Set(edges[e].v.flatMap(v => vertices[v].hexes))];
+  }
   isHidden(id) { const t = this.board.tiles[id]; return !!(t && t.fog && !this.revealed.has(id)); }
   // A road or settlement next to a fog tile uncovers it for everyone, and the player who did it receives one card
   // of that tile's resource from the bank (if the bank has it).
@@ -575,7 +580,7 @@ class Game {
       this.mustBeTurn(pi);
       if (this.setup.expect !== 'road') fail('Place a settlement first.');
       if (!this.canRoad(pi, e, this.setup.last)) fail('The road must touch the settlement you just placed.');
-      this.roads[e] = pi; this.players[pi].pieces.road--; this.revealTiles(this.board.edges[e].hexes, pi);
+      this.roads[e] = pi; this.players[pi].pieces.road--; this.revealTiles(this.roadReach(e), pi);
       this.updateLongestRoad();
       this.setup.step++;
       if (this.setup.step >= this.setup.order.length) {
@@ -589,7 +594,7 @@ class Game {
     if (this.subphase === 'roadBuilding') {
       this.mustBeTurn(pi);
       if (!this.canRoad(pi, e)) fail('Roads must connect to your network.');
-      this.roads[e] = pi; this.players[pi].pieces.road--; this.revealTiles(this.board.edges[e].hexes, pi); this.freeRoads--;
+      this.roads[e] = pi; this.players[pi].pieces.road--; this.revealTiles(this.roadReach(e), pi); this.freeRoads--;
       this.addLog(`${this.players[pi].name} placed a free road.`);
       if (this.freeRoads <= 0 || this.players[pi].pieces.road <= 0 || !this.validRoads(pi).length) { this.subphase = null; this.freeRoads = 0; }
       this.updateLongestRoad();
@@ -599,7 +604,7 @@ class Game {
     if (this.players[pi].pieces.road <= 0) fail('You have no roads left.');
     if (!this.canRoad(pi, e)) fail('Roads must connect to your network.');
     this.pay(pi, COST.road);
-    this.roads[e] = pi; this.players[pi].pieces.road--; this.revealTiles(this.board.edges[e].hexes, pi);
+    this.roads[e] = pi; this.players[pi].pieces.road--; this.revealTiles(this.roadReach(e), pi);
     this.addLog(`${this.players[pi].name} built a road.`);
     this.updateLongestRoad();
   }
