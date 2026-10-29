@@ -1454,9 +1454,10 @@ function processEvents(prev, st) {
   S.evSeq = newest;
 }
 function animateEvent(e) {
-  if (e.type === 'reveal') {   // tiles uncovered from the fog
-    const parts = e.tiles.map(id => S.board.tiles[id]).filter(t => t && t.number).map(t => `${icon(TERRAIN_RES[t.terrain])} ${t.number}`);
-    if (parts.length) toast(`${esc(S.state.players[e.p].name)} revealed ${parts.join(' ')}`, '', true);
+  if (e.type === 'reveal') {   // tiles uncovered from the fog, and the card each one pays
+    const parts = e.tiles.map(id => S.board.tiles[id]).filter(t => t && t.number).map(t => `${icon(TERRAIN_RES[t.terrain])} ${t.number}`), got = e.res || [];
+    if (parts.length) toast(`${esc(S.state.players[e.p].name)} revealed ${parts.join(' ')}${got.length ? ` and got ${got.map(k => icon(k)).join(' ')}` : ''}`, '', true);
+    got.forEach((k, c) => flyCard($(`#players .bank .bk.${k}`) || $('#players .bank'), anchorOf(e.p, k), k, c * 320));
     return;
   }
   const bank = k => $(`#players .bank .bk.${k}`) || $('#players .bank');

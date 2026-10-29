@@ -157,13 +157,17 @@ class Game {
     this.addLog(`The host chose ${this.board.name}.`);
   }
   isHidden(id) { const t = this.board.tiles[id]; return !!(t && t.fog && !this.revealed.has(id)); }
-  // A road or settlement next to a fog tile uncovers it for everyone.
-  revealTiles(ids, pi) {
-    const fresh = ids.filter(id => this.isHidden(id)); if (!fresh.length) return;
+  // A road or settlement next to a fog tile uncovers it for everyone, and the player who did it receives one card
+  // of that tile's resource from the bank (if the bank has it).
+  revealTiles(ids, pi, pay = true) {
+    const fresh = ids.filter(id => this.isHidden(id)); if (!fresh.length) return [];
     const NAME = { forest: 'Forest', hills: 'Hills', pasture: 'Pasture', fields: 'Fields', mountains: 'Mountains', desert: 'Desert' };
     fresh.forEach(id => this.revealed.add(id)); this.boardVersion++;
-    this.emit('reveal', { p: pi, tiles: fresh });
-    this.addLog(`${this.players[pi].name} revealed ${fresh.map(id => `${NAME[this.board.tiles[id].terrain]} ${this.board.tiles[id].number}`).join(', ')}.`);
+    const got = [];
+    if (pay) fresh.forEach(id => { const r = PRODUCES[this.board.tiles[id].terrain]; if (r && this.giveFromBank(pi, r, 1)) got.push(r); });
+    this.emit('reveal', { p: pi, tiles: fresh, res: got });
+    this.addLog(`${this.players[pi].name} revealed ${fresh.map(id => `${NAME[this.board.tiles[id].terrain]} ${this.board.tiles[id].number}`).join(', ')}` + (got.length ? ` and received ${got.map(r => LABEL[r]).join(', ')}.` : '.'));
+    return got;
   }
 
   // ----- players -----
@@ -540,7 +544,7 @@ class Game {
       this.mustBeTurn(pi);
       if (this.setup.expect !== 'settlement') fail('Place a road next to your settlement.');
       if (!this.canSettle(pi, v, false)) fail('Settlements must be at least two roads apart.');
-      this.buildings[v] = { p: pi, type: 'settlement' }; this.revealTiles(this.board.vertices[v].hexes, pi);
+      this.buildings[v] = { p: pi, type: 'settlement' }; this.revealTiles(this.board.vertices[v].hexes, pi, this.setup.step < this.players.length);
       this.players[pi].pieces.settlement--;
       this.setup.last = v; this.setup.expect = 'road';
       if (this.setup.step >= this.players.length) {
