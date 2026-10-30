@@ -1,1 +1,8 @@
-[]
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.vivek.hexlands_ndkp.twa",
+        "sha256_cert_fingerprints": ["5B:0B:32:0F:40:99:C1:16:2A:40:84:37:26:BA:7D:C7:37:73:99:80:A7:4A:FD:CE:12:CE:62:73:55:02:C6:29"]
+      }
+    }]
