@@ -19,7 +19,7 @@ A multiplayer island-settling game for 2–4 players in the browser. Gather wood
 - House colors: in the waiting room tap your house to pick from 10 colors (no duplicates). The host can recolor bots. Colors are kept when the game starts.
 - Clean game screen: no top bar. The map has two small icons in its top-right corner: messages (phones and narrow windows; wide windows keep the log in its own column) and Leave. Sound and music are in the waiting room and on the home screen, and the rules are on the home screen.
 - Stolen cards (robber or Knight) and Monopoly cards fly across the screen from the player who lost them to the player who gets them. Only the thief and the victim see which card it was; everyone else sees a face-down card.
-- Heist card (every map): each player may buy one Heist card per game for 1 wood, 1 brick, 1 hay, 2 sheep and 1 ore, but only after building 3 cities (4 in games to more than 10 points). It works like a development card (play it on a later turn, one per turn). Playing it lets you tap any opponent's settlement, never a city, and steal it: it stays where it is and becomes yours, so a point changes hands and it can cut or free a road. A masked thief, a spotlight and a burst of coins play across every player's screen. Medium and Hard bots use it too.
+- Heist card (every map): each player may buy one Heist card per game for 1 wood, 1 brick, 1 hay, 2 sheep and 1 ore, but only after building 3 cities (4 in games to more than 10 points). It works like a development card (play it on a later turn, one per turn). Playing it lets you tap any opponent's settlement, never a city, and steal it: it stays where it is and becomes yours, so a point changes hands. If exactly two of the victim's roads touch that settlement, both come with it (you need two road pieces left), so you keep a settlement with its two roads; the preview shows which roads you take. Stolen settlements and roads can cut or free other roads. A masked thief, a spotlight and a burst of coins play across every player's screen. Medium and Hard bots use it too.
 - Tap to build: once you have rolled and can afford a road, settlement or city, every legal spot glows on the map. Tap a spot and the piece appears there in your color; tap the piece to build it, tap another spot to move it, or tap the sea to cancel. There are no Road, Settle, City or Trade buttons; the bottom bar only has Roll dice, Dev card and End turn.
 - Tap any resource card in your hand to trade: it opens the trade window with that card offered. Keep tapping cards to offer more.
 - A bar above the map shows the instruction, move timer, dice and setup order, so nothing covers the board
@@ -37,7 +37,7 @@ Requires Node.js 18 or newer.
 
 ```bash
 npm start            # http://localhost:3000
-npm test             # 78 tests, including full simulated games
+npm test             # 79 tests, including full simulated games
 ```
 
 Open two browser windows (or a phone on the same network at `http://<your-ip>:3000`) to play against yourself.

@@ -833,3 +833,6 @@ span.pcardx { cursor: default; }
 @keyframes htxt { 0% { transform: translateY(24px) scale(.8); opacity: 0; } 18% { transform: none; opacity: 1; } 84% { opacity: 1; } 100% { opacity: 0; } }
 /* stealable settlements: a bolder, glowing target ring */
 .hc.heist { fill: rgba(255, 210, 63, .26); stroke: #ffd23f; stroke-width: 4.5; stroke-dasharray: 8 5; filter: drop-shadow(0 0 6px rgba(255, 210, 63, .95)); }
+
+/* the two roads that come along with a stolen settlement */
+.pvroad { animation: pvpulse .85s ease-in-out infinite alternate; }

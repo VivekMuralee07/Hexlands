@@ -119,7 +119,7 @@ class Game {
     this.rng = rng;
     this.vpTarget = Math.max(5, Math.min(20, vpTarget | 0 || 10));
     this.opts = { discardLimit: 7, discardMode: 'half', timer: 0, friendlyRobber: false, balancedDice: false };
-    this.events = []; this.eventSeq = 0; this.devPlayedCount = {};
+    this.events = []; this.eventSeq = 0; this.devPlayedCount = {}; this.transferredRoads = new Set();
     this.lastMonopoly = null; this.diceDeck = []; this.lastSum = null; this.clockAt = Date.now();
     this.boardVersion = 0; this.initBoard(map);
     this.players = [];
@@ -275,6 +275,7 @@ class Game {
           for (const v of edges[e].v) {
             if (this.buildings[v] && this.buildings[v].p === pi) anchored = true;
             if (this.buildings[v] && this.buildings[v].stolen && this.buildings[v].p !== pi) anchored = true;   // cut off by a stolen settlement
+            for (const o of vertices[v].edges) if (this.transferredRoads.has(o) && this.roads[o] !== pi) anchored = true;   // cut off by roads that went with a stolen settlement
             for (const o of vertices[v].edges) if (this.roads[o] === pi && !seen.has(o)) { seen.add(o); stack.push(o); }
           }
         }
@@ -800,9 +801,14 @@ class Game {
       const b = this.buildings[loot], from = b.p, victim = this.players[from];
       victim.pieces.settlement++; p.pieces.settlement--;
       b.p = pi; b.stolen = true;                        // the settlement stays where it is and changes hands
-      this.emit('heist', { p: pi, from, vertex: loot });
-      this.addLog(`${p.name} played Heist and stole a settlement from ${victim.name}!`);
-      this.updateLongestRoad();                         // a settlement in the way can cut a road, or free one
+      // If exactly two of the victim's roads touch it, both come along (when the thief has two road pieces left),
+      // so the stolen settlement keeps its two roads.
+      const touching = this.board.vertices[loot].edges.filter(e => this.roads[e] === from);
+      const takeRoads = touching.length === 2 && p.pieces.road >= 2;
+      if (takeRoads) touching.forEach(e => { this.roads[e] = pi; this.transferredRoads.add(e); victim.pieces.road++; p.pieces.road--; });
+      this.emit('heist', { p: pi, from, vertex: loot, roads: takeRoads ? touching.slice() : [] });
+      this.addLog(`${p.name} played Heist and stole a settlement from ${victim.name}${takeRoads ? ' together with its 2 roads' : ''}!`);
+      this.updateLongestRoad();                         // roads and a settlement in the way can cut a road, or free one
     }
   }
 

@@ -357,7 +357,7 @@ test('audit: in full bot games a road is only ever cut off because an opponent b
       const x = st.pop();
       for (const v of g.board.edges[x].v) { seenV.add(v); for (const o of g.board.vertices[v].edges) if (!seenE.has(o) && g.roads[o] === pi) { seenE.add(o); st.push(o); } }
     }
-    return [...seenV].some(v => g.buildings[v] && g.buildings[v].p !== pi);
+    return [...seenV].some(v => (g.buildings[v] && g.buildings[v].p !== pi) || g.board.vertices[v].edges.some(o => g.transferredRoads.has(o) && g.roads[o] !== pi));
   };
   let cutSeen = 0;
   for (const [preset, seed] of [['classic', 11], ['uk', 12], ['india', 13], ['japan', 14], ['usa', 15]]) {
@@ -834,4 +834,49 @@ test('Heist card: full bot games on several maps stay legal with the new card in
     while (g.phase !== 'ended' && steps++ < 40000) { const n = bots.nextActor(g); try { g.act(n.pi, bots.decide(g, n.pi)); } catch (e) { assert.ok(bots.rescue(g, n.pi)); } if (steps % 3 === 0) assert.deepEqual(g.checkInvariants(), [], key); }
     assert.equal(g.phase, 'ended');
   }
+});
+
+test('Heist card: when exactly two of the victim\'s roads touch the settlement, they come along with it', () => {
+  const setup = (mine, theirs, third = 0) => {      // a fresh board: the victim's settlement in the middle with `theirs` of its roads, and some roads of `mine` and a third player
+    const g = heistGame(3, 11), me = g.turn, victim = (me + 1) % 3, other = (me + 2) % 3, { vertices, edges } = g.board;
+    g.buildings = {}; g.roads = {}; g.longestRoad = null; g.players.forEach(p => { p.pieces = { road: 15, settlement: 5, city: 4 }; });
+    const v = vertices.find(x => x.edges.length === 3 && x.adj.every(n => vertices[n].edges.length >= 2)).id;
+    g.buildings[v] = { p: victim, type: 'settlement' }; g.players[victim].pieces.settlement--;
+    const give = (e, p) => { g.roads[e] = p; g.players[p].pieces.road--; };
+    vertices[v].edges.slice(0, theirs).forEach(e => give(e, victim));
+    vertices[v].edges.slice(theirs, theirs + third).forEach(e => give(e, other));
+    // one more victim road further out, so something is left behind
+    const far = edges[vertices[v].edges[0]].v.find(x => x !== v), beyond = vertices[far].edges.find(e => g.roads[e] === undefined);
+    if (theirs) give(beyond, victim);
+    g.players[me].dev.push({ type: 'heist', turn: g.turnNumber - 1 }); g.players[me].pieces.road = mine;
+    return { g, me, victim, v, edgesAt: vertices[v].edges, beyond };
+  };
+  // two roads: both change hands, and the supplies follow
+  let { g, me, victim, v, edgesAt, beyond } = setup(15, 2);
+  const supply = [g.players[me].pieces.road, g.players[victim].pieces.road];
+  g.act(me, { type: 'playDev', card: 'heist', vertex: v });
+  assert.deepEqual(edgesAt.slice(0, 2).map(e => g.roads[e]), [me, me], 'the two roads are now the thief\'s');
+  assert.equal(g.roads[beyond], victim, 'the road further out stays with the victim');
+  assert.deepEqual([g.players[me].pieces.road, g.players[victim].pieces.road], [supply[0] - 2, supply[1] + 2]);
+  assert.ok(g.buildings[v].p === me && edgesAt.slice(0, 2).every(e => g.board.vertices[v].edges.includes(e)), 'the settlement touches two of the thief\'s own roads');
+  const ev = g.events.filter(e => e.type === 'heist').pop(); assert.deepEqual(ev.roads.slice().sort(), edgesAt.slice(0, 2).sort());
+  assert.ok(g.log.some(l => /together with its 2 roads/.test(l.text || l)));
+  assert.deepEqual(g.checkInvariants(), [], 'the left-behind road is allowed to be cut off');
+  assert.ok(g.cutOffRoads().includes(+beyond), 'and it shows as cut off');
+  // one road, three roads, or two roads of which one belongs to someone else: nothing moves
+  for (const [theirs, third] of [[1, 0], [3, 0], [1, 1]]) {
+    ({ g, me, victim, v, edgesAt } = setup(15, theirs, third));
+    const before = edgesAt.map(e => g.roads[e]); g.act(me, { type: 'playDev', card: 'heist', vertex: v });
+    assert.deepEqual(edgesAt.map(e => g.roads[e]), before, `${theirs} of the victim's roads and ${third} of someone else's: no road moves`);
+    assert.equal(g.buildings[v].p, me);
+  }
+  // the thief needs two road pieces left to take them
+  ({ g, me, victim, v, edgesAt } = setup(1, 2));
+  g.act(me, { type: 'playDev', card: 'heist', vertex: v });
+  assert.deepEqual(edgesAt.slice(0, 2).map(e => g.roads[e]), [victim, victim]); assert.equal(g.buildings[v].p, me);
+  assert.deepEqual(g.checkInvariants(), []);
+  // roads that arrive can give the thief Longest Road
+  ({ g, me, victim, v, edgesAt } = setup(15, 2));
+  g.act(me, { type: 'playDev', card: 'heist', vertex: v });
+  assert.ok(g.roadLength(me) >= 2 && g.roadLength(victim) <= 1);
 });

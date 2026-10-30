@@ -741,6 +741,7 @@ function highlights() {
     const city = P.type === 'city', x = V[P.id].x * U, y = V[P.id].y * U, r = city ? 48 : 40;
     preview = `<g class="pv" data-confirm="1" role="button" aria-label="Tap to build"><g transform="translate(${x} ${y})"><circle class="pvring" r="${r}"/><g transform="scale(${city ? 1.3 : 1.72})" filter="url(#f-shadow)">${city ? cityHouseSvg(col, true) : houseSvg(col, true)}</g></g></g>`;
   }
+  if (P && P.type === 'heist') preview = heistRoads(P.id).map(e => roadGhost(e, col)).join('') + preview;   // the roads you take along
   return sets.road.filter(e => not('road', e)).map(road).join('') + sets.settle.filter(v => not('settle', v)).map(v => spot(v, 'settle')).join('') + sets.city.filter(v => not('city', v)).map(v => spot(v, 'city')).join('') + sets.heist.filter(v => not('heist', v)).map(heistSpot).join('') + preview;
 }
 
@@ -771,7 +772,19 @@ function validatePick() {
   const mode = S.state && currentMode();
   if (!mode || mode === 'robber' || !(modeSets(mode)[S.pick.type] || []).includes(S.pick.id)) S.pick = null;
 }
-function pickText() { const k = S.pick.type; return k === 'heist' ? 'Tap the settlement again to steal it, or tap another one' : `Tap the ${k === 'road' ? 'road' : k === 'city' ? 'city' : 'settlement'} to place it, or tap another spot`; }
+// The roads that go with a stolen settlement: exactly two of its owner's roads touch it, and you have two road pieces left.
+function heistRoads(v) {
+  const st = S.state, b = st.buildings[v];
+  if (!b || st.players[me()].pieces.road < 2) return [];
+  const es = S.board.vertices[v].edges.filter(e => st.roads[e] === b.p);
+  return es.length === 2 ? es : [];
+}
+function roadGhost(e, color) {
+  const V = S.board.vertices, [a, c] = S.board.edges[e].v.map(i => V[i]), ax = a.x * U, ay = a.y * U, cx = c.x * U, cy = c.y * U, k = .14;
+  const x1 = ax + (cx - ax) * k, y1 = ay + (cy - ay) * k, x2 = cx - (cx - ax) * k, y2 = cy - (cy - ay) * k, ln = (w, stroke) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${stroke}" stroke-width="${w}" stroke-linecap="round"/>`;
+  return `<g class="pvroad" pointer-events="none">${ln(27, '#fff')}${ln(22.5, '#1b1b1b')}${ln(16.5, color)}</g>`;
+}
+function pickText() { const k = S.pick.type; return k === 'heist' ? `Tap the settlement again to steal it${heistRoads(S.pick.id).length ? ' and its 2 roads' : ''}, or tap another one` : `Tap the ${k === 'road' ? 'road' : k === 'city' ? 'city' : 'settlement'} to place it, or tap another spot`; }
 function modeSets(mode) {
   const sets = { road: [], settle: [], city: [], heist: [] }, st = S.state;
   if (mode === 'setupSettle') sets.settle = validSettle(false);
@@ -1219,7 +1232,7 @@ function openRules() {
     <section><h4>Where pieces can go</h4><ul><li>A settlement needs a free corner at least two roads away from every other settlement and city, and it must touch one of your roads (except during setup). The open end of a single road is fine.</li><li>A road must connect to one of your own roads, settlements or cities. It can run on from the end of another road, but never through a corner holding another player's settlement or city. A road can't be placed on its own, away from your network.</li><li>If an opponent builds on a corner of your road, the road stays but the far side is drawn faded: it no longer links back to your towns and no longer counts as one chain for Longest Road. You can still build onward from its far end.</li></ul></section>
     <section><h4>Rolling a 7</h4><p>Nobody collects. Anyone holding more cards than the discard limit (7 by default) discards half, rounded down. Then the roller moves the robber to another tile, which blocks that tile, and steals one random card from a player next to it.</p></section>
     <section><h4>Development cards</h4><p>25 cards: 14 Knights, 5 Victory Points, 2 Road Building, 2 Year of Plenty, 2 Monopoly. You can play one per turn, but not on the turn you bought it. Knights move the robber; three played Knights earn Largest Army. Victory Point cards stay hidden until you win.</p></section>
-    <section><h4>Heist card</h4><p>Each player may buy one Heist card per game, but only once they have built 3 cities (4 cities in games played to more than 10 points). It counts as a development card, so you play it on a later turn and only one development card per turn. Playing it lets you steal any opponent's settlement (never a city). The settlement stays where it is and becomes yours, so they lose a point and you gain one, and it can cut or free a road.</p></section>
+    <section><h4>Heist card</h4><p>Each player may buy one Heist card per game, but only once they have built 3 cities (4 cities in games played to more than 10 points). It counts as a development card, so you play it on a later turn and only one development card per turn. Playing it lets you steal any opponent's settlement (never a city). The settlement stays where it is and becomes yours, so they lose a point and you gain one. If exactly two of their roads touch it, both come with it (as long as you have two road pieces left), so the settlement keeps its two roads. Taking settlements and roads can cut or free other roads.</p></section>
     <section><h4>Bonuses</h4><p>Longest Road: 5 or more connected roads, and you must beat the holder to take it. An opponent's settlement built in the middle can cut a road. Largest Army: 3 or more Knights played, and you must beat the holder.</p></section>
     <section><h4>Host options</h4><ul><li><b>Discard limit and amount:</b> how many cards you can hold safely, and whether you lose half or exactly 4.</li><li><b>Move timer:</b> 15, 30 or 60 seconds. If it runs out, the game plays that step for you. Setup placements get 60 seconds.</li><li><b>Friendly robber:</b> the robber can't go next to a player with 2 points or fewer.</li><li><b>Balanced dice:</b> rolls come from a shuffled deck, so totals stay close to the odds.</li></ul></section>
     <section><h4>Bots</h4><p>The host can fill empty seats with Easy, Medium or Hard bots, up to 4 players in total.</p></section>
@@ -1493,7 +1506,7 @@ function showFire(title, sub) {
 function showHeist(e) {
   const st = S.state, thief = st.players[e.p], victim = st.players[e.from], V = S.board.vertices[e.vertex];
   Sound.play('heist');
-  const text = `${thief.name} stole a settlement from ${victim.name}!`;
+  const text = `${thief.name} stole a settlement from ${victim.name}` + (e.roads && e.roads.length ? ` and its ${e.roads.length} roads!` : '!');
   if (reducedMotion()) return toast(`HEIST! ${esc(text)}`, 'err', true);
   const pt = new DOMPoint(V.x * U, V.y * U).matrixTransform($('#board').getScreenCTM());
   const el = document.createElement('div'); el.className = 'heistfx'; el.setAttribute('role', 'status');
