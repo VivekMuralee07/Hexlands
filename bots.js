@@ -140,6 +140,17 @@ function playableDev(g, pi, type) {
 function robberOnMe(g, pi) {
   return g.board.tiles[g.robber].vertices.some(v => g.buildings[v] && g.buildings[v].p === pi);
 }
+// The settlement that is worth most to this bot (hard bots also like hitting the leader).
+function heistTarget(g, pi, level) {
+  if (g.players[pi].pieces.settlement <= 0) return null;
+  const lead = Math.max(...g.players.map((p, i) => i === pi ? -1 : g.vp(i, false)));
+  let best = null, bs = -Infinity;
+  for (const v of g.heistTargets(pi)) {
+    const s = vertexScore(g, pi, v, level) + (level === 'hard' && g.vp(g.buildings[v].p, false) >= lead ? 4 : 0);
+    if (s > bs) { bs = s; best = v; }
+  }
+  return best;
+}
 function devAction(g, pi, level, beforeRoll) {
   if (g.devPlayed) return null;
   const P = g.players[pi];
@@ -160,6 +171,7 @@ function devAction(g, pi, level, beforeRoll) {
     if (robberOnMe(g, pi) || forArmy) return { type: 'playDev', card: 'knight' };
   }
   if (beforeRoll) return null;
+  if (playableDev(g, pi, 'heist')) { const v = heistTarget(g, pi, level); if (v != null) return { type: 'playDev', card: 'heist', vertex: v }; }
   if (playableDev(g, pi, 'roadBuilding') && P.pieces.road > 0 && roadWorthIt(g, pi, level) != null) return { type: 'playDev', card: 'roadBuilding' };
   const goal = targetGoal(g, pi);
   if (playableDev(g, pi, 'yearOfPlenty') && goal) {
@@ -269,6 +281,10 @@ function turnAction(g, pi, level) {
       const e = level === 'easy' ? chooseRoad(g, pi, level) : roadWorthIt(g, pi, level);
       return e == null ? null : { type: 'road', edge: e };
     },
+    heist: () => {
+      if (level === 'easy' || P.heistBought || 4 - P.pieces.city < g.heistNeed() || !can(COST.heist)) return null;
+      return heistTarget(g, pi, level) == null ? null : { type: 'buyHeist' };
+    },
     dev: () => {
       if (!can(COST.dev) || !g.devDeck.length) return null;
       if (level === 'easy' && g.rng() < 0.5) return null;
@@ -277,7 +293,7 @@ function turnAction(g, pi, level) {
     },
   };
   const order = level === 'easy' ? shuffled(g, ['city', 'settlement', 'road', 'dev'])
-    : level === 'medium' ? ['city', 'settlement', 'road', 'dev'] : ['settlement', 'city', 'road', 'dev'];
+    : level === 'medium' ? ['heist', 'city', 'settlement', 'road', 'dev'] : ['heist', 'settlement', 'city', 'road', 'dev']   // its cost includes a settlement's, so it has to come first;
   for (const k of order) {
     if (level === 'easy' && g.rng() < 0.3) continue;
     const a = tries[k]();

@@ -7,6 +7,7 @@ const COST = {
   settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 },
   city: { wheat: 2, ore: 3 },
   dev: { sheep: 1, wheat: 1, ore: 1 },
+  heist: { wood: 1, brick: 1, sheep: 2, wheat: 1, ore: 1 },   // the Heist card, bought once per player
 };
 const PALETTE = [
   { id: 'red', name: 'Red', hex: '#d8432f' }, { id: 'blue', name: 'Blue', hex: '#2f6fd8' }, { id: 'orange', name: 'Orange', hex: '#ee8a1f' }, { id: 'green', name: 'Green', hex: '#3f9b4f' },
@@ -14,7 +15,7 @@ const PALETTE = [
   { id: 'brown', name: 'Brown', hex: '#8b5a2b' }, { id: 'white', name: 'White', hex: '#f1f1ee' },
 ];
 const LABEL = { wood: 'wood', brick: 'brick', sheep: 'sheep', wheat: 'hay', ore: 'ore' };
-const DEV_NAMES = { knight: 'Knight', vp: 'Victory Point', roadBuilding: 'Road Building', yearOfPlenty: 'Year of Plenty', monopoly: 'Monopoly' };
+const DEV_NAMES = { knight: 'Knight', vp: 'Victory Point', roadBuilding: 'Road Building', yearOfPlenty: 'Year of Plenty', monopoly: 'Monopoly', heist: 'Heist' };
 const MAX_PLAYERS = 4;
 const SQ3 = Math.sqrt(3);
 
@@ -161,6 +162,10 @@ class Game {
     const { vertices, edges } = this.board;
     return [...new Set(edges[e].v.flatMap(v => vertices[v].hexes))];
   }
+  // The Heist card: it needs 3 cities (4 in games to more than 10 points), each player may buy it once,
+  // and playing it steals any opponent's settlement.
+  heistNeed() { return this.vpTarget <= 10 ? 3 : 4; }
+  heistTargets(pi) { return Object.entries(this.buildings).filter(([, b]) => b.p !== pi && b.type === 'settlement').map(([v]) => +v); }
   // Goblet of Fire map: hide one goblet in the fog for every player. A goblet has no resource and no number.
   placeGoblets(n) {
     shuffle(this.board.tiles.filter(t => t.fog), this.rng).slice(0, n).forEach(t => { t.terrain = 'goblet'; t.number = null; });
@@ -195,7 +200,7 @@ class Game {
     name = String(name || '').trim().slice(0, 16) || 'Player ' + (this.players.length + 1);
     if (this.players.some(p => p.name.toLowerCase() === name.toLowerCase())) fail('That name is taken in this room.');
     const p = { name, token, connected: false, res: emptyRes(), dev: [], knights: 0,
-      pieces: { road: 15, settlement: 5, city: 4 }, colorId: null, color: null, colorName: null, bot: null, stats: newStats() };
+      pieces: { road: 15, settlement: 5, city: 4 }, heistBought: false, colorId: null, color: null, colorName: null, bot: null, stats: newStats() };
     if (!this.players.length) this.hostToken = token;
     this.players.push(p);
     this.assignColors();
@@ -269,13 +274,14 @@ class Game {
           const e = stack.pop(); size++;
           for (const v of edges[e].v) {
             if (this.buildings[v] && this.buildings[v].p === pi) anchored = true;
+            if (this.buildings[v] && this.buildings[v].stolen && this.buildings[v].p !== pi) anchored = true;   // cut off by a stolen settlement
             for (const o of vertices[v].edges) if (this.roads[o] === pi && !seen.has(o)) { seen.add(o); stack.push(o); }
           }
         }
         if (!anchored) bad.push(`player ${pi} has an isolated group of ${size} road(s)`);
       }
     });
-    if (this.phase !== 'setup') for (const [v, b] of Object.entries(this.buildings)) if (!vertices[v].edges.some(e => this.roads[e] === b.p)) bad.push(`${b.type} at ${v} touches none of its owner's roads`);
+    if (this.phase !== 'setup') for (const [v, b] of Object.entries(this.buildings)) if (!b.stolen && !vertices[v].edges.some(e => this.roads[e] === b.p)) bad.push(`${b.type} at ${v} touches none of its owner's roads`);
     return bad;
   }
 
@@ -739,6 +745,16 @@ class Game {
     return { card: type };
   }
 
+  do_buyHeist(pi) {
+    this.mustMain(pi);
+    const p = this.players[pi], need = this.heistNeed(), cities = 4 - p.pieces.city;
+    if (p.heistBought) fail('You can only buy one Heist card per game.');
+    if (cities < need) fail(`You need ${need} cities before you can buy a Heist card (you have ${cities}).`);
+    this.pay(pi, COST.heist);
+    p.heistBought = true; p.dev.push({ type: 'heist', turn: this.turnNumber });
+    this.emit('heistbuy', { p: pi });
+    this.addLog(`${p.name} bought a Heist card.`);
+  }
   do_playDev(pi, a) {
     this.mustMain(pi, { needRoll: false });
     if (this.devPlayed) fail('You can play one development card per turn.');
@@ -755,7 +771,14 @@ class Game {
       if (RES.some(k => need[k] > this.bank[k])) fail('The bank does not have those resources.');
     }
     if (type === 'monopoly' && !RES.includes(a.res)) fail('Pick a resource.');
-    if (!['knight', 'roadBuilding', 'yearOfPlenty', 'monopoly'].includes(type)) fail('Unknown card.');
+    let loot = null;
+    if (type === 'heist') {
+      const vx = a.vertex | 0, b = this.buildings[vx];
+      if (!b || b.type !== 'settlement' || b.p === pi) fail("Pick an opponent's settlement to steal.");
+      if (p.pieces.settlement <= 0) fail('You have no settlements left to place.');
+      loot = vx;
+    }
+    if (!['knight', 'roadBuilding', 'yearOfPlenty', 'monopoly', 'heist'].includes(type)) fail('Unknown card.');
     p.dev.splice(idx, 1); this.devPlayed = true; p.stats.devPlayed++;
     this.devPlayedCount[type] = (this.devPlayedCount[type] || 0) + 1;
     if (type === 'knight') {
@@ -773,6 +796,13 @@ class Game {
       this.players.forEach((o, i) => { if (i !== pi) { got += o.res[a.res]; if (o.res[a.res]) takes[i] = o.res[a.res]; p.res[a.res] += o.res[a.res]; o.res[a.res] = 0; } });
       this.lastMonopoly = { by: pi, res: a.res, takes, seq: (this.lastMonopoly ? this.lastMonopoly.seq : 0) + 1 };
       this.addLog(`${p.name} played Monopoly and took ${got} ${LABEL[a.res]}.`);
+    } else if (type === 'heist') {
+      const b = this.buildings[loot], from = b.p, victim = this.players[from];
+      victim.pieces.settlement++; p.pieces.settlement--;
+      b.p = pi; b.stolen = true;                        // the settlement stays where it is and changes hands
+      this.emit('heist', { p: pi, from, vertex: loot });
+      this.addLog(`${p.name} played Heist and stole a settlement from ${victim.name}!`);
+      this.updateLongestRoad();                         // a settlement in the way can cut a road, or free one
     }
   }
 
@@ -905,7 +935,7 @@ class Game {
     const me = this.players[pi];
     return {
       code: this.code, phase: this.phase, you: pi, version: this.version, vpTarget: this.vpTarget, mapName: this.board.name,
-      opts: this.opts, timer: this.timerView(), palette: PALETTE, events: this.events, devPile: { total: this.devTotal, played: this.devPlayedCount }, cutRoads: this.cutOffRoads(),
+      opts: this.opts, timer: this.timerView(), palette: PALETTE, events: this.events, devPile: { total: this.devTotal, played: this.devPlayedCount }, heist: { cost: COST.heist, need: this.heistNeed() }, cutRoads: this.cutOffRoads(),
       robberOptions: this.subphase === 'robber' && pi === this.turn ? this.legalRobberTiles(pi) : null,
       players: this.players.map((p, i) => ({
         name: p.name, host: p.token === this.hostToken, bot: p.bot, stats: p.stats, colorId: p.colorId, color: p.color, colorName: p.colorName, connected: p.connected,
@@ -913,7 +943,7 @@ class Game {
         vp: this.vp(i, ended || i === pi), roadLen: this.roadLens ? this.roadLens[i] : 0,
         res: ended ? p.res : undefined, devReveal: ended ? p.dev.map(d => d.type) : undefined,
       })),
-      me: me ? { res: me.res, dev: me.dev.map(d => ({ type: d.type, fresh: d.turn >= this.turnNumber })),
+      me: me ? { res: me.res, heistBought: me.heistBought, dev: me.dev.map(d => ({ type: d.type, fresh: d.turn >= this.turnNumber })),
         ratios: Object.fromEntries(RES.map(k => [k, this.tradeRatio(pi, k)])) } : null,
       buildings: this.buildings, roads: this.roads, robber: this.robber,
       turn: this.turn, turnNumber: this.turnNumber, rolled: this.rolled, dice: this.dice,

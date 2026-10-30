@@ -805,3 +805,31 @@ span.pcardx { cursor: default; }
 .firefx .fl::after { content: ''; position: absolute; left: 24%; right: 24%; bottom: 0; height: 64%;
   clip-path: polygon(50% 0%, 60% 20%, 76% 46%, 86% 74%, 72% 96%, 50% 100%, 28% 96%, 14% 74%, 24% 46%, 40% 20%);
   background: linear-gradient(0deg, #ffffff 0%, #e4f8ff 46%, rgba(170, 225, 255, .7) 100%); }
+
+/* ===== Heist card ===== */
+.act.dim { opacity: .55; }
+.card.devc.heist { --c: #2c2c3a; }
+.hc.heist { fill: rgba(255, 210, 63, .14); stroke: #ffd23f; stroke-width: 3; stroke-dasharray: 7 5; animation: heistring .9s ease-in-out infinite alternate; }
+@keyframes heistring { from { stroke-opacity: .45; } to { stroke-opacity: 1; } }
+.heistfx { position: fixed; inset: 0; z-index: 96; pointer-events: none; overflow: hidden; animation: heistout 4s ease-out forwards; }
+@keyframes heistout { 0%, 82% { opacity: 1; } 100% { opacity: 0; } }
+.heistfx .hdark { position: absolute; inset: 0; background: radial-gradient(circle at var(--sx) var(--sy), rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, 0) 64px, rgba(3, 6, 20, .84) 240px); animation: hdark 3.8s ease-out forwards; }
+@keyframes hdark { 0% { opacity: 0; } 14% { opacity: 1; } 82% { opacity: 1; } 100% { opacity: 0; } }
+.heistfx .hmask { position: absolute; top: 9%; left: 0; width: min(44vw, 210px); height: auto; filter: drop-shadow(0 0 16px rgba(255, 210, 63, .75)); animation: hslide 3.4s cubic-bezier(.2, .7, .3, 1) forwards; }
+@keyframes hslide { 0% { transform: translateX(-60vw) rotate(-18deg); opacity: 0; } 22% { transform: translateX(calc(50vw - 50%)) rotate(0deg); opacity: 1; } 72% { transform: translateX(calc(50vw - 50%)) scale(1.05); opacity: 1; } 100% { transform: translateX(120vw) rotate(14deg); opacity: 0; } }
+.heistfx .hpiece { position: absolute; left: var(--sx); top: var(--sy); width: 0; height: 0; }
+.heistfx .hpiece svg { position: absolute; left: -66px; top: -66px; width: 132px; height: 132px; overflow: visible; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .6)); }
+.heistfx .hold { animation: hold 3.2s ease-in-out forwards; }
+@keyframes hold { 0% { transform: scale(.3); opacity: 0; } 14% { transform: scale(1); opacity: 1; } 22% { transform: scale(1) rotate(-9deg); } 30% { transform: scale(1) rotate(9deg); } 38% { transform: scale(1) rotate(-7deg); } 46% { transform: scale(1.08) rotate(0deg); opacity: 1; } 52% { transform: scale(1.25); opacity: 0; } 100% { opacity: 0; } }
+.heistfx .hnew { opacity: 0; animation: hnew 3.2s ease-out forwards; }
+@keyframes hnew { 0%, 46% { transform: scale(.4); opacity: 0; } 54% { transform: scale(1.35); opacity: 1; } 64% { transform: scale(1); } 90% { transform: scale(1); opacity: 1; } 100% { opacity: 0; } }
+.heistfx .hflash { position: absolute; left: -110px; top: -110px; width: 220px; height: 220px; border-radius: 50%; background: radial-gradient(circle, #fff 0%, rgba(255, 236, 160, .85) 30%, rgba(255, 200, 60, 0) 70%); opacity: 0; animation: hflash 3.2s ease-out forwards; }
+@keyframes hflash { 0%, 44% { opacity: 0; transform: scale(.3); } 52% { opacity: 1; transform: scale(1); } 80% { opacity: 0; transform: scale(1.6); } 100% { opacity: 0; } }
+.heistfx .coin { position: absolute; left: -7px; top: -7px; width: 14px; height: 14px; border-radius: 50%; border: 1px solid #7a5a08; background: radial-gradient(circle at 35% 30%, #fff4b0, #f2c230 55%, #a87a10); opacity: 0; animation: hcoin 1.5s ease-out calc(1.6s + var(--d)) forwards; }
+@keyframes hcoin { 0% { transform: translate(0, 0) scale(.4); opacity: 0; } 15% { opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) scale(1) rotate(540deg); opacity: 0; } }
+.heistfx .htxt { position: absolute; left: 0; right: 0; bottom: 20%; text-align: center; color: #fff; padding: 0 1rem; text-shadow: 0 0 16px #ffd23f, 0 3px 0 #1a1204; animation: htxt 3.6s ease-out forwards; }
+.heistfx .htxt b { display: block; font-size: clamp(2.2rem, 10vw, 4rem); letter-spacing: .12em; color: #ffd23f; }
+.heistfx .htxt span { display: block; margin-top: .4rem; font-size: clamp(1rem, 4.2vw, 1.5rem); font-weight: 800; }
+@keyframes htxt { 0% { transform: translateY(24px) scale(.8); opacity: 0; } 18% { transform: none; opacity: 1; } 84% { opacity: 1; } 100% { opacity: 0; } }
+/* stealable settlements: a bolder, glowing target ring */
+.hc.heist { fill: rgba(255, 210, 63, .26); stroke: #ffd23f; stroke-width: 4.5; stroke-dasharray: 8 5; filter: drop-shadow(0 0 6px rgba(255, 210, 63, .95)); }

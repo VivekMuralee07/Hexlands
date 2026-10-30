@@ -149,7 +149,7 @@ function assignNumbers(tiles, rng) {
 Object.keys(PRESETS).forEach(k => { PRESETS[k].category = 'countries'; });
 PRESETS.classic.category = 'misc';
 
-// Green Forest: a hexagon of radius 4 around a lake. The middle is a desert island, the ring around it is
+// The Goblet of Fire layout: a hexagon of radius 4 around a lake. The middle is a desert island, the ring around it is
 // water, the next two rings are forest, and everything else is fog. Fog hides a random resource that is
 // never wood, and is revealed when a road or settlement touches it. Every harbor sits in the lake and is 2:1 wood.
 const LAKE = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
@@ -168,17 +168,12 @@ function forestLake(rng, name, extra = {}) {
   assignNumbers(tiles, rng);
   return { name, tiles, lake: LAKE.map(([q, r]) => ({ q, r })), portType: 'wood', ...extra };
 }
-PRESETS.greenforest = {
-  name: 'Green Forest', category: 'misc',
-  blurb: 'A forest around a lake island, with wood harbors. Fog hides every other resource.',
-  generate: rng => forestLake(rng, 'Green Forest'),
-};
-// Goblet of Fire: Green Forest, plus a goblet hidden in the fog for every player (the game places them when it
+// Goblet of Fire: a forest around a lake island with fog, plus a goblet hidden in the fog for every player (the game places them when it
 // starts, because only then is the number of players known). Whoever unlocks one loses all their wood, sheep and
 // hay. The first two settlements are not allowed to touch the fog.
 PRESETS.gobletoffire = {
   name: 'Goblet of Fire', category: 'misc',
-  blurb: 'Green Forest with a trap: one Goblet of Fire per player hides in the fog. Unlock one and you lose your wood, sheep and hay.',
+  blurb: 'A forest around a lake island with fog. One Goblet of Fire per player hides in it: unlock one and you lose your wood, sheep and hay.',
   generate: rng => forestLake(rng, 'Goblet of Fire', { goblets: true, fogFreeStart: true }),
 };
 

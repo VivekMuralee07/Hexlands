@@ -9,13 +9,14 @@ const RES_LABEL = { wood: 'Wood', brick: 'Brick', sheep: 'Sheep', wheat: 'Hay', 
 const TERRAINS = ['forest', 'hills', 'pasture', 'fields', 'mountains', 'desert'];
 const TERRAIN_LABEL = { forest: 'Forest', hills: 'Hills', pasture: 'Pasture', fields: 'Fields', mountains: 'Mountains', desert: 'Desert', sea: 'Sea', fog: 'Hidden', goblet: 'Goblet of Fire' };
 const TERRAIN_RES = { forest: 'wood', hills: 'brick', pasture: 'sheep', fields: 'wheat', mountains: 'ore', desert: null, fog: null, goblet: null };
-const COST = { road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 }, city: { wheat: 2, ore: 3 }, dev: { sheep: 1, wheat: 1, ore: 1 } };
+const COST = { road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 }, city: { wheat: 2, ore: 3 }, dev: { sheep: 1, wheat: 1, ore: 1 }, heist: { wood: 1, brick: 1, sheep: 2, wheat: 1, ore: 1 } };
 const DEV = {
   knight: { name: 'Knight', text: 'Move the robber and steal a card. Three knights earn Largest Army.' },
   vp: { name: 'Victory Point', text: 'Worth 1 point. Stays hidden until the game ends.' },
   roadBuilding: { name: 'Road Building', text: 'Place 2 roads for free.' },
   yearOfPlenty: { name: 'Year of Plenty', text: 'Take any 2 resources from the bank.' },
   monopoly: { name: 'Monopoly', text: 'Name a resource. Every player hands you all of it.' },
+  heist: { name: 'Heist', text: "Steal any opponent's settlement. You can buy it once per game." },
 };
 const STANDARD_NUMBERS = [2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12];
 const EDITOR_RADIUS = 6;
@@ -274,7 +275,7 @@ ${cat === 'misc' ? `<button class="map-opt" data-map="custom" aria-pressed="${S.
       <div class="stack">
         <div class="preview" id="preview"></div>
         <div class="preview-meta"><div class="terrain-counts" id="counts"></div>
-          <div class="row"><button class="btn small" id="reroll">${S.mapKey === 'custom' ? 'Reshuffle harbors' : 'Shuffle tiles'}</button><button class="btn small" id="edit"${S.mapKey === 'greenforest' ? ' disabled title="Fog maps cannot be copied"' : ''}>${S.mapKey === 'custom' ? 'Edit map' : 'Copy into editor'}</button></div></div>
+          <div class="row"><button class="btn small" id="reroll">${S.mapKey === 'custom' ? 'Reshuffle harbors' : 'Shuffle tiles'}</button><button class="btn small" id="edit"${S.mapKey === 'gobletoffire' ? ' disabled title="Fog maps cannot be copied"' : ''}>${S.mapKey === 'custom' ? 'Edit map' : 'Copy into editor'}</button></div></div>
         <div class="panel row">
           <span class="grow"><b>Next: the waiting room</b><br><span class="muted" style="font-size:.88em">Pick points to win, discard limit, move timer, friendly robber and balanced dice there, and add bots.</span></span>
           <button class="btn primary" id="create">Create room</button>
@@ -639,11 +640,14 @@ const validRoads = anchor => S.board.edges.filter(e => canRoad(me(), e.id, ancho
 const myCitySpots = () => Object.keys(S.state.buildings).filter(v => S.state.buildings[v].p === me() && S.state.buildings[v].type === 'settlement').map(Number);
 
 function currentMode() {
-  const st = S.state; if (!st || !myTurn() || S.tw) return null;
+  const st = S.state; if (!st || !myTurn() || S.tw) { if (st && !myTurn() && S.mode === 'heist') S.mode = null; return null; }
   if (st.phase === 'setup') return st.setup.expect === 'settlement' ? 'setupSettle' : 'setupRoad';
   if (st.phase !== 'main') return null;
   if (st.subphase === 'robber') return 'robber';
   if (st.subphase === 'roadBuilding') return 'freeRoad';
+  if (S.mode === 'heist') {   // the Heist card is being played: pick the settlement to steal
+    if (st.devPlayed || !st.me.dev.some(d => d.type === 'heist' && !d.fresh)) S.mode = null; else if (!st.subphase) return 'heist';
+  }
   if (st.subphase || !st.rolled) return null;
   return S.mode || 'auto';   // no button pressed: show everything you can afford to build
 }
@@ -721,6 +725,7 @@ function highlights() {
     return `<line class="ehit" ${xy} data-e="${e}"/><g class="hs" data-e="${e}" transform="translate(${mx} ${my})"><circle class="hc" r="${r}"/><circle r="${big ? 25 : 21}" fill="transparent"/>`
       + (mixed ? `<g class="hg" transform="rotate(${ang}) scale(${r / 27})"><rect x="-17" y="-6" width="34" height="12" rx="6" fill="${col}" stroke="#1b1b1b" stroke-width="2.5"/></g>` : '') + `</g>`;
   };
+  const heistSpot = v => `<g class="hs heist" data-v="${v}" data-k="heist" transform="translate(${V[v].x * U} ${V[v].y * U})"><circle class="hc heist" r="${big ? 38 : 32}"/><circle r="${big ? 38 : 32}" fill="transparent"/></g>`;
   const spot = (v, kind) => {
     const city = kind === 'city', r = city ? (big ? 32 : 20) : (big ? 27 : 17), k = city ? r / 30 : r / 22;
     return `<g class="hs" data-v="${v}" data-k="${kind}" transform="translate(${V[v].x * U} ${V[v].y * U})"><circle class="hc ${city ? 'city' : ''}" r="${r}"/><circle r="${big ? r : 23}" fill="transparent"/>`
@@ -736,7 +741,7 @@ function highlights() {
     const city = P.type === 'city', x = V[P.id].x * U, y = V[P.id].y * U, r = city ? 48 : 40;
     preview = `<g class="pv" data-confirm="1" role="button" aria-label="Tap to build"><g transform="translate(${x} ${y})"><circle class="pvring" r="${r}"/><g transform="scale(${city ? 1.3 : 1.72})" filter="url(#f-shadow)">${city ? cityHouseSvg(col, true) : houseSvg(col, true)}</g></g></g>`;
   }
-  return sets.road.filter(e => not('road', e)).map(road).join('') + sets.settle.filter(v => not('settle', v)).map(v => spot(v, 'settle')).join('') + sets.city.filter(v => not('city', v)).map(v => spot(v, 'city')).join('') + preview;
+  return sets.road.filter(e => not('road', e)).map(road).join('') + sets.settle.filter(v => not('settle', v)).map(v => spot(v, 'settle')).join('') + sets.city.filter(v => not('city', v)).map(v => spot(v, 'city')).join('') + sets.heist.filter(v => not('heist', v)).map(heistSpot).join('') + preview;
 }
 
 async function onBoardTap(el) {
@@ -744,7 +749,7 @@ async function onBoardTap(el) {
   if (mode !== 'robber' && S.pick && el.closest('[data-confirm]')) return confirmPick();   // second tap: the piece itself
   const t = el.closest('[data-v],[data-e],[data-t]');
   if (!t) { if (S.pick) { S.pick = null; updateGame(); } return; }                          // tapping the sea or a tile cancels the preview
-  if (t.dataset.v != null) { S.pick = { type: t.dataset.k === 'city' ? 'city' : 'settle', id: +t.dataset.v }; updateGame(); }
+  if (t.dataset.v != null) { S.pick = { type: t.dataset.k === 'city' ? 'city' : t.dataset.k === 'heist' ? 'heist' : 'settle', id: +t.dataset.v }; updateGame(); }
   else if (t.dataset.e != null) { S.pick = { type: 'road', id: +t.dataset.e }; updateGame(); }
   else if (t.dataset.t != null && mode === 'robber') {
     const tile = +t.dataset.t, victims = robberVictims(tile);
@@ -756,7 +761,9 @@ async function onBoardTap(el) {
 async function confirmPick() {
   const p = S.pick; if (!p || S.placing) return;
   S.placing = true;
-  try { await act(p.type === 'road' ? { type: 'road', edge: p.id } : { type: p.type, vertex: p.id }); } finally { S.placing = false; }
+  let r;
+  try { r = await act(p.type === 'road' ? { type: 'road', edge: p.id } : p.type === 'heist' ? { type: 'playDev', card: 'heist', vertex: p.id } : { type: p.type, vertex: p.id }); } finally { S.placing = false; }
+  if (p.type === 'heist' && r && r.ok) S.mode = null;
   S.pick = null; updateGame();
 }
 function validatePick() {
@@ -764,15 +771,16 @@ function validatePick() {
   const mode = S.state && currentMode();
   if (!mode || mode === 'robber' || !(modeSets(mode)[S.pick.type] || []).includes(S.pick.id)) S.pick = null;
 }
-function pickText() { return `Tap the ${S.pick.type === 'road' ? 'road' : S.pick.type === 'city' ? 'city' : 'settlement'} to place it, or tap another spot`; }
+function pickText() { const k = S.pick.type; return k === 'heist' ? 'Tap the settlement again to steal it, or tap another one' : `Tap the ${k === 'road' ? 'road' : k === 'city' ? 'city' : 'settlement'} to place it, or tap another spot`; }
 function modeSets(mode) {
-  const sets = { road: [], settle: [], city: [] }, st = S.state;
+  const sets = { road: [], settle: [], city: [], heist: [] }, st = S.state;
   if (mode === 'setupSettle') sets.settle = validSettle(false);
   else if (mode === 'settle') sets.settle = validSettle(true);
   else if (mode === 'city') sets.city = myCitySpots();
   else if (mode === 'setupRoad') sets.road = validRoads(st.setup.last);
   else if (mode === 'road' || mode === 'freeRoad') sets.road = validRoads();
   else if (mode === 'auto') Object.assign(sets, buildable());
+  else if (mode === 'heist') sets.heist = st.players[me()].pieces.settlement > 0 ? Object.entries(st.buildings).filter(([, b]) => b.p !== me() && b.type === 'settlement').map(([v]) => +v) : [];
   return sets;
 }
 function robberVictims(tile) {
@@ -902,17 +910,19 @@ function drawBanner() {
     const m = currentMode();
     t = !st.rolled ? 'Your turn: roll the dice' : m === 'road' ? 'Tap a glowing edge to build a road' : m === 'settle' ? 'Tap a glowing corner to settle' : m === 'city' ? 'Tap one of your settlements to upgrade it' : m === 'auto' && autoCount() ? 'Tap a glowing spot to build, tap your cards to trade, or end your turn' : 'Build, trade, or end your turn';
   } else t = p.bot ? `${p.name} is thinking…` : `${p.name}'s turn`;
+  if (currentMode() === 'heist' && !S.pick) t = 'Heist! Tap the settlement you want to steal';
   if (S.pick && mine) t = pickText();
   b.textContent = t; b.classList.toggle('you', mine || !!st.pendingDiscards[me()]);
 }
 
 const DEV_ORDER = ['knight', 'vp', 'roadBuilding', 'yearOfPlenty', 'monopoly'];
+const DEV_TRAY = [...DEV_ORDER, 'heist'];   // the Heist card is not in the deck, so the pile window does not list it
 function drawHand() {
   const st = S.state, r = st.me.res, held = {};
   st.me.dev.forEach(d => { const h = held[d.type] || (held[d.type] = { n: 0, fresh: 0 }); h.n++; if (d.fresh) h.fresh++; });
   $('#hand').innerHTML = RES.map(k => `<div class="card ${k} ${r[k] ? '' : 'zero'}" data-res="${k}" role="button" tabindex="0" title="${RES_LABEL[k]}: ${r[k]}. Tap to trade.">${icon(k)}<span class="lbl">${RES_LABEL[k]}</span>${r[k] ? `<span class="n">${r[k]}</span>` : ''}</div>`).join('')
     + '<span class="hsep"></span>'
-    + (DEV_ORDER.filter(t => held[t]).map(t => `<button class="card devc ${t}" data-dev="${t}" title="${DEV[t].name} x${held[t].n}${held[t].fresh ? ` (${held[t].fresh} bought this turn)` : ''}">${icon(t)}<span class="lbl">${DEV[t].name.split(' ')[0]}</span><span class="n">${held[t].n}</span></button>`).join('')
+    + (DEV_TRAY.filter(t => held[t]).map(t => `<button class="card devc ${t}" data-dev="${t}" title="${DEV[t].name} x${held[t].n}${held[t].fresh ? ` (${held[t].fresh} bought this turn)` : ''}">${icon(t)}<span class="lbl">${DEV[t].name.split(' ')[0]}</span><span class="n">${held[t].n}</span></button>`).join('')
       || `<button class="card devc zero" data-dev="none" title="No development cards yet">${icon('dev')}<span class="lbl">Dev</span></button>`);
   $$('#hand [data-dev]').forEach(b => b.onclick = () => { S.tw = null; if (S.mode) S.mode = null; updateGame(); openDev(); });
   $$('#hand [data-res]').forEach(c => { c.onclick = () => handTap(c.dataset.res); c.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handTap(c.dataset.res); } }; });
@@ -948,6 +958,11 @@ function drawActions() {
   if (st.phase === 'ended') { box.innerHTML = `<button class="act go" id="res">${icon('vp')}Results</button><button class="act" id="home">${icon('settlement')}New game</button>`; $('#res').onclick = openLeaderboard; $('#home').onclick = () => leaveToHome(); return; }
   if (st.phase === 'setup' || !mine) { box.innerHTML = ''; return; }
   if (st.subphase) { box.innerHTML = ''; return; }
+  if (currentMode() === 'heist') {   // choosing the settlement to steal
+    box.innerHTML = `<button class="act" id="b-cancel">${icon('heist')}Cancel the heist</button>`;
+    $('#b-cancel').onclick = () => { S.mode = null; S.pick = null; updateGame(); };
+    return;
+  }
   const m = S.mode;
   const btn = (id, label, ic, cost, enabled, pressed) => `<button class="act" id="${id}" ${enabled ? '' : 'disabled'} aria-pressed="${!!pressed}">${icon(ic)}${label}${cost ? costIcons(cost) : ''}</button>`;
   if (!st.rolled) {
@@ -958,10 +973,14 @@ function drawActions() {
     return;
   }
   // No build or trade buttons: every legal spot glows on the map once you can afford it, and tapping your cards opens trading.
+  // The Heist card: 3 cities (4 in games above 10 points), 1 wood, 1 brick, 1 hay, 2 sheep and 1 ore, once per game.
+  const cities = 4 - P.pieces.city, why = cities < st.heist.need ? `Needs ${st.heist.need} cities first (you have ${cities})` : !canAfford(COST.heist) ? 'Needs 1 wood, 1 brick, 1 hay, 2 sheep and 1 ore' : '';
+  const heistBtn = st.me.heistBought ? '' : `<button class="act ${why ? 'dim' : ''}" id="b-heist" title="${why || 'Buy the Heist card'}" aria-disabled="${!!why}">${icon('heist')}Heist${costIcons(COST.heist)}</button>`;
   box.innerHTML = btn('b-dev', 'Dev card', 'dev', COST.dev, canAfford(COST.dev) && st.devLeft > 0)
-    + `<button class="act go" id="b-end">${icon('vp')}End turn</button>`;
+    + heistBtn + `<button class="act go" id="b-end">${icon('vp')}End turn</button>`;
   $$('#actions .act .ic').forEach(i => { i.style.color = P.color; });
   $('#b-dev').onclick = async () => { const r = await act({ type: 'buyDev' }); if (r.ok && r.result) toast(`${icon(r.result.card)} You drew ${DEV[r.result.card].name}`, 'gain', true); };
+  if ($('#b-heist')) $('#b-heist').onclick = async () => { if (why) return toast(why, 'err'); const r = await act({ type: 'buyHeist' }); if (r.ok) toast(`${icon('heist')} You bought the Heist card. Play it next turn.`, 'gain', true); };
   $('#b-end').onclick = () => { S.mode = null; act({ type: 'endTurn' }); };
 }
 function diceIcon() { return `<svg class="ic" viewBox="0 0 32 32"><rect x="4" y="4" width="24" height="24" rx="5" fill="#fffdf6" stroke="#182730" stroke-width="2"/><circle cx="11" cy="11" r="2.4" fill="#182730"/><circle cx="16" cy="16" r="2.4" fill="#182730"/><circle cx="21" cy="21" r="2.4" fill="#182730"/></svg>`; }
@@ -1152,12 +1171,12 @@ function drawTrade() {
 }
 
 function openDev() {
-  const st = S.state, mine = myTurn() && st.phase === 'main' && !st.subphase;
+  const st = S.state, mine = myTurn() && st.phase === 'main' && !st.subphase, P0 = st.players[me()];
   const groups = {};
   st.me.dev.forEach(d => { const g = groups[d.type] || (groups[d.type] = { ready: 0, fresh: 0 }); d.fresh ? g.fresh++ : g.ready++; });
   const rows = Object.keys(DEV).filter(k => groups[k]).map(k => {
-    const g = groups[k], playable = k !== 'vp' && mine && g.ready > 0 && !st.devPlayed;
-    const why = k === 'vp' ? 'Counts automatically' : !mine ? 'Play on your turn' : st.devPlayed ? 'One card per turn' : !g.ready ? 'Playable next turn' : '';
+    const g = groups[k], hasLoot = Object.values(st.buildings).some(b => b.p !== me() && b.type === 'settlement') && P0.pieces.settlement > 0, playable = k !== 'vp' && mine && g.ready > 0 && !st.devPlayed && (k !== 'heist' || hasLoot);
+    const why = k === 'vp' ? 'Counts automatically' : !mine ? 'Play on your turn' : st.devPlayed ? 'One card per turn' : !g.ready ? 'Playable next turn' : k === 'heist' && !hasLoot ? 'No settlement to steal' : '';
     return `<div class="devrow">${icon(k)}<div class="txt"><b>${DEV[k].name} × ${g.ready + g.fresh}</b><small>${DEV[k].text}</small></div>${playable ? `<button class="btn small primary" data-play="${k}">Play</button>` : `<small class="muted">${why}</small>`}</div>`;
   }).join('');
   openModal('dev', `<h3>Development cards</h3>${rows ? `<div class="devlist">${rows}</div>` : '<p>No development cards yet. Buy one for sheep, hay and ore.</p>'}<div class="foot"><button class="btn" id="dclose">Close</button></div>`, layer => {
@@ -1166,6 +1185,7 @@ function openDev() {
       const k = b.dataset.play;
       if (k === 'yearOfPlenty') return pickResources(2, 'Year of Plenty', 'Take any two resources from the bank.', res => act({ type: 'playDev', card: k, res }));
       if (k === 'monopoly') return pickResources(1, 'Monopoly', 'Every other player gives you all of this resource.', res => act({ type: 'playDev', card: k, res: res[0] }));
+      if (k === 'heist') { closeModal(); S.tw = null; S.pick = null; S.mode = 'heist'; return updateGame(); }   // then tap the settlement to steal
       const r = await act({ type: 'playDev', card: k }); if (r.ok) closeModal();
     });
   });
@@ -1194,10 +1214,12 @@ function openRules() {
       ${row('road', 'Road', COST.road, 'Extends your network.')}
       ${row('settlement', 'Settlement', COST.settlement, '1 point.')}
       ${row('city', 'City', COST.city, '2 points. Replaces a settlement and pays double.')}
-      ${row('dev', 'Development card', COST.dev, 'Drawn from a deck of 25.')}</div></section>
+      ${row('dev', 'Development card', COST.dev, 'Drawn from a deck of 25.')}
+      ${row('heist', 'Heist card', COST.heist, 'Once per player, after 3 cities (4 above 10 points).')}</div></section>
     <section><h4>Where pieces can go</h4><ul><li>A settlement needs a free corner at least two roads away from every other settlement and city, and it must touch one of your roads (except during setup). The open end of a single road is fine.</li><li>A road must connect to one of your own roads, settlements or cities. It can run on from the end of another road, but never through a corner holding another player's settlement or city. A road can't be placed on its own, away from your network.</li><li>If an opponent builds on a corner of your road, the road stays but the far side is drawn faded: it no longer links back to your towns and no longer counts as one chain for Longest Road. You can still build onward from its far end.</li></ul></section>
     <section><h4>Rolling a 7</h4><p>Nobody collects. Anyone holding more cards than the discard limit (7 by default) discards half, rounded down. Then the roller moves the robber to another tile, which blocks that tile, and steals one random card from a player next to it.</p></section>
     <section><h4>Development cards</h4><p>25 cards: 14 Knights, 5 Victory Points, 2 Road Building, 2 Year of Plenty, 2 Monopoly. You can play one per turn, but not on the turn you bought it. Knights move the robber; three played Knights earn Largest Army. Victory Point cards stay hidden until you win.</p></section>
+    <section><h4>Heist card</h4><p>Each player may buy one Heist card per game, but only once they have built 3 cities (4 cities in games played to more than 10 points). It counts as a development card, so you play it on a later turn and only one development card per turn. Playing it lets you steal any opponent's settlement (never a city). The settlement stays where it is and becomes yours, so they lose a point and you gain one, and it can cut or free a road.</p></section>
     <section><h4>Bonuses</h4><p>Longest Road: 5 or more connected roads, and you must beat the holder to take it. An opponent's settlement built in the middle can cut a road. Largest Army: 3 or more Knights played, and you must beat the holder.</p></section>
     <section><h4>Host options</h4><ul><li><b>Discard limit and amount:</b> how many cards you can hold safely, and whether you lose half or exactly 4.</li><li><b>Move timer:</b> 15, 30 or 60 seconds. If it runs out, the game plays that step for you. Setup placements get 60 seconds.</li><li><b>Friendly robber:</b> the robber can't go next to a player with 2 points or fewer.</li><li><b>Balanced dice:</b> rolls come from a shuffled deck, so totals stay close to the odds.</li></ul></section>
     <section><h4>Bots</h4><p>The host can fill empty seats with Easy, Medium or Hard bots, up to 4 players in total.</p></section>
@@ -1466,6 +1488,22 @@ function showFire(title, sub) {
   el.innerHTML = `<div class="fglow"></div>${flames}${embers}<div class="ftxt"><b>${esc(title)}</b><span>${esc(sub)}</span></div>`;
   document.body.append(el); setTimeout(() => el.remove(), 3800);
 }
+// A masked thief slides across the screen, a spotlight picks out the settlement, it shakes and turns into the
+// thief's colour with a burst of coins.
+function showHeist(e) {
+  const st = S.state, thief = st.players[e.p], victim = st.players[e.from], V = S.board.vertices[e.vertex];
+  Sound.play('heist');
+  const text = `${thief.name} stole a settlement from ${victim.name}!`;
+  if (reducedMotion()) return toast(`HEIST! ${esc(text)}`, 'err', true);
+  const pt = new DOMPoint(V.x * U, V.y * U).matrixTransform($('#board').getScreenCTM());
+  const el = document.createElement('div'); el.className = 'heistfx'; el.setAttribute('role', 'status');
+  el.style.setProperty('--sx', `${pt.x}px`); el.style.setProperty('--sy', `${pt.y}px`);
+  const coins = Array.from({ length: 18 }, (_, i) => { const a = i / 18 * Math.PI * 2 + (i % 2) * .25, d = 60 + (i * 37) % 70; return `<i class="coin" style="--dx:${(Math.cos(a) * d).toFixed(0)}px;--dy:${(Math.sin(a) * d - 25).toFixed(0)}px;--d:${((i % 6) * .04).toFixed(2)}s"></i>`; }).join('');
+  el.innerHTML = `<div class="hdark"></div><svg class="hmask" viewBox="0 0 32 32" aria-hidden="true"><use href="#ic-heist"/></svg>`
+    + `<div class="hpiece"><div class="hflash"></div><svg class="hold" viewBox="-24 -24 48 48">${houseSvg(victim.color, true)}</svg><svg class="hnew" viewBox="-24 -24 48 48">${houseSvg(thief.color, true)}</svg>${coins}</div>`
+    + `<div class="htxt"><b>HEIST!</b><span>${esc(text)}</span></div>`;
+  document.body.append(el); setTimeout(() => el.remove(), 4000);
+}
 function animateEvent(e) {
   if (e.type === 'reveal') {   // tiles uncovered from the fog, and the card each one pays
     const parts = e.tiles.map(id => S.board.tiles[id]).filter(t => t && t.number).map(t => `${icon(TERRAIN_RES[t.terrain])} ${t.number}`), got = e.res || [];
@@ -1480,6 +1518,7 @@ function animateEvent(e) {
     lost.forEach(([k, n]) => { for (let c = 0; c < Math.min(n, 4); c++) flyCard(anchorOf(e.p, k), $(`#players .bank .bk.${k}`) || $('#players .bank'), k, 700 + c * 180); });
     return;
   }
+  if (e.type === 'heist') return showHeist(e);
   const bank = k => $(`#players .bank .bk.${k}`) || $('#players .bank');
   const each = (cards, fn, after = 0) => Object.entries(cards).forEach(([k, n]) => { for (let c = 0; c < Math.min(n, 4); c++) fn(k, after + c * 180); });
   if (e.type === 'bank') {
@@ -1488,6 +1527,8 @@ function animateEvent(e) {
   } else if (e.type === 'trade') {
     each(e.give, (k, d) => flyCard(anchorOf(e.a, k), anchorOf(e.b, k), k, d));
     each(e.get, (k, d) => flyCard(anchorOf(e.b, k), anchorOf(e.a, k), k, d), 350);
+  } else if (e.type === 'heistbuy') {
+    each(COST.heist, (k, d) => flyCard(anchorOf(e.p, k), bank(k), k, d)); Sound.play('devbuy');
   } else if (e.type === 'yop' || e.type === 'start') e.res.forEach((k, c) => flyCard(bank(k), anchorOf(e.p, k), k, c * 320));
 }
 function soundReactions(prev, st) {

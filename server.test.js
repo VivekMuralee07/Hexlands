@@ -289,16 +289,17 @@ test('the host picks another map in the waiting room; fog is hidden over the wir
   try {
     await L.waitFor(s => s.phase === 'lobby'); await G.waitFor(s => s.phase === 'lobby');
     assert.equal(L.last('board').name, 'Classic Island');
-    const denied = await post('/api/action', { code, token: guest, action: { type: 'setMap', preset: 'greenforest' } });
+    const denied = await post('/api/action', { code, token: guest, action: { type: 'setMap', preset: 'gobletoffire' } });
     assert.equal(denied.status, 400); assert.match(denied.body.error, /Only the host/);
     assert.equal((await post('/api/action', { code, token: host, action: { type: 'setMap', preset: 'nowhere' } })).status, 400);
-    assert.equal((await post('/api/action', { code, token: host, action: { type: 'setMap', preset: 'greenforest' } })).status, 200);
-    await L.waitFor(s => s.mapName === 'Green Forest'); await G.waitFor(s => s.mapName === 'Green Forest');
+    assert.equal((await post('/api/action', { code, token: host, action: { type: 'setMap', preset: 'gobletoffire' } })).status, 200);
+    await L.waitFor(s => s.mapName === 'Goblet of Fire'); await G.waitFor(s => s.mapName === 'Goblet of Fire');
     for (const x of [L, G]) {
       const b = x.last('board'), fog = b.tiles.filter(t => t.terrain === 'fog');
-      assert.equal(b.key, 'greenforest'); assert.equal(b.tiles.length, 55); assert.equal(fog.length, 30);
+      assert.equal(b.key, 'gobletoffire'); assert.equal(b.tiles.length, 55); assert.equal(fog.length, 30);
       assert.ok(fog.every(t => t.number === null)); assert.equal(b.ports.length, 6);
     }
+    rooms.get(code).game.board.goblets = false; rooms.get(code).game.board.fogFreeStart = false;   // plain fog, so a setup settlement may touch it
     assert.equal((await post('/api/action', { code, token: host, action: { type: 'start' } })).status, 200);
     await L.waitFor(s => s.phase === 'setup'); await G.waitFor(s => s.phase === 'setup');
     const g = rooms.get(code).game, spot = g.validSettlements(g.turn, false).find(v => g.board.vertices[v].hexes.some(h => g.board.tiles[h].fog));

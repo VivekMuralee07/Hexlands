@@ -513,17 +513,20 @@ test('development card pile: totals, what has been played, and the view for ever
   assert.ok(v.players.every(p => p.devReveal === undefined && typeof p.devCount === 'number'), 'other players only show how many cards they hold, never which');
 });
 
-test('map categories: 15 countries and the misc maps (Classic Island, Green Forest, Goblet of Fire)', () => {
+// The fog rules without the goblets and without the fog-free start (those are tested separately).
+function plainFog(n, seed) { const g = mk(n, seed, 'gobletoffire'); g.board.goblets = false; g.board.fogFreeStart = false; g.act(0, { type: 'start' }); return g; }
+
+test('map categories: 15 countries and the misc maps (Classic Island and Goblet of Fire)', () => {
   const list = maps.presetList();
   assert.ok(list.every(m => ['countries', 'misc'].includes(m.category)));
   assert.equal(list.filter(m => m.category === 'countries').length, 15);
-  assert.deepEqual(list.filter(m => m.category === 'misc').map(m => m.key).sort(), ['classic', 'gobletoffire', 'greenforest']);
+  assert.deepEqual(list.filter(m => m.category === 'misc').map(m => m.key).sort(), ['classic', 'gobletoffire']);
 });
 
-test('Green Forest: lake island, 24 visible forest tiles, 30 fog tiles that never hide wood, six wood harbors in the lake', () => {
+test('Goblet of Fire layout: lake island, 24 visible forest tiles, 30 fog tiles that never hide wood, six wood harbors in the lake', () => {
   const dist = t => Math.max(Math.abs(t.q), Math.abs(t.r), Math.abs(t.q + t.r));
   for (let seed = 1; seed <= 12; seed++) {
-    const g = mk(2, seed, 'greenforest'), T = g.board.tiles, at = (q, r) => T.find(t => t.q === q && t.r === r);
+    const g = mk(2, seed, 'gobletoffire'), T = g.board.tiles, at = (q, r) => T.find(t => t.q === q && t.r === r);
     assert.equal(T.length, 55, 'a hexagon of radius 4 without the six lake tiles');
     assert.deepEqual([T[g.robber].terrain, T[g.robber].q, T[g.robber].r], ['desert', 0, 0], 'the robber starts on the island');
     for (const [q, r] of [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]]) assert.equal(at(q, r), undefined, 'water around the island');
@@ -543,9 +546,9 @@ test('Green Forest: lake island, 24 visible forest tiles, 30 fog tiles that neve
 });
 
 test('fog: hidden in the board view until a settlement or road touches it, then uncovered for everyone', () => {
-  const g = mk(3, 6, 'greenforest'); g.act(0, { type: 'start' });
+  const g = plainFog(3, 6);
   let bv = g.boardView();
-  assert.equal(bv.key, 'greenforest');
+  assert.equal(bv.key, 'gobletoffire');
   assert.equal(bv.tiles.filter(t => t.terrain === 'fog').length, 30);
   assert.ok(bv.tiles.filter(t => t.fog).every(t => t.terrain === 'fog' && t.number === null), 'neither terrain nor number leaks');
   // a settlement uncovers every fog tile around its corner
@@ -578,7 +581,7 @@ test('fog: hidden in the board view until a settlement or road touches it, then 
 });
 
 test('fog: nobody can put the robber on a tile hidden in the fog, and the desert island cannot be settled', () => {
-  const g = mk(3, 6, 'greenforest'); g.act(0, { type: 'start' }); finishSetup(g);
+  const g = plainFog(3, 6); finishSetup(g);
   const pi = g.turn; g.players.forEach(p => { p.res = empty(); });             // uncovered tiles pay cards, so start the 7 with empty hands (no discards)
   g.forcedDice = [[3, 4]]; g.act(pi, { type: 'roll' });
   assert.equal(g.subphase, 'robber');
@@ -590,7 +593,7 @@ test('fog: nobody can put the robber on a tile hidden in the fog, and the desert
 });
 
 test('fog: bots cannot see under the fog either (a corner next to fog scores the same whatever is hidden)', () => {
-  const g = mk(3, 11, 'greenforest'); g.act(0, { type: 'start' });
+  const g = plainFog(3, 11);
   const v = g.board.vertices.find(x => x.hexes.some(h => g.board.tiles[h].fog) && x.hexes.some(h => !g.board.tiles[h].fog && g.board.tiles[h].terrain !== 'desert'));
   const before = bots.vertexScore(g, 0, v.id, 'hard');
   g.board.tiles.filter(t => t.fog).forEach(t => { t.terrain = 'mountains'; t.number = 6; });
@@ -599,18 +602,18 @@ test('fog: bots cannot see under the fog either (a corner next to fog scores the
 
 test('the host can change the map in the waiting room, and only there', () => {
   const g = mk(2, 3), v0 = g.boardVersion;
-  g.setMap(maps.generatePreset('greenforest', 4));
-  assert.equal(g.board.key, 'greenforest'); assert.ok(g.boardVersion > v0);
+  g.setMap(maps.generatePreset('gobletoffire', 4));
+  assert.equal(g.board.key, 'gobletoffire'); assert.ok(g.boardVersion > v0);
   assert.equal(g.board.tiles.length, 55); assert.equal(g.revealed.size, 0); assert.equal(g.bank.wood, 55);
   assert.deepEqual(g.devTotal, { knight: 28, vp: 10, roadBuilding: 4, yearOfPlenty: 4, monopoly: 4 }, 'a big map gets the bigger deck');
   g.setMap(maps.generatePreset('classic', 4));
   assert.equal(g.board.tiles.length, 19); assert.equal(g.bank.wood, 19);
   g.act(0, { type: 'start' });
-  assert.throws(() => g.setMap(maps.generatePreset('greenforest', 1)), /cannot change/);
+  assert.throws(() => g.setMap(maps.generatePreset('gobletoffire', 1)), /cannot change/);
 });
 
 test('fog: tiles pay one card when uncovered, and the second setup round does not pay them twice', () => {
-  const g = mk(2, 8, 'greenforest'); g.act(0, { type: 'start' });
+  const g = plainFog(2, 8);
   const sum = p => Object.values(g.players[p].res).reduce((a, b) => a + b, 0);
   let checked = 0;
   while (g.phase === 'setup') {
@@ -626,7 +629,7 @@ test('fog: tiles pay one card when uncovered, and the second setup round does no
 });
 
 test('fog: an empty bank pays nothing, but the tile still opens', () => {
-  const g = mk(2, 6, 'greenforest'); g.act(0, { type: 'start' });
+  const g = plainFog(2, 6);
   const F = g.board.tiles.find(t => g.isHidden(t.id)), r = maps.PRODUCES[F.terrain];
   g.bank[r] = 0; const before = JSON.stringify(g.players[0].res);
   assert.deepEqual(g.revealTiles([F.id], 0), []);
@@ -635,7 +638,7 @@ test('fog: an empty bank pays nothing, but the tile still opens', () => {
 });
 
 test('fog: a road uncovers every fog tile at either tip, not only the two beside it', () => {
-  const g = mk(3, 6, 'greenforest'); g.act(0, { type: 'start' }); finishSetup(g);
+  const g = plainFog(3, 6); finishSetup(g);
   const cur = g.turn; g.forcedDice = [[1, 2]]; g.act(cur, { type: 'roll' });
   const { vertices, edges, tiles } = g.board;
   let pick = null;
@@ -664,7 +667,7 @@ test('fog: a road uncovers every fog tile at either tip, not only the two beside
 function goblet(n = 3, seed = 6) { const g = mk(n, seed, 'gobletoffire'); g.act(0, { type: 'start' }); return g; }
 const total = (g, k) => g.bank[k] + g.players.reduce((a, p) => a + p.res[k], 0);
 
-test('Goblet of Fire: Green Forest rules, and one goblet hides in the fog for every player', () => {
+test('Goblet of Fire: lake, fog and wood harbors, and one goblet hides in the fog for every player', () => {
   for (const n of [2, 3, 4]) for (const seed of [1, 2, 3]) {
     const g = mk(n, seed, 'gobletoffire');
     assert.ok(g.board.goblets && g.board.fogFreeStart && g.board.tiles.length === 55 && g.board.ports.length === 6 && g.board.ports.every(p => p.type === 'wood'));
@@ -722,4 +725,113 @@ test('Goblet of Fire: with nothing to burn the goblet still opens, and a normal 
   assert.deepEqual(g.players[cur].res, { wood: 0, brick: 3, sheep: 0, wheat: 0, ore: 2 });
   assert.deepEqual(g.events.filter(x => x.type === 'goblet').pop().lost, {});
   assert.ok(g.log.some(l => /found no wood, sheep or hay/.test(l.text || l)));
+});
+
+// ---- Heist card ----
+function heistGame(n = 3, seed = 6, preset = 'classic') { const g = mk(n, seed, preset); g.act(0, { type: 'start' }); finishSetup(g); const me = g.turn; g.forcedDice = [[1, 2]]; g.act(me, { type: 'roll' }); return g; }
+function addCities(g, pi, n) {      // pretend the player has built n more cities
+  for (let i = 0; i < n; i++) { const v = g.board.vertices.find(x => g.vertexFree(x.id) && g.board.tiles[x.hexes[0]].terrain !== 'desert'); g.buildings[v.id] = { p: pi, type: 'city' }; g.players[pi].pieces.city--; }
+}
+const HEIST = { wood: 1, brick: 1, sheep: 2, wheat: 1, ore: 1 };
+
+test('Heist card: 3 cities (4 above 10 points), the right cards, and only once per player', () => {
+  const g = heistGame(), me = g.turn, p = g.players[me];
+  assert.deepEqual(g.view(me).heist, { cost: HEIST, need: 3 });
+  p.res = { ...HEIST };
+  assert.throws(() => g.act(me, { type: 'buyHeist' }), /need 3 cities before you can buy a Heist card \(you have 0\)/);
+  addCities(g, me, 2); assert.throws(() => g.act(me, { type: 'buyHeist' }), /need 3 cities before you can buy a Heist card \(you have 2\)/);
+  addCities(g, me, 1);
+  p.res = { wood: 1, brick: 1, sheep: 1, wheat: 1, ore: 1 };                          // one sheep short
+  assert.throws(() => g.act(me, { type: 'buyHeist' }), /Not enough resources/);
+  p.res = { wood: 2, brick: 1, sheep: 3, wheat: 1, ore: 2 };
+  const bank = { ...g.bank }, deck = g.devDeck.length;
+  g.act(me, { type: 'buyHeist' });
+  assert.deepEqual(p.res, { wood: 1, brick: 0, sheep: 1, wheat: 0, ore: 1 }, 'pays 1 wood, 1 brick, 2 sheep, 1 hay and 1 ore');
+  for (const k of Object.keys(HEIST)) assert.equal(g.bank[k], bank[k] + HEIST[k], k + ' goes to the bank');
+  assert.equal(g.devDeck.length, deck, 'the Heist card is not drawn from the development deck');
+  assert.ok(p.heistBought && p.dev.some(d => d.type === 'heist') && g.view(me).me.heistBought === true && g.view((me + 1) % 3).me.heistBought === false);
+  assert.equal(g.events.filter(e => e.type === 'heistbuy').pop().p, me);
+  p.res = { wood: 5, brick: 5, sheep: 5, wheat: 5, ore: 5 };
+  assert.throws(() => g.act(me, { type: 'buyHeist' }), /only buy one Heist card/);
+  // a game to more than 10 points needs all 4 cities
+  const h = heistGame(3, 7); h.vpTarget = 12; const hm = h.turn; h.players[hm].res = { wood: 2, brick: 2, sheep: 4, wheat: 2, ore: 2 };
+  addCities(h, hm, 3); assert.equal(h.view(hm).heist.need, 4);
+  assert.throws(() => h.act(hm, { type: 'buyHeist' }), /need 4 cities before you can buy a Heist card \(you have 3\)/);
+  addCities(h, hm, 1); h.act(hm, { type: 'buyHeist' }); assert.ok(h.players[hm].heistBought);
+});
+
+test('Heist card: playing it steals an opponent settlement and the card is used up', () => {
+  const g = heistGame(3, 8), me = g.turn, other = (me + 1) % 3, third = (me + 2) % 3;
+  g.players[me].dev.push({ type: 'heist', turn: g.turnNumber });
+  const mine = Object.keys(g.buildings).find(v => g.buildings[v].p === me), theirs = Object.keys(g.buildings).filter(v => g.buildings[v].p === other && g.buildings[v].type === 'settlement').map(Number);
+  assert.throws(() => g.act(me, { type: 'playDev', card: 'heist', vertex: theirs[0] }), /next turn/, 'like every development card');
+  g.players[me].dev[0].turn = g.turnNumber - 1;
+  assert.throws(() => g.act(me, { type: 'playDev', card: 'heist', vertex: +mine }), /opponent's settlement/, 'not your own');
+  const free = g.board.vertices.find(v => !g.buildings[v.id]).id; assert.throws(() => g.act(me, { type: 'playDev', card: 'heist', vertex: free }), /opponent's settlement/, 'not an empty corner');
+  const city = g.board.vertices.find(x => g.vertexFree(x.id)).id; g.buildings[city] = { p: third, type: 'city' };
+  assert.throws(() => g.act(me, { type: 'playDev', card: 'heist', vertex: city }), /opponent's settlement/, 'cities are safe');
+  g.players[me].pieces.settlement = 0; assert.throws(() => g.act(me, { type: 'playDev', card: 'heist', vertex: theirs[0] }), /no settlements left/); g.players[me].pieces.settlement = 3;
+  const vpBefore = [me, other].map(i => g.vp(i, false)), pieces = [g.players[me].pieces.settlement, g.players[other].pieces.settlement], target = theirs[0];
+  g.act(me, { type: 'playDev', card: 'heist', vertex: target });
+  assert.deepEqual([g.buildings[target].p, g.buildings[target].type, g.buildings[target].stolen], [me, 'settlement', true]);
+  assert.deepEqual([g.players[me].pieces.settlement, g.players[other].pieces.settlement], [pieces[0] - 1, pieces[1] + 1], 'the supply moves with the settlement');
+  assert.deepEqual([me, other].map(i => g.vp(i, false)), [vpBefore[0] + 1, vpBefore[1] - 1], 'one point changes hands');
+  assert.ok(g.devPlayed && !g.players[me].dev.some(d => d.type === 'heist') && g.devPlayedCount.heist === 1);
+  const ev = g.events.filter(e => e.type === 'heist').pop();
+  assert.deepEqual([ev.p, ev.from, ev.vertex], [me, other, target]);
+  assert.ok(g.log.some(l => /played Heist and stole a settlement from/.test(l.text || l)));
+  assert.deepEqual(g.checkInvariants().filter(x => /next to each other/.test(x)), [], 'the settlement stays where it was, so the distance rule still holds');
+});
+
+test('Heist card: a stolen settlement can cut the victim\'s longest road, and winning by heist works', () => {
+  const g = heistGame(3, 9), me = g.turn, victim = (me + 1) % 3, { vertices, edges } = g.board;
+  g.buildings = {}; g.roads = {}; g.players.forEach(p => { p.pieces = { road: 15, settlement: 5, city: 4 }; });
+  let path = null;
+  const dfs = (v, acc, seen) => { if (acc.length === 5) return acc; for (const e of vertices[v].edges) { const o = edges[e].v[0] === v ? edges[e].v[1] : edges[e].v[0]; if (seen.has(o)) continue; seen.add(o); const r = dfs(o, [...acc, { e, from: v }], seen); if (r) return r; seen.delete(o); } return null; };
+  for (const s of vertices) { path = dfs(s.id, [], new Set([s.id])); if (path) break; }
+  path.forEach(x => { g.roads[x.e] = victim; g.players[victim].pieces.road--; });
+  const middle = path[2].from; g.buildings[middle] = { p: victim, type: 'settlement' }; g.players[victim].pieces.settlement--;
+  g.updateLongestRoad(); assert.equal(g.longestRoad && g.longestRoad.p, victim, 'five roads in a row earn Longest Road');
+  g.players[me].dev.push({ type: 'heist', turn: g.turnNumber - 1 });
+  g.act(me, { type: 'playDev', card: 'heist', vertex: middle });
+  assert.equal(g.longestRoad, null, 'the stolen settlement now blocks the chain');
+  assert.ok(g.roadLength(victim) < 5);
+  assert.deepEqual(g.checkInvariants(), [], 'a stolen settlement is allowed to touch none of its owner\'s roads');
+  // winning: 9 points (4 cities and a settlement) plus the stolen settlement make 10
+  const h = heistGame(3, 10), hm = h.turn, hv = (hm + 1) % 3; h.buildings = {}; h.roads = {}; h.longestRoad = null; h.largestArmy = null;
+  addCities(h, hm, 4);
+  const spots = h.board.vertices.filter(x => h.vertexFree(x.id) && h.board.tiles[x.hexes[0]].terrain !== 'desert').map(x => x.id);
+  h.buildings[spots[0]] = { p: hm, type: 'settlement' }; h.buildings[spots[spots.length - 1]] = { p: hv, type: 'settlement' };
+  assert.equal(h.vp(hm, false), 9);
+  h.players[hm].dev.push({ type: 'heist', turn: h.turnNumber - 1 });
+  h.act(hm, { type: 'playDev', card: 'heist', vertex: spots[spots.length - 1] });
+  assert.equal(h.phase, 'ended'); assert.equal(h.winner, hm);
+});
+
+test('Heist card: medium and hard bots buy it once they have the cities and the cards, then play it on a settlement; easy bots never do', () => {
+  for (const level of ['medium', 'hard']) {
+    const g = heistGame(3, 12), me = g.turn; g.players[me].bot = level;
+    g.players[me].res = { ...HEIST };
+    assert.notDeepEqual(bots.decide(g, me, level), { type: 'buyHeist' }, 'not without the cities');
+    addCities(g, me, 3);
+    assert.deepEqual(bots.decide(g, me, level), { type: 'buyHeist' }, level + ' buys it');
+    assert.notDeepEqual(bots.decide(g, me, 'easy'), { type: 'buyHeist' });
+    g.act(me, { type: 'buyHeist' });
+    g.players[me].res = { ...HEIST }; assert.notDeepEqual(bots.decide(g, me, level), { type: 'buyHeist' }, 'only once');
+    g.players[me].res = { wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 0 };
+    g.players[me].dev.find(d => d.type === 'heist').turn = g.turnNumber - 1;
+    const a = bots.decide(g, me, level);
+    assert.deepEqual([a.type, a.card], ['playDev', 'heist']);
+    assert.ok(g.buildings[a.vertex].p !== me && g.buildings[a.vertex].type === 'settlement', 'it picks an opponent settlement');
+    g.act(me, a); assert.equal(g.buildings[a.vertex].p, me);
+  }
+});
+
+test('Heist card: full bot games on several maps stay legal with the new card in play', () => {
+  for (const key of ['classic', 'india', 'gobletoffire']) {
+    const g = mk(1, key.length * 5, key); ['hard', 'medium', 'hard'].forEach(l => g.act(0, { type: 'addBot', level: l })); g.players[0].bot = 'medium'; g.act(0, { type: 'start' });
+    let steps = 0;
+    while (g.phase !== 'ended' && steps++ < 40000) { const n = bots.nextActor(g); try { g.act(n.pi, bots.decide(g, n.pi)); } catch (e) { assert.ok(bots.rescue(g, n.pi)); } if (steps % 3 === 0) assert.deepEqual(g.checkInvariants(), [], key); }
+    assert.equal(g.phase, 'ended');
+  }
 });
