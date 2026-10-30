@@ -7,8 +7,8 @@ const U = 60;
 const RES = ['wood', 'brick', 'sheep', 'wheat', 'ore'];
 const RES_LABEL = { wood: 'Wood', brick: 'Brick', sheep: 'Sheep', wheat: 'Hay', ore: 'Ore' };
 const TERRAINS = ['forest', 'hills', 'pasture', 'fields', 'mountains', 'desert'];
-const TERRAIN_LABEL = { forest: 'Forest', hills: 'Hills', pasture: 'Pasture', fields: 'Fields', mountains: 'Mountains', desert: 'Desert', sea: 'Sea', fog: 'Hidden' };
-const TERRAIN_RES = { forest: 'wood', hills: 'brick', pasture: 'sheep', fields: 'wheat', mountains: 'ore', desert: null, fog: null };
+const TERRAIN_LABEL = { forest: 'Forest', hills: 'Hills', pasture: 'Pasture', fields: 'Fields', mountains: 'Mountains', desert: 'Desert', sea: 'Sea', fog: 'Hidden', goblet: 'Goblet of Fire' };
+const TERRAIN_RES = { forest: 'wood', hills: 'brick', pasture: 'sheep', fields: 'wheat', mountains: 'ore', desert: null, fog: null, goblet: null };
 const COST = { road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 }, city: { wheat: 2, ore: 3 }, dev: { sheep: 1, wheat: 1, ore: 1 } };
 const DEV = {
   knight: { name: 'Knight', text: 'Move the robber and steal a card. Three knights earn Largest Army.' },
@@ -102,7 +102,7 @@ function bounds(b, pad = 70) {
   (b.ports || []).forEach(p => { add(p.x * U, p.y * U, 34); add(p.x * U, p.y * U - 44, 5); });   // the ship and its pennants   // plate, plus the boat above it
   return { x: x0 - pad, y: y0 - pad, w: x1 - x0 + 2 * pad, h: y1 - y0 + 2 * pad };
 }
-const SIDE = { forest: '#0e6527', hills: '#9a431d', pasture: '#637a07', fields: '#a57e18', mountains: '#6f7370', desert: '#89845a' };
+const SIDE = { goblet: '#0d141c', forest: '#0e6527', hills: '#9a431d', pasture: '#637a07', fields: '#a57e18', mountains: '#6f7370', desert: '#89845a' };
 function shade(hex, f) {
   const n = parseInt(hex.slice(1), 16);
   const ch = [n >> 16, (n >> 8) & 255, n & 255].map(c => Math.max(0, Math.min(255, Math.round(f < 0 ? c * (1 + f) : c + (255 - c) * f))));
@@ -623,6 +623,9 @@ function canAfford(cost) { const r = S.state.me.res; return RES.every(k => (r[k]
 function canSettle(pi, v, needRoad) {
   const st = S.state, V = S.board.vertices[v];
   if (st.buildings[v] || V.adj.some(n => st.buildings[n])) return false;
+  const T = S.board.tiles;
+  if (!V.hexes.some(h => T[h].terrain !== 'desert')) return false;                                   // nothing grows next to only desert
+  if (!needRoad && S.board.fogFreeStart && V.hexes.some(h => T[h].fog)) return false;               // this map keeps the first two settlements out of the fog
   return !needRoad || V.edges.some(e => st.roads[e] === pi);
 }
 function canRoad(pi, e, anchor) {
@@ -1453,11 +1456,28 @@ function processEvents(prev, st) {
   for (const e of st.events || []) { if (e.seq <= base) continue; newest = Math.max(newest, e.seq); animateEvent(e); }
   S.evSeq = newest;
 }
+// Blue fire sweeping up the whole screen, with the news in the middle.
+function showFire(title, sub) {
+  if (reducedMotion()) return toast(`${esc(title)} ${esc(sub)}`, 'err', true);
+  const el = document.createElement('div'); el.className = 'firefx'; el.setAttribute('role', 'status');
+  let flames = '', embers = '';
+  for (let i = 0; i < 14; i++) flames += `<span class="fl" style="--x:${((i + .5) / 14 * 100).toFixed(1)}%;--d:${((i * 97) % 7 / 10).toFixed(1)}s;--w:${15 + (i * 53) % 9}vw;--r:${((i * 29) % 13) - 6}deg;--h:${58 + (i * 41) % 22}vh"></span>`;
+  for (let i = 0; i < 26; i++) embers += `<i class="em" style="--x:${((i * 37) % 100)}%;--d:${((i * 71) % 14 / 10).toFixed(1)}s;--dx:${((i * 13) % 9) - 4}vw"></i>`;
+  el.innerHTML = `<div class="fglow"></div>${flames}${embers}<div class="ftxt"><b>${esc(title)}</b><span>${esc(sub)}</span></div>`;
+  document.body.append(el); setTimeout(() => el.remove(), 3800);
+}
 function animateEvent(e) {
   if (e.type === 'reveal') {   // tiles uncovered from the fog, and the card each one pays
     const parts = e.tiles.map(id => S.board.tiles[id]).filter(t => t && t.number).map(t => `${icon(TERRAIN_RES[t.terrain])} ${t.number}`), got = e.res || [];
     if (parts.length) toast(`${esc(S.state.players[e.p].name)} revealed ${parts.join(' ')}${got.length ? ` and got ${got.map(k => icon(k)).join(' ')}` : ''}`, '', true);
     got.forEach((k, c) => flyCard($(`#players .bank .bk.${k}`) || $('#players .bank'), anchorOf(e.p, k), k, c * 320));
+    return;
+  }
+  if (e.type === 'goblet') {   // the Goblet of Fire burns whoever unlocked it
+    const who = S.state.players[e.p].name, lost = Object.entries(e.lost || {}), list = lost.map(([k, n]) => `${n} ${RES_LABEL[k]}`).join(', ');
+    showFire('The Goblet of Fire!', list ? `${who} lost ${list}` : `${who} had nothing to burn`);
+    Sound.play('fire');
+    lost.forEach(([k, n]) => { for (let c = 0; c < Math.min(n, 4); c++) flyCard(anchorOf(e.p, k), $(`#players .bank .bk.${k}`) || $('#players .bank'), k, 700 + c * 180); });
     return;
   }
   const bank = k => $(`#players .bank .bk.${k}`) || $('#players .bank');

@@ -81,6 +81,7 @@
     card(t) { sweep(t, 700, 5200, 0.18, 3.0, 2); },                                                   // a card sliding
     gain(t) { sweep(t, 700, 5200, 0.18, 2.0, 2); [660, 880].forEach((f, i) => tone(sfxBus, 'sine', f, t + 0.12 + i * 0.06, 0.16, 0.003, 0.2)); },
     steal(t) { sweep(t, 900, 4200, 0.16, 0.9, 2); sweep(t + 0.1, 4200, 900, 0.16, 0.8, 2); },
+    fire(t) { sweep(t, 300, 2600, 0.8, 1.7, 0.8); noise(sfxBus, t + 0.05, 0.45, 1.1, 'highpass', 1800, 0.7); [0, 0.12, 0.26, 0.41, 0.6, 0.8].forEach((d, i) => noise(sfxBus, t + d, 0.5, 0.05, 'bandpass', 2400 + i * 500, 4)); tone(sfxBus, 'sawtooth', 82, t, 0.25, 0.05, 0.9, { to: 55, filter: 300 }); },   // a whoosh and crackle
     devbuy(t) { noise(sfxBus, t, 0.7, 0.05, 'bandpass', 3500, 1); noise(sfxBus, t + 0.07, 0.55, 0.05, 'bandpass', 2500, 1); tone(sfxBus, 'sine', 500, t + 0.1, 0.12, 0.01, 0.16, { to: 900 }); },
     turn(t) { bell(t, 784); bell(t + 0.17, 1046.5); },                                                 // soft two-note bell
     robber(t) { tone(sfxBus, 'sine', 90, t, 1.0, 0.005, 0.35, { to: 45 }); tone(sfxBus, 'sawtooth', 70, t + 0.12, 0.2, 0.02, 0.5, { to: 50, filter: 300 }); noise(sfxBus, t, 0.2, 0.12, 'lowpass', 400); },

@@ -513,11 +513,11 @@ test('development card pile: totals, what has been played, and the view for ever
   assert.ok(v.players.every(p => p.devReveal === undefined && typeof p.devCount === 'number'), 'other players only show how many cards they hold, never which');
 });
 
-test('map categories: 15 countries and the misc maps (Classic Island and Green Forest)', () => {
+test('map categories: 15 countries and the misc maps (Classic Island, Green Forest, Goblet of Fire)', () => {
   const list = maps.presetList();
   assert.ok(list.every(m => ['countries', 'misc'].includes(m.category)));
   assert.equal(list.filter(m => m.category === 'countries').length, 15);
-  assert.deepEqual(list.filter(m => m.category === 'misc').map(m => m.key).sort(), ['classic', 'greenforest']);
+  assert.deepEqual(list.filter(m => m.category === 'misc').map(m => m.key).sort(), ['classic', 'gobletoffire', 'greenforest']);
 });
 
 test('Green Forest: lake island, 24 visible forest tiles, 30 fog tiles that never hide wood, six wood harbors in the lake', () => {
@@ -658,4 +658,68 @@ test('fog: a road uncovers every fog tile at either tip, not only the two beside
   const pays = {}; [...g.revealed].filter(id => !known.has(id)).forEach(id => { const r = maps.PRODUCES[g.board.tiles[id].terrain]; pays[r] = (pays[r] || 0) + 1; });
   assert.deepEqual(Object.fromEntries(Object.entries(g.players[cur].res).filter(([, n]) => n)), pays, 'and paid the builder its resource');
   assert.ok(pays[maps.PRODUCES[F.terrain]] >= 1);
+});
+
+// ---- Goblet of Fire ----
+function goblet(n = 3, seed = 6) { const g = mk(n, seed, 'gobletoffire'); g.act(0, { type: 'start' }); return g; }
+const total = (g, k) => g.bank[k] + g.players.reduce((a, p) => a + p.res[k], 0);
+
+test('Goblet of Fire: Green Forest rules, and one goblet hides in the fog for every player', () => {
+  for (const n of [2, 3, 4]) for (const seed of [1, 2, 3]) {
+    const g = mk(n, seed, 'gobletoffire');
+    assert.ok(g.board.goblets && g.board.fogFreeStart && g.board.tiles.length === 55 && g.board.ports.length === 6 && g.board.ports.every(p => p.type === 'wood'));
+    assert.equal(g.board.tiles.filter(t => t.terrain === 'goblet').length, 0, 'nothing is placed before the game starts, the number of players is not known yet');
+    g.act(0, { type: 'start' });
+    const G = g.board.tiles.filter(t => t.terrain === 'goblet'), bv = g.boardView();
+    assert.equal(G.length, n, n + ' players, ' + n + ' goblets');
+    assert.ok(G.every(t => t.fog && t.number === null), 'goblets are fog tiles without a number');
+    assert.ok(G.every(t => bv.tiles[t.id].terrain === 'fog' && bv.tiles[t.id].number === null), 'and nobody can see which fog tile it is');
+    const rest = g.board.tiles.filter(t => t.fog && t.terrain !== 'goblet');
+    assert.equal(rest.length, 30 - n); assert.ok(rest.every(t => ['hills', 'pasture', 'fields', 'mountains'].includes(t.terrain) && t.number >= 2));
+  }
+  const spots = new Set(); for (let seed = 1; seed <= 12; seed++) { const g = goblet(3, seed); g.board.tiles.filter(t => t.terrain === 'goblet').forEach(t => spots.add(t.id)); }
+  assert.ok(spots.size > 6, 'the goblets are placed at random');
+});
+
+test('Goblet of Fire: the first two settlements cannot touch the fog', () => {
+  const g = goblet(3, 4), touchesFog = v => g.board.vertices[v].hexes.some(h => g.board.tiles[h].fog);
+  const ok = g.validSettlements(g.turn, false);
+  assert.ok(ok.length > 20 && ok.every(v => !touchesFog(v)), 'no glowing corner touches the fog');
+  const bad = g.board.vertices.find(v => touchesFog(v.id) && g.vertexFree(v.id));
+  assert.throws(() => g.act(g.turn, { type: 'settle', vertex: bad.id }), /cannot touch the fog/);
+  finishSetup(g);                                                                     // everyone can still place two settlements
+  assert.equal(g.phase, 'main');
+  assert.ok(g.board.vertices.every(v => !g.buildings[v.id] || !touchesFog(v.id)), 'none of the starting settlements touch the fog');
+  assert.ok(g.canSettle(g.turn, bad.id, false), 'the rule only applies to the first two settlements');
+});
+
+test('Goblet of Fire: unlocking one burns every wood, sheep and hay card, and nothing else', () => {
+  const g = goblet(3, 5); finishSetup(g);
+  const cur = g.turn, other = (cur + 1) % 3; g.forcedDice = [[1, 2]]; g.act(cur, { type: 'roll' });
+  const G = g.board.tiles.find(t => t.terrain === 'goblet'), { edges, vertices } = g.board;
+  const e = edges.find(x => g.roadReach(x.id).includes(G.id) && g.roads[x.id] === undefined && !g.buildings[x.v[0]] && !g.buildings[x.v[1]]);
+  assert.ok(e, 'found a road that reaches the goblet');
+  g.buildings[e.v[0]] = { p: cur, type: 'settlement' };                               // pretend a settlement is already here
+  g.players[cur].res = { wood: 3, brick: 2, sheep: 2, wheat: 4, ore: 1 }; g.players[other].res = { wood: 5, brick: 0, sheep: 5, wheat: 5, ore: 0 };
+  const before = Object.fromEntries(['wood', 'brick', 'sheep', 'wheat', 'ore'].map(k => [k, total(g, k)])), otherBefore = { ...g.players[other].res }, known = new Set(g.revealed);
+  g.act(cur, { type: 'road', edge: e.id });
+  assert.ok(g.revealed.has(G.id) && g.boardView().tiles[G.id].terrain === 'goblet' && g.boardView().tiles[G.id].number === null, 'the goblet is shown to everyone');
+  const pays = {}; [...g.revealed].filter(id => !known.has(id)).forEach(id => { const r = maps.PRODUCES[g.board.tiles[id].terrain]; if (r) pays[r] = (pays[r] || 0) + 1; });
+  const want = { wood: 0, brick: 1, sheep: 0, wheat: 0, ore: 1 }; for (const [k, n] of Object.entries(pays)) want[k] += n;     // the road costs 1 wood and 1 brick; other uncovered tiles pay after the burn
+  assert.deepEqual(g.players[cur].res, want, 'wood, sheep and hay are gone; brick and ore are kept');
+  assert.deepEqual(g.players[other].res, otherBefore, 'nobody else is touched');
+  for (const k of Object.keys(before)) assert.equal(total(g, k), before[k], k + ' cards only moved to the bank');
+  const ev = g.events.filter(x => x.type === 'goblet').pop();
+  assert.deepEqual([ev.p, ev.tiles, ev.lost], [cur, [G.id], { wood: 2, sheep: 2, wheat: 4 }], 'the event drives the fire animation');
+  assert.ok(g.log.some(l => /flames burned/.test(l.text || l)) && g.log.some(l => /Goblet of Fire/.test(l.text || l)));
+});
+
+test('Goblet of Fire: with nothing to burn the goblet still opens, and a normal tile pays nothing from a goblet', () => {
+  const g = goblet(2, 7); finishSetup(g);
+  const cur = g.turn, G = g.board.tiles.find(t => t.terrain === 'goblet'); g.players[cur].res = { wood: 0, brick: 3, sheep: 0, wheat: 0, ore: 2 };
+  const known = new Set(g.revealed); const got = g.revealTiles([G.id], cur);
+  assert.ok(g.revealed.has(G.id) && !known.has(G.id)); assert.deepEqual(got, [], 'a goblet pays no card');
+  assert.deepEqual(g.players[cur].res, { wood: 0, brick: 3, sheep: 0, wheat: 0, ore: 2 });
+  assert.deepEqual(g.events.filter(x => x.type === 'goblet').pop().lost, {});
+  assert.ok(g.log.some(l => /found no wood, sheep or hay/.test(l.text || l)));
 });

@@ -153,24 +153,33 @@ PRESETS.classic.category = 'misc';
 // water, the next two rings are forest, and everything else is fog. Fog hides a random resource that is
 // never wood, and is revealed when a road or settlement touches it. Every harbor sits in the lake and is 2:1 wood.
 const LAKE = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
+function forestLake(rng, name, extra = {}) {
+  const tiles = [];
+  for (let q = -4; q <= 4; q++) for (let r = -4; r <= 4; r++) {
+    const s = -q - r, d = Math.max(Math.abs(q), Math.abs(r), Math.abs(s));
+    if (d > 4 || d === 1) continue;                                   // ring 1 is the lake: no tile there
+    const corner = d === 3 && (q === 0 || r === 0 || s === 0);       // the six corners of ring 3 are fog
+    const fog = d === 4 || corner;
+    tiles.push({ q, r, terrain: d === 0 ? 'desert' : 'forest', number: null, fog });
+  }
+  const hidden = tiles.filter(t => t.fog), others = ['hills', 'pasture', 'fields', 'mountains'];
+  const bag = hidden.map((_, i) => others[i % others.length]);        // an even spread, never wood
+  shuffle(bag, rng); hidden.forEach((t, i) => { t.terrain = bag[i]; });
+  assignNumbers(tiles, rng);
+  return { name, tiles, lake: LAKE.map(([q, r]) => ({ q, r })), portType: 'wood', ...extra };
+}
 PRESETS.greenforest = {
   name: 'Green Forest', category: 'misc',
   blurb: 'A forest around a lake island, with wood harbors. Fog hides every other resource.',
-  generate(rng) {
-    const tiles = [];
-    for (let q = -4; q <= 4; q++) for (let r = -4; r <= 4; r++) {
-      const s = -q - r, d = Math.max(Math.abs(q), Math.abs(r), Math.abs(s));
-      if (d > 4 || d === 1) continue;                                   // ring 1 is the lake: no tile there
-      const corner = d === 3 && (q === 0 || r === 0 || s === 0);       // the six corners of ring 3 are fog
-      const fog = d === 4 || corner;
-      tiles.push({ q, r, terrain: d === 0 ? 'desert' : 'forest', number: null, fog });
-    }
-    const hidden = tiles.filter(t => t.fog), others = ['hills', 'pasture', 'fields', 'mountains'];
-    const bag = hidden.map((_, i) => others[i % others.length]);        // an even spread, never wood
-    shuffle(bag, rng); hidden.forEach((t, i) => { t.terrain = bag[i]; });
-    assignNumbers(tiles, rng);
-    return { name: 'Green Forest', tiles, lake: LAKE.map(([q, r]) => ({ q, r })), portType: 'wood' };
-  },
+  generate: rng => forestLake(rng, 'Green Forest'),
+};
+// Goblet of Fire: Green Forest, plus a goblet hidden in the fog for every player (the game places them when it
+// starts, because only then is the number of players known). Whoever unlocks one loses all their wood, sheep and
+// hay. The first two settlements are not allowed to touch the fog.
+PRESETS.gobletoffire = {
+  name: 'Goblet of Fire', category: 'misc',
+  blurb: 'Green Forest with a trap: one Goblet of Fire per player hides in the fog. Unlock one and you lose your wood, sheep and hay.',
+  generate: rng => forestLake(rng, 'Goblet of Fire', { goblets: true, fogFreeStart: true }),
 };
 
 function generatePreset(key, seed) {

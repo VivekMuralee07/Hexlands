@@ -114,6 +114,23 @@
     return `<g transform="${pos}"><g fill="${ink}" stroke="${ink}" stroke-width="3.4" stroke-linejoin="round">${SHAPES[k]}</g><g fill="${fill}">${SHAPES[k]}</g>${k === 'pasture' ? `<circle cx="-12.5" cy="-2" r="1.2" fill="${ink}"/>` : ''}</g>`;
   };
   Object.keys(t).forEach(k => { t[k] = `<rect x="-60" y="-60" width="120" height="120" fill="${PLAIN[k]}"/>${glyph(k)}`; });
+  // Goblet of Fire: a rough-hewn wooden cup on dark ground, with blue-white flames that flicker (see style.css).
+  t.goblet = '<defs><radialGradient id="g-gob" cx="50%" cy="46%" r="52%"><stop offset="0" stop-color="#5ec2ff" stop-opacity=".6"/><stop offset=".55" stop-color="#2a6fd8" stop-opacity=".24"/><stop offset="1" stop-color="#2a6fd8" stop-opacity="0"/></radialGradient></defs>'
+    + '<rect x="-60" y="-60" width="120" height="120" fill="#1b2430"/>'
+    + '<path d="M-52,22 l9,-6 l10,7 l-8,9Z M30,30 l12,-8 l9,9 l-12,6Z M-20,-50 l10,4 l-3,10 l-9,-5Z M38,-34 l9,3 l-2,9 l-9,-4Z M-44,-24 l8,-3 l5,8 l-9,3Z" fill="#26323f"/>'
+    + '<circle cx="0" cy="-4" r="56" fill="url(#g-gob)"/>'
+    + '<g transform="translate(0 6)"><ellipse cx="0" cy="40" rx="23" ry="6" fill="#120d07" opacity=".7"/>'
+    + '<path d="M-21,38 Q-12,29 -6,24 L6,24 Q12,29 21,38 Z" fill="#4a3826" stroke="#1e150c" stroke-width="2" stroke-linejoin="round"/>'
+    + '<rect x="-5.5" y="4" width="11" height="22" rx="3" fill="#5a4630" stroke="#1e150c" stroke-width="2"/>'
+    + '<path d="M-25,-14 L-20,2 Q-14,19 0,21 Q14,19 20,2 L25,-14 Z" fill="#5d4a33" stroke="#1e150c" stroke-width="2.4" stroke-linejoin="round"/>'
+    + '<path d="M-25,-14 L-17,-18 L-10,-13 L-3,-18 L4,-13 L11,-18 L18,-13 L25,-14 L23,-9 L-23,-9 Z" fill="#7e6542" stroke="#1e150c" stroke-width="2" stroke-linejoin="round"/>'
+    + '<path d="M-14,-3 Q-12,9 -6,15 M2,-5 Q4,7 8,13 M12,-7 Q14,3 16,9" stroke="#2c2012" stroke-width="1.7" fill="none" stroke-linecap="round"/>'
+    + '<path d="M-19,-6 Q-17,4 -13,10" stroke="#9a8057" stroke-width="1.5" fill="none" stroke-linecap="round" opacity=".7"/></g>'
+    + '<g transform="translate(0 -8) scale(.85) translate(0 8)">'
+    + '<g class="gf gf1"><path d="M-17,-8 C-26,-30 -10,-34 -14,-56 C-2,-46 2,-38 0,-30 C8,-40 12,-50 8,-60 C24,-44 28,-22 18,-8 Z" fill="#2f7bff"/></g>'
+    + '<g class="gf gf2"><path d="M-12,-8 C-18,-24 -6,-28 -8,-44 C0,-36 3,-30 2,-24 C9,-32 10,-40 7,-48 C18,-36 20,-20 13,-8 Z" fill="#79ccff"/></g>'
+    + '<g class="gf gf3"><path d="M-6,-8 C-9,-18 -2,-22 -3,-32 C2,-27 4,-22 3,-18 C7,-23 8,-28 6,-34 C11,-26 11,-16 7,-8 Z" fill="#effcff"/></g></g>'
+    + '<circle class="gsp gsp1" cx="-9" cy="-46" r="1.9" fill="#bfeaff"/><circle class="gsp gsp2" cx="11" cy="-50" r="1.6" fill="#bfeaff"/><circle class="gsp gsp3" cx="2" cy="-54" r="1.4" fill="#fff"/>';
   const symbols = Object.keys(t).map(k => `<symbol id="t-${k}" viewBox="-60 -60 120 120" overflow="visible">${t[k]}</symbol>`).join('');
 
   const icons = {

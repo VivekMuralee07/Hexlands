@@ -773,3 +773,35 @@ span.pcardx { cursor: default; }
 .map-col { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .map-list.pick { max-height: 48vh; overflow: auto; }
 .lb-maphead { gap: .5rem; align-items: center; }
+
+/* ===== Goblet of Fire ===== */
+.gf { transform-box: fill-box; transform-origin: 50% 100%; animation: gflick 1.1s ease-in-out infinite; }
+.gf2 { animation-duration: .8s; animation-delay: -.3s; } .gf3 { animation-duration: .6s; animation-delay: -.15s; }
+@keyframes gflick { 0%, 100% { transform: scale(1, 1) skewX(0deg); } 30% { transform: scale(.92, 1.12) skewX(3deg); } 60% { transform: scale(1.06, .93) skewX(-3deg); } }
+.gsp { animation: gspark 1.7s ease-out infinite; } .gsp2 { animation-delay: -.55s; } .gsp3 { animation-delay: -1.1s; }
+@keyframes gspark { 0% { transform: translateY(6px); opacity: 0; } 20% { opacity: 1; } 100% { transform: translateY(-16px); opacity: 0; } }
+.firefx { position: fixed; inset: 0; z-index: 95; pointer-events: none; overflow: hidden; animation: fireout 3.8s ease-out forwards; }
+@keyframes fireout { 0%, 78% { opacity: 1; } 100% { opacity: 0; } }
+.firefx .fglow { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 100%, rgba(130, 205, 255, .9) 0%, rgba(40, 110, 255, .5) 38%, rgba(10, 30, 90, 0) 74%); animation: fflash 3.6s ease-out forwards; }
+@keyframes fflash { 0% { opacity: 0; } 12% { opacity: 1; } 60% { opacity: .55; } 100% { opacity: 0; } }
+.firefx .fl { position: absolute; bottom: -14vh; left: var(--x); width: var(--w); height: 64vh; margin-left: calc(var(--w) / -2); opacity: 0; transform-origin: 50% 100%; mix-blend-mode: screen;
+  border-radius: 50% 50% 42% 42% / 78% 78% 22% 22%; filter: blur(5px);
+  background: radial-gradient(ellipse at 50% 86%, #fff 0%, #c4ecff 22%, #4aa3ff 52%, rgba(30, 90, 255, 0) 80%);
+  animation: frise 3.2s ease-out var(--d) forwards, fflick .35s ease-in-out var(--d) infinite alternate; }
+@keyframes frise { 0% { transform: translateY(32%) scale(.5, .3); opacity: 0; } 20% { opacity: .95; } 60% { transform: translateY(-4%) scale(1, 1); opacity: .9; } 100% { transform: translateY(-16%) scale(.9, 1.25); opacity: 0; } }
+@keyframes fflick { from { filter: blur(5px) brightness(1); } to { filter: blur(8px) brightness(1.3); } }
+.firefx .em { position: absolute; bottom: 0; left: var(--x); width: 6px; height: 6px; border-radius: 50%; background: #d8f2ff; box-shadow: 0 0 9px 3px #5ab4ff; opacity: 0; animation: fember 2.6s ease-out var(--d) forwards; }
+@keyframes fember { 0% { transform: translate(0, 0); opacity: 0; } 15% { opacity: 1; } 100% { transform: translate(var(--dx), -78vh); opacity: 0; } }
+.firefx .ftxt { position: absolute; left: 0; right: 0; top: 28%; text-align: center; color: #fff; padding: 0 1rem; text-shadow: 0 0 18px #4aa3ff, 0 0 42px #2a6fd8, 0 2px 0 #0a1c40; animation: ftxt 3.6s ease-out forwards; }
+.firefx .ftxt b { display: block; font-size: clamp(1.9rem, 8vw, 3.4rem); letter-spacing: .04em; }
+.firefx .ftxt span { display: block; margin-top: .45rem; font-size: clamp(1rem, 4.2vw, 1.55rem); font-weight: 700; }
+@keyframes ftxt { 0% { transform: scale(.7); opacity: 0; } 14% { transform: scale(1.06); opacity: 1; } 24% { transform: scale(1); } 84% { opacity: 1; } 100% { opacity: 0; } }
+
+/* the flames: pointed tongues with a bright core, rather than a soft glow */
+.firefx .fglow { background: radial-gradient(ellipse at 50% 100%, rgba(130, 205, 255, .7) 0%, rgba(40, 110, 255, .38) 34%, rgba(10, 30, 90, 0) 66%); }
+.firefx .fl { height: var(--h, 70vh); border-radius: 0; rotate: var(--r, 0deg); filter: blur(1.5px); mix-blend-mode: normal;
+  clip-path: polygon(50% 0%, 58% 14%, 70% 30%, 66% 38%, 82% 58%, 92% 78%, 80% 94%, 50% 100%, 20% 94%, 8% 78%, 18% 58%, 34% 38%, 30% 30%, 42% 14%);
+  background: linear-gradient(0deg, #8fd4ff 0%, #4a9dff 38%, #2a62f0 72%, rgba(30, 70, 230, .55) 100%); }
+.firefx .fl::after { content: ''; position: absolute; left: 24%; right: 24%; bottom: 0; height: 64%;
+  clip-path: polygon(50% 0%, 60% 20%, 76% 46%, 86% 74%, 72% 96%, 50% 100%, 28% 96%, 14% 74%, 24% 46%, 40% 20%);
+  background: linear-gradient(0deg, #ffffff 0%, #e4f8ff 46%, rgba(170, 225, 255, .7) 100%); }

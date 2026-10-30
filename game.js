@@ -135,7 +135,7 @@ class Game {
   // Builds everything that depends on the map. Also used when the host picks another map in the waiting room.
   initBoard(map) {
     const geo = buildGeometry(map.tiles);
-    this.board = { name: map.name, key: map.key, ...geo };
+    this.board = { name: map.name, key: map.key, ...geo, goblets: !!map.goblets, fogFreeStart: !!map.fogFreeStart };
     this.board.ports = placePorts(geo, this.rng, map);
     const desert = geo.tiles.findIndex(t => t.terrain === 'desert');
     this.robber = desert >= 0 ? desert : 0;
@@ -161,17 +161,30 @@ class Game {
     const { vertices, edges } = this.board;
     return [...new Set(edges[e].v.flatMap(v => vertices[v].hexes))];
   }
+  // Goblet of Fire map: hide one goblet in the fog for every player. A goblet has no resource and no number.
+  placeGoblets(n) {
+    shuffle(this.board.tiles.filter(t => t.fog), this.rng).slice(0, n).forEach(t => { t.terrain = 'goblet'; t.number = null; });
+  }
   isHidden(id) { const t = this.board.tiles[id]; return !!(t && t.fog && !this.revealed.has(id)); }
   // A road or settlement next to a fog tile uncovers it for everyone, and the player who did it receives one card
   // of that tile's resource from the bank (if the bank has it).
   revealTiles(ids, pi, pay = true) {
     const fresh = ids.filter(id => this.isHidden(id)); if (!fresh.length) return [];
-    const NAME = { forest: 'Forest', hills: 'Hills', pasture: 'Pasture', fields: 'Fields', mountains: 'Mountains', desert: 'Desert' };
+    const NAME = { forest: 'Forest', hills: 'Hills', pasture: 'Pasture', fields: 'Fields', mountains: 'Mountains', desert: 'Desert', goblet: 'the Goblet of Fire' };
+    const label = id => { const t = this.board.tiles[id]; return t.number ? `${NAME[t.terrain]} ${t.number}` : NAME[t.terrain]; };
     fresh.forEach(id => this.revealed.add(id)); this.boardVersion++;
+    // A Goblet of Fire burns whoever unlocks it: every wood, sheep and hay card goes back to the bank.
+    const burning = fresh.filter(id => this.board.tiles[id].terrain === 'goblet'), lost = {};
+    if (burning.length) for (const k of ['wood', 'sheep', 'wheat']) { const n = this.players[pi].res[k]; if (n) { lost[k] = n; this.players[pi].res[k] = 0; this.bank[k] += n; } }
     const got = [];
     if (pay) fresh.forEach(id => { const r = PRODUCES[this.board.tiles[id].terrain]; if (r && this.giveFromBank(pi, r, 1)) got.push(r); });
     this.emit('reveal', { p: pi, tiles: fresh, res: got });
-    this.addLog(`${this.players[pi].name} revealed ${fresh.map(id => `${NAME[this.board.tiles[id].terrain]} ${this.board.tiles[id].number}`).join(', ')}` + (got.length ? ` and received ${got.map(r => LABEL[r]).join(', ')}.` : '.'));
+    this.addLog(`${this.players[pi].name} revealed ${fresh.map(label).join(', ')}` + (got.length ? ` and received ${got.map(r => LABEL[r]).join(', ')}.` : '.'));
+    if (burning.length) {
+      const list = Object.entries(lost).map(([k, n]) => `${n} ${LABEL[k]}`).join(', ');
+      this.emit('goblet', { p: pi, tiles: burning, lost });
+      this.addLog(list ? `The flames burned ${this.players[pi].name}'s ${list}.` : `The flames found no wood, sheep or hay in ${this.players[pi].name}'s hand.`);
+    }
     return got;
   }
 
@@ -415,6 +428,7 @@ class Game {
   canSettle(pi, v, needRoad) {
     if (!this.board.vertices[v] || !this.vertexFree(v)) return false;
     if (!this.board.vertices[v].hexes.some(h => this.board.tiles[h].terrain !== 'desert')) return false;   // nothing grows next to only desert
+    if (this.phase === 'setup' && this.board.fogFreeStart && this.board.vertices[v].hexes.some(h => this.board.tiles[h].fog)) return false;   // the first two settlements stay out of the fog
     if (!needRoad) return true;
     return this.board.vertices[v].edges.some(e => this.roads[e] === pi);
   }
@@ -537,6 +551,7 @@ class Game {
     shuffle(this.players, this.rng);
     this.assignColors();
     const n = this.players.length;
+    if (this.board.goblets) this.placeGoblets(n);
     const order = [...Array(n).keys(), ...[...Array(n).keys()].reverse()];
     this.setup = { order, step: 0, expect: 'settlement', last: null };
     this.phase = 'setup'; this.turn = order[0];
@@ -548,6 +563,7 @@ class Game {
     if (this.phase === 'setup') {
       this.mustBeTurn(pi);
       if (this.setup.expect !== 'settlement') fail('Place a road next to your settlement.');
+      if (this.board.fogFreeStart && this.board.vertices[v] && this.board.vertices[v].hexes.some(h => this.board.tiles[h].fog)) fail('On this map the first two settlements cannot touch the fog.');
       if (!this.canSettle(pi, v, false)) fail('Settlements must be at least two roads apart.');
       this.buildings[v] = { p: pi, type: 'settlement' }; this.revealTiles(this.board.vertices[v].hexes, pi, this.setup.step < this.players.length);
       this.players[pi].pieces.settlement--;
@@ -877,7 +893,7 @@ class Game {
   boardView() {
     const { tiles, vertices, edges, ports, name } = this.board;
     return {
-      name, key: this.board.key,
+      name, key: this.board.key, fogFreeStart: this.board.fogFreeStart,
       tiles: tiles.map(t => { const hid = this.isHidden(t.id); return { id: t.id, q: t.q, r: t.r, x: t.x, y: t.y, terrain: hid ? 'fog' : t.terrain, number: hid ? null : t.number, fog: !!t.fog, vertices: t.vertices }; }),
       vertices: vertices.map(v => ({ id: v.id, x: v.x, y: v.y, port: v.port, edges: v.edges, adj: v.adj, hexes: v.hexes })),
       edges: edges.map(e => ({ id: e.id, v: e.v })),
