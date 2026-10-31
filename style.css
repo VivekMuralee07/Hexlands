@@ -836,3 +836,28 @@ span.pcardx { cursor: default; }
 
 /* the two roads that come along with a stolen settlement */
 .pvroad { animation: pvpulse .85s ease-in-out infinite alternate; }
+
+/* ===== the "i" button and the info window ===== */
+.ibtn { width: 30px; height: 30px; flex: none; margin-left: auto; padding: 0; display: grid; place-items: center; border-radius: 50%; border: 2px solid #fff; background: #bfe3ff; color: #12365e; font: italic 800 1.08rem Georgia, serif; line-height: 1; cursor: pointer; }
+.ibtn:hover { background: #fff; }
+@media (max-width: 400px) { .ibtn { width: 26px; height: 26px; font-size: .95rem; } .players .bank .bk { padding: 2px 4px 2px 2px; font-size: .72rem; } }
+.costcol { display: grid; justify-items: end; gap: 2px; text-align: right; }
+.costcol small { font-size: .72rem; color: var(--foam-dim); }
+.ptsbadge { min-width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; border: 2px solid #fff; font-weight: 800; font-size: 1.25rem; color: #3a2a05; background: radial-gradient(circle at 35% 30%, #fff1a8, #f0b92a 60%, #b8860b); }
+.setlist { display: grid; }
+.setrow { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .6rem .2rem; border-bottom: 1px solid rgba(255, 255, 255, .12); }
+.setrow b { display: block; } .setrow small { display: block; color: var(--foam-dim); font-size: .78rem; margin-top: 1px; }
+.setrow .val { flex: none; text-align: right; font-weight: 800; color: #ffd23f; max-width: 45%; }
+.costline { display: flex; align-items: center; flex-wrap: wrap; gap: .1rem .5rem; margin-top: .3rem; }
+.costline small { margin: 0; font-size: .74rem; }
+/* a compact info window, so all five rows and the Close button fit on a small phone */
+.infowin h3 { margin: 0 0 .5rem; }
+.infowin .maptabs { margin-bottom: .45rem; }
+.infowin .maptab { padding: .4rem .5rem; }
+.infowin .devrow { padding: .35rem .5rem; gap: .6rem; }
+.infowin .devrow > .ic { width: 26px; height: 26px; }
+.infowin .devrow b { font-size: .95rem; } .infowin .devrow small { font-size: .78rem; }
+.infowin .costline .cost { gap: 1px; } .infowin .costline .cost .ic { width: 18px; height: 18px; }
+.infowin .ptsbadge { min-width: 32px; height: 32px; font-size: 1.1rem; }
+.infowin .setrow { padding: .45rem .2rem; }
+.infowin .foot { margin-top: .6rem; }

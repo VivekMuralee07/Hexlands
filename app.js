@@ -876,7 +876,7 @@ function drawDice(d, roll) {
 const ARC = '<svg class="ic" viewBox="0 0 32 32" aria-hidden="true"><path d="M4,24 Q16,0 28,24" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round"/></svg>';
 function drawPlayers() {
   const st = S.state, leader = Math.max(...st.players.map(p => p.vp));
-  const bank = `<div class="bank" title="Cards left in the bank, and development cards left in the pile">${RES.map(k => `<span class="bk ${k}" title="${RES_LABEL[k]} left in the bank">${icon(k)}<b>${st.bank[k]}</b></span>`).join('')}<button class="bk dev" data-pile title="Development cards left in the pile. Tap to see what is still unseen.">${icon('dev')}<b>${st.devLeft}</b></button></div>`;
+  const bank = `<div class="bank" title="Cards left in the bank, and development cards left in the pile">${RES.map(k => `<span class="bk ${k}" title="${RES_LABEL[k]} left in the bank">${icon(k)}<b>${st.bank[k]}</b></span>`).join('')}<button class="bk dev" data-pile title="Development cards left in the pile. Tap to see what is still unseen.">${icon('dev')}<b>${st.devLeft}</b></button><button class="ibtn" data-info title="Game info: costs, points and settings" aria-label="Game info">i</button></div>`;
   $('#players').innerHTML = bank + st.players.map((p, i) => {
     const turn = st.turn === i && st.phase !== 'ended';
     const crown = p.vp === leader && leader >= 3 ? `<span class="crown">${icon('monopoly')}</span>` : '';
@@ -904,6 +904,7 @@ function drawPlayers() {
   $('#players').style.setProperty('--np', st.players.length);
   $$('[data-skip]').forEach(b => b.onclick = () => act({ type: 'skip' }));
   $$('[data-pile]').forEach(b => b.onclick = openDevPile);
+  $$('[data-info]').forEach(b => b.onclick = () => openInfo());
 }
 
 function drawBanner() {
@@ -952,6 +953,25 @@ function handTap(k) {
   if (S.tw.get[k]) return toast('You are already asking for that.', 'err');
   if ((S.tw.give[k] || 0) < st.me.res[k]) S.tw.give[k] = (S.tw.give[k] || 0) + 1;
   updateGame();
+}
+// The "i" button: what things cost, what they are worth, and the settings of this game.
+const costWords = c => Object.entries(c).map(([k, n]) => `${n} ${RES_LABEL[k].toLowerCase()}`).join(', ');
+function openInfo(tab = 'costs') {
+  const st = S.state, o = st.opts, name = i => esc(st.players[i].name);
+  const tabs = [['costs', 'Costs'], ['points', 'Points'], ['settings', 'Settings']];
+  const row = (ic, title, note, right) => `<div class="devrow">${icon(ic)}<div class="txt"><b>${title}</b><small>${note}</small></div>${right}</div>`;
+  const crow = (ic, title, note, c) => `<div class="devrow">${icon(ic)}<div class="txt"><b>${title}</b><small>${note}</small><span class="costline">${costIcons(c)}<small>${costWords(c)}</small></span></div></div>`, pts = n => `<span class="ptsbadge" aria-label="${n} ${n === 1 ? 'point' : 'points'}">${n}</span>`;
+  const set = (label, note, val) => `<div class="setrow"><span><b>${label}</b><small>${note}</small></span><span class="val">${val}</span></div>`;
+  const lr = st.longestRoad, la = st.largestArmy;
+  const body = tab === 'costs'
+    ? `<div class="devlist">${crow('road', 'Road', 'Extends your network.', COST.road)}${crow('settlement', 'Settlement', 'Needs your own road beside it. 1 point.', COST.settlement)}${crow('city', 'City', 'Replaces a settlement. 2 points.', COST.city)}${crow('dev', 'Development card', 'Drawn from the pile.', COST.dev)}${crow('heist', 'Heist card', `Once per player, after ${st.heist.need} cities.`, COST.heist)}</div>`
+    : tab === 'points'
+      ? `<div class="devlist">${row('settlement', 'Settlement', 'Each one you keep.', pts(1))}${row('city', 'City', 'Replaces a settlement and pays double.', pts(2))}${row('road', 'Longest Road', `5 or more roads in a row, and you must beat the holder. ${lr ? `Held by ${name(lr.p)} (${lr.len} roads).` : 'Nobody has it yet.'}`, pts(2))}${row('knight', 'Largest Army', `3 or more Knights played, and you must beat the holder. ${la ? `Held by ${name(la.p)} (${la.size} Knights).` : 'Nobody has it yet.'}`, pts(2))}${row('vp', 'Victory Point card', 'Hidden until the game ends.', pts(1))}</div>`
+      : `<div class="setlist">${set('Points to win', 'The first player to reach this on their own turn wins.', `${st.vpTarget} points`)}${set('Discard limit', 'On a 7, anyone holding more cards than this must discard.', `${o.discardLimit} cards`)}${set('Cards discarded', 'How many they must give up.', o.discardMode === 'four' ? '4 cards' : 'Half the hand, rounded down')}${set('Move timer', 'Time for each step of a turn.', o.timer ? `${o.timer} seconds` : 'Off')}${set('Friendly robber', 'The robber stays off players with 2 points or fewer.', o.friendlyRobber ? 'On' : 'Off')}${set('Balanced dice', 'Dice come from a shuffled deck of 36 rolls.', o.balancedDice ? 'On' : 'Off')}</div>`;
+  openModal('info', `<div class="infowin"><h3>Game info</h3><div class="maptabs" role="tablist">${tabs.map(([k, l]) => `<button class="maptab" role="tab" data-itab="${k}" aria-selected="${tab === k}">${l}</button>`).join('')}</div>${body}<div class="foot"><button class="btn primary" id="iclose">Close</button></div></div>`, layer => {
+    $('#iclose').onclick = closeModal;
+    layer.querySelectorAll('[data-itab]').forEach(b => b.onclick = () => openInfo(b.dataset.itab));
+  });
 }
 function openDevPile() {
   const st = S.state, tot = st.devPile.total, played = st.devPile.played, mine = {};
