@@ -155,7 +155,7 @@ class Game {
   }
   setMap(map) {
     if (this.phase !== 'lobby') fail('The map cannot change after the game starts.');
-    this.initBoard(map); this.boardVersion++; this.version++;
+    this.initBoard(map); this.boardVersion++; this.version++; this.unreadyAll();
     this.addLog(`The host chose ${this.board.name}.`);
   }
   // Every tile a road touches: the two beside it, and the ones at either tip.
@@ -201,7 +201,8 @@ class Game {
     name = String(name || '').trim().slice(0, 16) || 'Player ' + (this.players.length + 1);
     if (this.players.some(p => p.name.toLowerCase() === name.toLowerCase())) fail('That name is taken in this room.');
     const p = { name, token, connected: false, res: emptyRes(), dev: [], knights: 0,
-      pieces: { road: 15, settlement: 5, city: 4 }, heistBought: false, colorId: null, color: null, colorName: null, bot: null, stats: newStats() };
+      pieces: { road: 15, settlement: 5, city: 4 }, heistBought: false, colorId: null, color: null, colorName: null, bot: null, stats: newStats(),
+      ready: false, idle: 0, takenOver: null, offlineSince: Date.now() };
     if (!this.players.length) this.hostToken = token;
     this.players.push(p);
     this.assignColors();
@@ -256,6 +257,51 @@ class Game {
     if (!p || !p.bot) fail('That seat is not a bot.');
     if (!BOT_LEVELS.includes(a.level)) fail('Pick easy, medium or hard.');
     p.bot = a.level;
+  }
+  // Ready-up for public rooms: a human taps Ready when they like the map and options. Changing either clears everyone's tick.
+  do_ready(pi, a) {
+    if (this.phase !== 'lobby') fail('The game has already started.');
+    const p = this.players[pi]; if (p.bot) fail('Bots are always ready.');
+    p.ready = !!a.value;
+  }
+  unreadyAll() { this.players.forEach(p => { p.ready = false; }); }
+  // The host fills every empty seat with bots (the "nobody else came" button in public rooms).
+  do_fillBots(pi, a) {
+    if (this.phase !== 'lobby') fail('Bots can only join before the game starts.');
+    if (!this.isHost(pi)) fail('Only the host can add bots.');
+    if (this.players.length >= MAX_PLAYERS) fail('All 4 seats are taken.');
+    const level = BOT_LEVELS.includes(a.level) ? a.level : 'medium';
+    while (this.players.length < MAX_PLAYERS) this.do_addBot(pi, { level });
+  }
+
+  // ----- leaving, dropping out, and bots standing in -----
+  // A bot plays for a human who left, lost the connection for a while, or let the move clock run out twice in a row.
+  // reason: 'left' (chose to leave), 'offline' (connection lost: control returns on reconnect), 'idle' (tap Take back control).
+  takeOver(i, reason) {
+    const p = this.players[i];
+    if (!p || p.bot || (this.phase !== 'setup' && this.phase !== 'main')) return false;
+    p.bot = 'medium'; p.takenOver = reason; p.idle = 0; p.ready = false;
+    this.addLog(reason === 'left' ? `${p.name} left. A bot plays on for them.` : `${p.name} is away. A bot plays for them until they return.`);
+    this.version++; return true;
+  }
+  giveBack(i) {
+    const p = this.players[i];
+    if (!p || !p.takenOver) return false;
+    p.bot = null; p.takenOver = null; p.idle = 0;
+    this.addLog(`${p.name} is back in control.`);
+    this.version++; return true;
+  }
+  do_reclaim(pi) {
+    if (!this.players[pi].takenOver) fail('A bot is not playing for you.');
+    this.giveBack(pi);
+  }
+  // The host leaving (or staying offline) passes the host role to the next human who is connected.
+  ensureHost(now = Date.now(), graceMs = 20000) {
+    const h = this.players.find(p => p.token === this.hostToken);
+    if (h && !h.bot && (h.connected || now - (h.offlineSince || 0) < graceMs)) return false;
+    const n = this.players.find(p => !p.bot && p.connected && p !== h);
+    if (!n) return false;
+    this.hostToken = n.token; this.addLog(`${n.name} is now the host.`); this.version++; return true;
   }
   isBot(i) { return !!(this.players[i] && this.players[i].bot); }
   // Public happenings every client can animate (cards that move are never secret here).
@@ -321,7 +367,7 @@ class Game {
     if (o.timer !== undefined) { const v = Number(o.timer); if (![0, 15, 30, 60].includes(v)) fail('The move timer can be off, 15, 30 or 60 seconds.'); next.timer = v; }
     if (o.friendlyRobber !== undefined) next.friendlyRobber = !!o.friendlyRobber;
     if (o.balancedDice !== undefined) next.balancedDice = !!o.balancedDice;
-    this.vpTarget = vp; this.opts = next;
+    this.vpTarget = vp; this.opts = next; this.unreadyAll();
   }
   discardAmount(t) { return this.opts.discardMode === 'four' ? 4 : Math.floor(t / 2); }
 
@@ -397,6 +443,8 @@ class Game {
     const lim = this.clockLimit();
     if (!lim || Date.now() < this.clockAt + lim * 1000 - 25) return false;
     const who = this.players[this.turn];
+    const late = this.subphase === 'discard' ? Object.keys(this.pendingDiscards).map(Number) : this.subphase === 'diamond' ? Object.keys(this.pendingDiamond).map(Number) : [this.turn];
+    const lateHumans = late.filter(k => this.players[k] && !this.isBot(k));
     if (this.phase === 'setup') this.autoTurn(this.turn);
     else if (this.subphase === 'discard') {
       Object.keys(this.pendingDiscards).map(Number).filter(k => !this.isBot(k)).forEach(k => this.autoDiscard(k));
@@ -409,6 +457,7 @@ class Game {
     else if (!this.rolled) { this.addLog(`${who.name} ran out of time; the dice rolled automatically.`); this.do_roll(this.turn); }
     else { this.addLog(`${who.name} ran out of time. Turn ended.`); this.do_endTurn(this.turn); }
     this.checkWin();
+    lateHumans.forEach(k => { const p = this.players[k]; p.idle = (p.idle || 0) + 1; if (p.idle >= 2 && this.phase !== 'ended') this.takeOver(k, 'idle'); });
     this.clockAt = Date.now(); this.version++;
     return true;
   }
@@ -533,6 +582,8 @@ class Game {
     if (this.phase === 'ended' && a.type !== 'chat') fail('The game is over.');
     const fn = this['do_' + a.type];
     if (!fn) fail('Unknown action.');
+    if (this.players[pi].takenOver && !['reclaim', 'chat'].includes(a.type)) fail('A bot is playing for you. Tap Take back control to play again.');
+    if (a.type !== 'chat' && a.type !== 'ready') this.players[pi].idle = 0;
     const sigBefore = this.clockSig();
     const out = fn.call(this, pi, a);
     this.checkWin();
@@ -989,7 +1040,7 @@ class Game {
       opts: this.opts, timer: this.timerView(), palette: PALETTE, events: this.events, devPile: { total: this.devTotal, played: this.devPlayedCount }, heist: { cost: COST.heist, need: this.heistNeed() }, cutRoads: this.cutOffRoads(),
       robberOptions: this.subphase === 'robber' && pi === this.turn ? this.legalRobberTiles(pi) : null,
       players: this.players.map((p, i) => ({
-        name: p.name, host: p.token === this.hostToken, bot: p.bot, stats: p.stats, colorId: p.colorId, color: p.color, colorName: p.colorName, connected: p.connected,
+        name: p.name, host: p.token === this.hostToken, bot: p.bot, takenOver: p.takenOver, ready: p.bot ? true : !!p.ready, stats: p.stats, colorId: p.colorId, color: p.color, colorName: p.colorName, connected: p.connected,
         cards: total(p.res), devCount: p.dev.length, knights: p.knights, pieces: p.pieces,
         vp: this.vp(i, ended || i === pi), roadLen: this.roadLens ? this.roadLens[i] : 0,
         res: ended ? p.res : undefined, devReveal: ended ? p.dev.map(d => d.type) : undefined,

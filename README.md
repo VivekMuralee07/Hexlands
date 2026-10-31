@@ -41,14 +41,14 @@ Requires Node.js 18 or newer.
 
 ```bash
 npm start            # http://localhost:3000
-npm test             # 88 tests, including full simulated games
+npm test             # 111 tests, including full simulated games and matchmaking
 ```
 
 Open two browser windows (or a phone on the same network at `http://<your-ip>:3000`) to play against yourself.
 
 ## Put it on GitHub
 
-All 29 files sit side by side at the top level of `main`, with no folders. Upload them all at once.
+All 30 files sit side by side at the top level of `main`, with no folders. Upload them all at once.
 
 1. On github.com, create a new empty repository.
 2. Click **uploading an existing file**.
@@ -57,7 +57,7 @@ All 29 files sit side by side at the top level of `main`, with no folders. Uploa
 
 To update an existing repo, do the same: files with the same name are replaced, and the new ones (`legal.js`) are added. Render redeploys automatically.
 
-The repo front page should list the 29 files: `app.js`, `art.js`, `assetlinks.json`, `apple-touch-icon.png`, `bots.js`, `bots.test.js`, `engine.test.js`, `game.js`, `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `icon.svg`, `index.html`, `legal.js`, `manifest.webmanifest`, `maps.js`, `package.json`, `README.md`, `render.yaml`, `rules.test.js`, `screenshot-game-wide.png`, `screenshot-game.png`, `screenshot-home.png`, `server.js`, `server.test.js`, `sound.js`, `style.css`, `sw.js` (and `.gitignore` if your file browser shows hidden files; it is optional).
+The repo front page should list the 30 files: `app.js`, `art.js`, `assetlinks.json`, `apple-touch-icon.png`, `bots.js`, `bots.test.js`, `engine.test.js`, `game.js`, `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `icon.svg`, `index.html`, `legal.js`, `manifest.webmanifest`, `maps.js`, `matchmaking.test.js`, `package.json`, `README.md`, `render.yaml`, `rules.test.js`, `screenshot-game-wide.png`, `screenshot-game.png`, `screenshot-home.png`, `server.js`, `server.test.js`, `sound.js`, `style.css`, `sw.js` (and `.gitignore` if your file browser shows hidden files; it is optional).
 
 Only the web app itself is sent to browsers: the page, scripts, styles, icons, screenshots, the manifest and the service worker. The server code, tests and config are never served.
 
@@ -79,6 +79,22 @@ Only the web app itself is sent to browsers: the page, scripts, styles, icons, s
 - Render's free plan sleeps after about 15 minutes with no traffic. The first visit after that takes 30–60 seconds, and idle rooms are gone. A paid instance stays awake.
 - Idle rooms are cleaned up automatically (30 minutes with nobody connected, or 6 hours total).
 - Live updates use Server-Sent Events over normal HTTPS, which Render supports with no extra setup.
+
+## Playing with people from anywhere
+
+Anyone in the world can open your Render address. These parts help strangers find each other:
+
+- **Quick play** (home screen) joins the fullest open public room, or opens a new public room (Classic Island, 10 points, 30 second move timer).
+- **Public rooms** shows the list of waiting public rooms (host name, map, points, timer, seats). The list refreshes every few seconds.
+- **Create a room** has a Private / Public switch. The host can flip it in the waiting room. Public rooms start with the move timer on.
+- **Waiting room, public rooms:** everyone taps *I'm ready*; when all four seats are taken and every human is ready, a 5 second countdown starts the game. After a minute with no new player the host sees *Play with bots*. People who disappear from a public waiting room lose their seat after 30 seconds; an empty room closes.
+- **Host hand-over:** if the host leaves or stays offline for 20 seconds, the next connected human becomes host.
+- **Bots standing in (public games only):** a bot (medium) plays for anyone who leaves on purpose, stays offline for 45 seconds, or lets the move timer run out twice in a row. Someone who dropped gets control back when they reconnect; someone who was idle taps *Take back control*; someone who left on purpose does not.
+- **Chat in public rooms** is free text, with a basic filter: links are refused, bad words are starred out, six messages per ten seconds. Report and mute work as before.
+
+Protection against abuse (all in server memory, nothing stored): per internet address, 20 new rooms an hour, 5 rooms open at a time, 40 joins a minute, and a lock-out after 10 wrong room codes in 10 minutes. The address is read from `cf-connecting-ip` (Cloudflare, which Render uses), falling back to `x-forwarded-for`. Names are cleaned on the server (no hidden characters, 16 characters, "Player 4821" when empty, staff-like names refused). The word list is short; add your own words with the `BLOCKED_WORDS` setting (comma separated). Limits and numbers are constants near the top of `server.js`.
+
+Honest limits of this version: one server holds all rooms, so a restart ends every game; there is no ban list, accounts or automatic muting after repeated reports yet (you read reports at `/api/admin/reports?key=...`); and the server has not been load-tested.
 
 ## How to play
 
@@ -180,7 +196,7 @@ Still seeing the address bar? Work through these in order:
 ## Project layout
 
 ```
-server.js         HTTP server, rooms, live updates (SSE), bot and move-clock timing
+server.js         HTTP server, rooms, live updates (SSE), matchmaking, limits, filters, bot and move-clock timing
 game.js           Rules engine; the server is the only authority on game state
 bots.js           Bot decisions for easy, medium and hard
 maps.js           Country maps, board generation, custom map validation
@@ -193,6 +209,7 @@ engine.test.js    Core rules and full simulated games
 rules.test.js     Setup order, host options, discard limit, friendly robber, balanced dice, timer, road rule
 bots.test.js      Bot games at every level and strength checks
 server.test.js    HTTP, live updates, options and timer over the wire, a full human-vs-bots game
+matchmaking.test.js  Public rooms, Quick play, ready countdown, bots standing in, host hand-over, limits, filters
 sw.js             Service worker (offline shell; never touches game traffic)
 manifest.webmanifest  App name, colors, icons, screenshots and shortcuts
 icon*.png, icon.svg, apple-touch-icon.png, screenshot-*.png  App icons and store images

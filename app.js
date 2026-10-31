@@ -30,8 +30,10 @@ const S = {
   screen: 'home', name: store.get('name', ''), session: store.get('session', null),
   maps: [], mapKey: 'classic', seed: null, previewBoard: null, vpTarget: 10,
   custom: store.get('custom', null), board: null, state: null, mode: null, vb: null, base: null,
-  es: null, error: null, hot: null, modal: null, shellReady: false, editor: { tool: 'forest', num: null }, joinCode: '', botLevel: store.get('botLevel', 'medium'),
+  es: null, error: null, hot: null, modal: null, publicRoom: store.get('public', false), stateAt: 0, shellReady: false, editor: { tool: 'forest', num: null }, joinCode: '', botLevel: store.get('botLevel', 'medium'),
 };
+// Everyone starts with a name such as "Player 4821", so strangers always have something to call each other.
+if (!S.name) { S.name = 'Player ' + (1000 + Math.floor(Math.random() * 9000)); store.set('name', S.name); }
 const LAUNCH_ACTION = new URLSearchParams(location.search).get('action');   // home-screen shortcut, read before the address bar is rewritten
 const m = location.pathname.match(/^\/room\/([A-Za-z0-9]{5})/);
 if (m) S.joinCode = m[1].toUpperCase();
@@ -93,7 +95,7 @@ function bindSoundButtons() {
   if (mb) mb.onclick = () => { const on = !Sound.music; Sound.setMusic(on); if (on) Sound.theme('start'); paint(); };
 }
 const LEVEL_LABEL = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
-const botTag = p => p.bot ? `<span class="botbadge lvl-${p.bot}" title="${LEVEL_LABEL[p.bot]} bot">${icon('bot')}${LEVEL_LABEL[p.bot]}</span>` : '';
+const botTag = p => p.bot ? `<span class="botbadge lvl-${p.bot}" title="${p.takenOver ? 'A bot is playing for ' + esc(p.name) : LEVEL_LABEL[p.bot] + ' bot'}">${icon('bot')}${p.takenOver ? 'Away' : LEVEL_LABEL[p.bot]}</span>` : '';
 
 // ---------- board drawing ----------
 function bounds(b, pad = 70) {
@@ -216,7 +218,8 @@ function renderHome(app) {
       <div class="panel stack">
         ${S.error ? `<div class="notice">${esc(S.error)}</div>` : ''}
         <label class="field">Your name<input id="name" maxlength="16" autocomplete="nickname" placeholder="e.g. Vivek" value="${esc(S.name)}"></label>
-        <button class="btn primary" id="go-create">Create a room</button>
+        <button class="btn primary quick" id="quick"><b>Quick play</b><small>Join a public game with players from anywhere</small></button>
+        <div class="row"><button class="btn grow" id="browse">Public rooms</button><button class="btn grow" id="go-create">Create a room</button></div>
         <div class="divider">or join a friend</div>
         <div class="row"><input id="code" class="code-input grow" maxlength="5" placeholder="CODE" autocomplete="off" value="${esc(S.joinCode)}" aria-label="Room code"><button class="btn" id="go-join">Join room</button></div>
         ${S.session ? `<button class="btn" id="resume">Return to room ${esc(S.session.code)}</button>` : ''}
@@ -229,8 +232,17 @@ function renderHome(app) {
   $('#info').onclick = openRules;
   $$('[data-legal]').forEach(b => b.onclick = () => openLegal(b.dataset.legal));
   showInstall();
-  const nameOk = () => { const n = $('#name').value.trim(); if (!n) { toast('Enter your name first.', 'err'); $('#name').focus(); return null; } S.name = n; store.set('name', n); return n; };
+  const nameOk = () => { const n = $('#name').value.trim() || S.name; $('#name').value = n; S.name = n; store.set('name', n); return n; };
   $('#go-create').onclick = () => { if (nameOk()) go('create'); };
+  $('#browse').onclick = () => { if (nameOk()) openRooms(); };
+  $('#quick').onclick = async e => {
+    const name = nameOk(), btn = e.currentTarget; btn.disabled = true;
+    try {
+      const j = await post('/api/quickplay', { name });
+      startSession({ code: j.code, token: j.token });
+      toast(j.created ? 'No open room yet, so you opened one. Waiting for players…' : `Joined ${j.host}'s room`);
+    } catch (err) { toast(err.message, 'err'); btn.disabled = false; }
+  };
   const join = async () => {
     const name = nameOk(); if (!name) return;
     const code = $('#code').value.trim().toUpperCase();
@@ -278,6 +290,9 @@ ${cat === 'misc' ? `<button class="map-opt" data-map="custom" aria-pressed="${S.
         <div class="preview" id="preview"></div>
         <div class="preview-meta"><div class="terrain-counts" id="counts"></div>
           <div class="row"><button class="btn small" id="reroll">${S.mapKey === 'custom' ? 'Reshuffle harbors' : 'Shuffle tiles'}</button><button class="btn small" id="edit"${['flamecup', 'hiddenvault'].includes(S.mapKey) ? ' disabled title="Fog maps cannot be copied"' : ''}>${S.mapKey === 'custom' ? 'Edit map' : 'Copy into editor'}</button></div></div>
+        <div class="panel stack"><b>Who can join?</b>
+          <div class="seg two" role="group" aria-label="Who can join">${[[false, 'Private'], [true, 'Public']].map(([v, l]) => `<button data-vis="${v}" aria-pressed="${S.publicRoom === v}">${l}</button>`).join('')}</div>
+          <span class="muted" style="font-size:.88em">${S.publicRoom ? 'Anyone can find this room in the public list and join. The move timer starts at 30 seconds.' : 'Only people you give the room code or link to.'}</span></div>
         <div class="panel row">
           <span class="grow"><b>Next: the waiting room</b><br><span class="muted" style="font-size:.88em">Pick points to win, discard limit, move timer, friendly robber and balanced dice there, and add bots.</span></span>
           <button class="btn primary" id="create">Create room</button>
@@ -285,6 +300,7 @@ ${cat === 'misc' ? `<button class="map-opt" data-map="custom" aria-pressed="${S.
       </div>
     </div></div>`;
   $('#back').onclick = () => go('home');
+  $$('[data-vis]').forEach(b => b.onclick = () => { S.publicRoom = b.dataset.vis === 'true'; store.set('public', S.publicRoom); renderCreate(app); });
   $$('[data-tab]').forEach(b => b.onclick = () => { S.mapTab = b.dataset.tab; renderCreate(app); });
   $$('#maplist .map-opt').forEach(b => b.onclick = () => {
     const k = b.dataset.map;
@@ -300,7 +316,7 @@ ${cat === 'misc' ? `<button class="map-opt" data-map="custom" aria-pressed="${S.
     e.target.disabled = true;
     try {
       const map = S.mapKey === 'custom' ? { tiles: S.custom.tiles } : { preset: S.mapKey };
-      const j = await post('/api/create', { name: S.name, map, seed: S.seed });
+      const j = await post('/api/create', { name: S.name, map, seed: S.seed, public: S.publicRoom });
       startSession({ code: j.code, token: j.token });
     } catch (err) { toast(err.message, 'err'); e.target.disabled = false; }
   };
@@ -468,7 +484,13 @@ function leaveToHome(msg) {
 }
 
 function onState(st) {
-  const prev = S.state; S.state = st;
+  const prev = S.state; S.state = st; S.stateAt = Date.now();
+  if (prev && prev.players[prev.you] && st.players[st.you]) {   // host hand-over, and bots standing in
+    if (!prev.players[prev.you].host && st.players[st.you].host) toast('You are now the host');
+    st.players.forEach((p, i) => { const q = prev.players[i]; if (!q || q.name !== p.name || i === st.you) return;
+      if (!q.takenOver && p.takenOver) toast(`${p.name} is away. A bot plays for them.`);
+      else if (q.takenOver && !p.takenOver) toast(`${p.name} is back`); });
+  }
   if (prev && prev.phase !== 'lobby' && st.phase !== 'lobby') checkAwards(prev, st);
   if (st.phase === 'lobby') {
     if (prev) st.players.forEach((p, i) => { const q = prev.players[i]; if (q && q.name === p.name && q.colorId !== p.colorId && i !== st.you) toast(`${p.name} selected color ${p.colorName}`); });
@@ -530,25 +552,31 @@ function optionsHtml(st, host) {
 function renderLobby(app) {
   const st = S.state; if (!st) return;
   const me = st.you, host = st.players[me] && st.players[me].host;
+  const net = st.net || {}, pub = !!net.public, imReady = !!(st.players[me] && st.players[me].ready);
   const link = `${location.origin}/room/${st.code}`;
   const prevBox = $('#lobby-preview');
   const pk = `${st.code}:${S.boardRev || 0}`, keepPreview = prevBox && prevBox.dataset.code === pk && prevBox.innerHTML;
   app.innerHTML = `<div class="page">
-    <div class="page-head"><button class="btn" id="leave">Leave room</button><h2>Waiting room</h2><button class="info-btn inline" id="info" aria-label="How to play" title="How to play">i</button></div>
+    <div class="page-head"><button class="btn" id="leave">Leave room</button><h2>Waiting room</h2><span class="vischip${pub ? ' pub' : ''}">${pub ? 'Public' : 'Private'}</span><button class="info-btn inline" id="info" aria-label="How to play" title="How to play">i</button></div>
     <div class="lobby">
       <div class="panel stack optpanel lb-opts"><h3 class="panel-title">Game options${host ? '' : '<small>chosen by the host</small>'}</h3>${optionsHtml(st, host)}</div>
       <div class="panel stack lb-room">
         <div><div class="muted">Room code</div><div class="room-code">${st.code}</div></div>
+        ${host ? `<div class="row"><button class="btn small" id="togpub">${pub ? 'Make private' : 'Make public'}</button><span class="muted grow" style="font-size:.88em">${pub ? 'Anyone can find this room in the public list.' : 'Only people with the code can join.'}</span></div>` : ''}
         <div class="row"><button class="btn" id="copy">Copy invite link</button>${navigator.share ? '<button class="btn" id="share">Share</button>' : ''}</div>
-        <ul class="plist">${st.players.map((p, i) => `<li>${swatch(p, i, me, host)}${p.bot ? icon('bot', 'boticon') : ''}<b class="grow">${esc(p.name)}${i === me ? ' (you)' : ''}</b>${p.host ? '<span class="badge">Host</span>' : ''}
+        <ul class="plist">${st.players.map((p, i) => `<li>${swatch(p, i, me, host)}${p.bot ? icon('bot', 'boticon') : ''}<b class="grow">${esc(p.name)}${i === me ? ' (you)' : ''}</b>${p.host ? '<span class="badge">Host</span>' : ''}${pub && !p.bot ? `<span class="badge rdy${p.ready ? ' on' : ''}">${p.ready ? 'Ready' : 'Not ready'}</span>` : ''}
           ${p.bot ? (host ? `<select class="lvlsel" data-seat="${i}" aria-label="Difficulty for ${esc(p.name)}">${['easy', 'medium', 'hard'].map(l => `<option value="${l}" ${p.bot === l ? 'selected' : ''}>${LEVEL_LABEL[l]}</option>`).join('')}</select><button class="btn small icon-only" data-rmbot="${i}" aria-label="Remove ${esc(p.name)}">✕</button>` : botTag(p)) : `<span class="dot ${p.connected ? '' : 'off'}" title="${p.connected ? 'Connected' : 'Offline'}"></span>`}</li>`).join('')}</ul>
         ${host && st.players.length < 4 ? `<div class="botadd"><b>Add a bot</b>
           <div class="seg" role="group" aria-label="Bot difficulty">${['easy', 'medium', 'hard'].map(l => `<button data-lvl="${l}" aria-pressed="${S.botLevel === l}">${LEVEL_LABEL[l]}</button>`).join('')}</div>
           <button class="btn" id="addbot">${icon('bot')} Add ${LEVEL_LABEL[S.botLevel].toLowerCase()} bot</button>
           <p class="help">${{ easy: 'Easy bots place loosely and rarely trade. Good for learning.', medium: 'Medium bots build steadily and trade toward their next build.', hard: 'Hard bots read the board, target the leader with the robber and refuse to feed a near winner.' }[S.botLevel]}</p></div>` : ''}
+        ${pub ? `<div class="lbstatus" id="lbstatus">${net.countdown != null ? `<b>Everyone is ready. Starting in <span id="cdown">${Math.ceil(net.countdown / 1000)}</span>…</b>` : st.players.length < 4 ? '<b>Waiting for more players…</b>' : '<b>The table is full.</b> Tap Ready when the options suit you.'}
+          ${net.fillIn === 0 ? (host ? `<div class="fillbox"><span>Nobody else yet? Fill the empty seats with bots and play now.</span><button class="btn primary" id="fillbots">${icon('bot')} Play with bots</button></div>` : '<div class="muted">The host can fill the empty seats with bots.</div>') : ''}
+          <div class="muted" style="font-size:.88em;margin-top:.3rem">Chat opens when the game starts. If you wait a minute and nobody joins, you can play with bots.</div></div>` : ''}
         <p class="muted">${st.players.length} of 4 seats taken. ${host ? (st.players.length < 2 ? 'Add a bot or share the code; you need at least one more player.' : 'Check the options, then start when everyone is in.') : 'The host starts the game.'}</p>
         <div class="row">${soundButtons()}<span class="muted" style="font-size:.88em">Sound effects and music</span></div>
-        ${host ? `<button class="btn primary" id="start" ${st.players.length < 2 ? 'disabled' : ''}>Start game</button>` : ''}
+        ${pub && st.players[me] && !st.players[me].bot ? `<button class="btn ${imReady ? '' : 'primary'}" id="ready" aria-pressed="${imReady}">${imReady ? 'Not ready' : "I'm ready"}</button>` : ''}
+        ${host ? `<button class="btn ${pub ? '' : 'primary'}" id="start" ${st.players.length < 2 ? 'disabled' : ''}>Start game</button>` : ''}
       </div>
       <div class="stack lb-map"><div class="preview" id="lobby-preview" data-code="${pk}"></div>
         <div class="row lb-maphead"><span class="grow"><b>${esc(st.mapName)}</b><br><span class="muted" style="font-size:.88em">Turn order is drawn at random when the game starts.</span></span>${host ? `<button class="btn small" id="changemap">Change map</button>${S.board && S.board.key !== 'custom' ? '<button class="btn small" id="shufflemap" title="Same map, new random tiles">Shuffle</button>' : ''}` : ''}</div></div>
@@ -562,6 +590,9 @@ function renderLobby(app) {
   $('#copy').onclick = async () => { try { await navigator.clipboard.writeText(link); toast('Invite link copied'); } catch { prompt('Copy this link', link); } };
   if ($('#share')) $('#share').onclick = () => navigator.share({ title: 'Join my Hexlands game', text: `Room code ${st.code}`, url: link }).catch(() => {});
   if ($('#start')) $('#start').onclick = () => act({ type: 'start' });
+  if ($('#ready')) $('#ready').onclick = () => act({ type: 'ready', value: !imReady });
+  if ($('#togpub')) $('#togpub').onclick = () => act({ type: 'setPublic', value: !pub });
+  if ($('#fillbots')) $('#fillbots').onclick = () => act({ type: 'fillBots', level: S.botLevel });
   $$('[data-lvl]').forEach(b => b.onclick = () => { S.botLevel = b.dataset.lvl; store.set('botLevel', S.botLevel); renderLobby(app); });
   if ($('#addbot')) $('#addbot').onclick = () => act({ type: 'addBot', level: S.botLevel });
   $$('[data-rmbot]').forEach(b => b.onclick = () => act({ type: 'removeBot', seat: +b.dataset.rmbot }));
@@ -591,12 +622,12 @@ function buildShell(app) {
         <rect x="-5000" y="-5000" width="10000" height="10000" fill="#0a68a6"/>
         <g id="static"></g><g id="dyn"></g>
       </svg>
-      <div class="dice" id="dice"></div><div class="awards" id="awards"></div><div class="offer" id="offer"></div><div class="tradewin" id="tradewin" hidden></div>
+      <div class="dice" id="dice"></div><div class="awards" id="awards"></div><div class="offer" id="offer"></div><div class="awaybar" id="awaybar" hidden></div><div class="tradewin" id="tradewin" hidden></div>
       <div class="gbtns"><button class="gbtn drawer-toggle" id="logbtn" title="Messages" aria-label="Messages">${GB_ICON.msg}</button><button class="gbtn" id="quit" title="Leave game" aria-label="Leave game">${GB_ICON.exit}</button></div>
       <div class="zoom"><button class="btn" id="zin" aria-label="Zoom in">+</button><button class="btn" id="zout" aria-label="Zoom out">−</button><button class="btn" id="zfit" aria-label="Fit board">⤢</button></div>
     </main></section>
     <aside class="side" id="side"><div class="panel"><h3>Ship's log</h3><div class="mutebar" id="mutebar" hidden></div><div class="log" id="log"></div>
-      <form class="chatform" id="chat"><input id="chatin" maxlength="200" placeholder="Message the table" autocomplete="off" aria-label="Chat message"><button class="btn small">Send</button></form></div></aside>
+      <form class="chatform" id="chat"><input id="chatin" maxlength="200" placeholder="Message the table" autocomplete="off" aria-label="Chat message"><button class="btn small">Send</button></form><p class="chatnote" id="chatnote" hidden>Public room: be kind and no links. Tap ⋯ on a message to report or mute.</p></div></aside>
     <footer class="dock"><div class="hand" id="hand"></div><div class="actions" id="actions"></div></footer>
   </div>`;
   S.shellReady = true;
@@ -608,7 +639,12 @@ function buildShell(app) {
   $('#zfit').onclick = () => { S.vb = { ...S.base }; applyVB(); };
   $('#logbtn').onclick = () => $('#side').classList.toggle('open');
   bindSoundButtons();
-  $('#quit').onclick = () => { if (confirm('Leave this game? You can rejoin with the room code while it is running.')) { if (S.es) S.es.close(); S.es = null; S.state = null; history.replaceState(null, '', '/'); go('home'); } };
+  $('#quit').onclick = async () => {
+    const pub = !!(S.state.net && S.state.net.public) && S.state.phase !== 'ended';
+    if (!confirm(pub ? 'Leave this game? A bot will play your seat for the others.' : 'Leave this game? You can rejoin with the room code while it is running.')) return;
+    if (pub) { try { await post('/api/leave', S.session); } catch {} leaveToHome(); return; }
+    if (S.es) S.es.close(); S.es = null; S.state = null; history.replaceState(null, '', '/'); go('home');
+  };
   $('#chat').onsubmit = e => { e.preventDefault(); const v = $('#chatin').value.trim(); if (v) { act({ type: 'chat', text: v }); $('#chatin').value = ''; } };
   if (S.state.dice) drawDice(S.state.dice, false);
 }
@@ -616,10 +652,19 @@ function buildShell(app) {
 function updateGame() {
   validatePick();
   const st = S.state;
-  drawDyn(); drawPlayers(); drawBanner(); drawHand(); drawActions(); drawLog(); drawOffer(); drawClock(); drawSetupStrip(); drawPlacing(); drawTrade(); drawDiamond();
+  drawAway(); { const n = $('#chatnote'); if (n) n.hidden = !(st.net && st.net.public); } drawDyn(); drawPlayers(); drawBanner(); drawHand(); drawActions(); drawLog(); drawOffer(); drawClock(); drawSetupStrip(); drawPlacing(); drawTrade(); drawDiamond();
   syncModals();
 }
 
+// A bot is playing for you (you were away, or the move timer ran out twice): say so, and offer the seat back.
+function drawAway() {
+  const bar = $('#awaybar'); if (!bar) return;
+  const st = S.state, mine = st.players[st.you];
+  if (!mine || !mine.takenOver || st.phase === 'ended') { bar.hidden = true; bar.innerHTML = ''; return; }
+  bar.hidden = false;
+  bar.innerHTML = `<span>${icon('bot', 'boticon')} ${mine.takenOver === 'left' ? 'You left, so a bot is playing your seat.' : 'A bot is playing for you because you were away.'}</span><button class="btn small primary" id="reclaim">Take back control</button>`;
+  $('#reclaim').onclick = () => act({ type: 'reclaim' });
+}
 function me() { return S.state.you; }
 function myTurn() { return S.state.turn === S.state.you; }
 function canAfford(cost) { const r = S.state.me.res; return RES.every(k => (r[k] || 0) >= (cost[k] || 0)); }
@@ -889,7 +934,7 @@ function drawPlayers() {
     if (st.largestArmy && st.largestArmy.p === i) badges.push(`<span class="badge">${icon('knight')} Largest Army</span>`);
     return `<div class="pcard ${turn ? 'turn' : ''}" style="--pc:${p.color}">
       <span class="vpb" title="Victory points (first to ${st.vpTarget})">${crown}${p.vp}</span>
-      <div class="tag">${p.bot ? icon('bot', 'boticon') : `<span class="dot ${p.connected ? '' : 'off'}"></span>`}<span class="nm">${esc(p.name)}${i === me() ? ' (you)' : ''}</span>${p.bot ? `<span class="lv lvl-${p.bot}" title="${LEVEL_LABEL[p.bot]} bot">${LEVEL_LABEL[p.bot][0]}</span>` : ''}</div>
+      <div class="tag">${p.bot ? icon('bot', 'boticon') : `<span class="dot ${p.connected ? '' : 'off'}"></span>`}<span class="nm">${esc(p.name)}${i === me() ? ' (you)' : ''}</span>${p.bot ? `<span class="lv lvl-${p.bot}" title="${p.takenOver ? 'Away: a bot is playing for ' + esc(p.name) : LEVEL_LABEL[p.bot] + ' bot'}">${p.takenOver ? 'AWAY' : LEVEL_LABEL[p.bot][0]}</span>` : ''}</div>
       <div class="ptiles">
         <span class="pt devt" title="Development cards in hand: ${p.devCount}" aria-label="${p.devCount} development cards in hand"><i>?</i><b class="dn${p.devCount > 9 ? ' two' : ''}">${p.devCount}</b></span>
         <span class="pt knt" title="Knights played">${icon('knight')}<b class="cnt">${p.knights}</b></span>
@@ -1385,6 +1430,8 @@ function drawClock() {
   el.hidden = false; tickClock();
 }
 function tickClock() {
+  const cd = $('#cdown'), s0 = S.state;
+  if (cd && s0 && s0.net && s0.net.countdown != null) cd.textContent = Math.max(0, Math.ceil((S.stateAt + s0.net.countdown - Date.now()) / 1000));
   const el = $('#clock'), st = S.state;
   if (!el || !S.clock || !st || el.hidden) return;
   const left = Math.max(0, S.clock.until - Date.now()), secs = Math.ceil(left / 1000), frac = Math.max(0, Math.min(1, left / S.clock.limit));
@@ -1669,7 +1716,7 @@ function openColorPicker(seat) {
 }
 
 // ---------- terms, privacy, reporting and muting ----------
-const LEGAL_VERSION = '2026-10-31';   // must match legal.js (a server test checks it); change both to ask everyone to agree again
+const LEGAL_VERSION = '2026-10-31b';   // must match legal.js (a server test checks it); change both to ask everyone to agree again
 S.muted = store.get('muted', {});
 const needConsent = () => store.get('terms', null) !== LEGAL_VERSION;
 function openConsent() {
@@ -1746,6 +1793,32 @@ async function openMapPicker(tab) {
     $('#mclose').onclick = closeModal;
     layer.querySelectorAll('[data-mtab]').forEach(b => b.onclick = () => openMapPicker(b.dataset.mtab));
     layer.querySelectorAll('[data-pick]').forEach(b => b.onclick = async () => { const r = await act({ type: 'setMap', preset: b.dataset.pick }); if (r.ok) closeModal(); });
+  });
+}
+
+// ---------- public rooms ----------
+function openRooms() {
+  const poll = S.roomsPoll = {};
+  const paint = list => {
+    const box = $('#roomlist'); if (!box) return;
+    if (!list) { box.innerHTML = '<p class="muted">Could not load the list. Check your connection.</p>'; return; }
+    if (!list.length) { box.innerHTML = '<p class="muted">No public rooms are waiting right now. Be the first: open a room, and others can join you.</p>'; return; }
+    box.innerHTML = list.map(r => `<div class="roomrow"><div class="rinfo"><b>${esc(r.host)}'s room</b><span>${esc(r.map)} · ${r.vp} points · ${r.timer ? r.timer + 's timer' : 'no timer'}</span></div><span class="seats" title="Seats taken">${r.players}/${r.max}${r.bots ? ` · ${plural(r.bots, 'bot')}` : ''}</span><button class="btn small primary" data-join="${r.code}">Join</button></div>`).join('');
+    box.querySelectorAll('[data-join]').forEach(b => b.onclick = async () => {
+      b.disabled = true;
+      try { const j = await post('/api/join', { code: b.dataset.join, name: S.name }); closeModal(); startSession({ code: j.code, token: j.token }); }
+      catch (e) { toast(e.message, 'err'); load(); }
+    });
+  };
+  const load = async () => {
+    if (S.roomsPoll !== poll || S.modal !== 'rooms') return;
+    try { const r = await fetch('/api/rooms'); const j = await r.json(); if (!r.ok) throw new Error(j.error); paint(j.rooms); } catch { paint(null); }
+    clearTimeout(poll.t); if (S.roomsPoll === poll && S.modal === 'rooms') poll.t = setTimeout(load, 4000);
+  };
+  openModal('rooms', `<h3>Public rooms</h3><p class="muted">Games waiting for players. Tap Join to take a seat.</p><div class="roomlist" id="roomlist" aria-live="polite"><p class="muted">Loading…</p></div><div class="foot"><button class="btn" id="rclose">Close</button><button class="btn primary" id="rnew">Open a public room</button></div>`, () => {
+    $('#rclose').onclick = closeModal;
+    $('#rnew').onclick = () => { S.publicRoom = true; store.set('public', true); closeModal(); go('create'); };
+    load();
   });
 }
 

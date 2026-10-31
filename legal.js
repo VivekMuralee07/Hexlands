@@ -3,7 +3,7 @@
 // listing links to) and for the windows inside the app. The wording follows what the game really does; if the game
 // changes (accounts, ads, analytics), change this file and bump VERSION so everyone is asked to agree again.
 // Set OPERATOR_NAME and CONTACT_EMAIL in the hosting settings so the pages name who runs the game and how to reach them.
-const VERSION = '2026-10-31';
+const VERSION = '2026-10-31b';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 function who() {
@@ -22,7 +22,7 @@ function terms() {
 <h3>1. Who can play</h3>
 <p>You must be at least 13 years old, or older if the law where you live requires it. If you are under 18, play only with the permission of a parent or guardian.</p>
 <h3>2. Your name and your messages</h3>
-<p>Your display name and your chat messages are visible to everyone in your room. Keep them friendly. You must not use Hexlands to:</p>
+<p>Your display name and your chat messages are visible to everyone in your room. In a public room that includes people you do not know. Keep them friendly. You must not use Hexlands to:</p>
 <ul>
 <li>harass, bully, threaten or discriminate against anyone, or use hateful language;</li>
 <li>post sexual, violent or otherwise offensive content;</li>
@@ -31,18 +31,22 @@ function terms() {
 <li>cheat, exploit bugs, or use automation or attacks that harm the game or other players.</li>
 </ul>
 <h3>3. Reporting and muting</h3>
-<p>You can report any chat message from another player, and mute that player, from the menu next to the message. Muting hides their messages from you. We review reports, and we may remove rooms, block access, or stop the service for anyone who breaks these terms.</p>
-<h3>4. Rooms are temporary</h3>
-<p>Games are not saved. A room ends when everyone has left, after a period without activity, or when the server restarts, and its game and chat are then deleted. We do not promise that Hexlands will always be available or free of errors.</p>
-<h3>5. An independent game</h3>
+<p>You can report any chat message from another player, and mute that player, from the menu next to the message. Muting hides their messages from you. Names and chat in public rooms are also checked automatically: some offensive words are replaced by stars or refused, and links are not allowed in public chat. We review reports, and we may remove rooms, block access (including by internet address), or stop the service for anyone who breaks these terms.</p>
+<h3>4. Public rooms and playing with strangers</h3>
+<p>When you create a public room, or use Quick play, other players can find and join it. A public room appears in a list shown to everyone who uses Hexlands, with the host's display name, the map, the points to win and how many seats are taken. Anyone who opens the list can join a free seat. Never share personal information with people you meet in a game, and use report and mute whenever someone upsets you. The host can make a room private again in the waiting room.</p>
+<p>If you leave a public game, lose your connection for a while, or let the move timer run out twice in a row, a bot may play for you so the others can finish. If you were away, you can take control back when you return. If you left on purpose, the bot keeps your seat. If the host leaves, another player becomes the host.</p>
+<p>We limit how many rooms and requests one internet address can make, so the game stays fair and available for everyone.</p>
+<h3>5. Rooms are temporary</h3>
+<p>Games are not saved. A room ends when everyone has left, after a period without activity, or when the server restarts, and its game and chat are then deleted. Public waiting rooms close soon after the last person leaves. We do not promise that Hexlands will always be available or free of errors.</p>
+<h3>6. An independent game</h3>
 <p>Hexlands is an independent game. It is not affiliated with, sponsored by or endorsed by any other board game, video game, publisher or brand. All other names and trademarks belong to their owners.</p>
-<h3>6. Ownership</h3>
+<h3>7. Ownership</h3>
 <p>The game, its code, artwork and text belong to ${w.name}. You may play it for yourself. You may not copy or resell it, or scrape or overload our servers.</p>
-<h3>7. No warranty, and limits on liability</h3>
+<h3>8. No warranty, and limits on liability</h3>
 <p>Hexlands is provided as it is, without promises. As far as the law allows, we are not responsible for losses that come from using it. Nothing in these terms takes away rights you have under the law that cannot be taken away.</p>
-<h3>8. Changes</h3>
+<h3>9. Changes</h3>
 <p>We may update these terms and the game. When the terms change in an important way, the game asks you to agree again. We may also change or end the service at any time.</p>
-<h3>9. Contact</h3>
+<h3>10. Contact</h3>
 <p>Questions or concerns about these terms: ${w.contact}.</p>`;
 }
 
@@ -56,18 +60,20 @@ function privacy() {
 <ul>
 <li><b>Your display name</b>, which you type in. Everyone in your room can see it.</li>
 <li><b>Your chat messages</b> and the moves you make in the game. Everyone in your room can see them.</li>
+<li><b>Public room details</b>: if you create a public room (or use Quick play and no room is open), your display name, the map, the points to win and the number of players are shown in a list to everyone who uses Hexlands, until the game starts or the room closes.</li>
 <li><b>A random session code</b>, stored on your device, that lets you rejoin your game after a break.</li>
 <li><b>Reports</b> you send: the message, the names of you and the reported player, your reason and optional note, the room code and the time.</li>
 <li><b>Technical data</b>: when your device connects, our hosting provider processes your IP address and basic request information, as every website does, and may keep it in its own server logs for a limited time.</li>
+<li><b>Your IP address in our server's memory</b>: to stop abuse, the game counts requests per IP address (for up to an hour) and remembers which address opened each room (for as long as that room exists, at most 6 hours). This is held in memory only, is not added to any database, and is gone when the server restarts. We may block an address that abuses the service.</li>
 </ul>
 <h3>What we do not collect</h3>
 <p>No email address, phone number, location, contacts, photos, camera or microphone data, advertising ID or payment details. There are no analytics, no ads and no tracking cookies.</p>
 <h3>What is stored on your device</h3>
 <p>The game saves in your browser or app storage: your display name, the session code, your sound settings, the names of players you muted, and your agreement to our terms. The app also keeps a copy of its own files so it starts quickly. You can remove all of this by clearing the site or app data.</p>
 <h3>How we use it</h3>
-<p>To run the game, to show your name and messages to the other players in your room, and to review reports and keep the game safe. We do not sell your data and do not use it for advertising.</p>
+<p>To run the game, to show your name and messages to the other players in your room (and your name in the public room list), to match you with other players, to review reports and to keep the game safe, for example by limiting how fast one address can create rooms or send messages. We do not sell your data and do not use it for advertising.</p>
 <h3>Who can see it</h3>
-<p>The other players in your room see your name and messages. Our hosting provider processes technical data on our behalf. We share information with others only if the law requires it or to protect people from harm.</p>
+<p>The other players in your room see your name and messages. Anyone using Hexlands can see the details of a public room, as described above. Our hosting provider processes technical data on our behalf. We share information with others only if the law requires it or to protect people from harm.</p>
 <h3>How long we keep it</h3>
 <p>Game rooms and chat exist only in the server's memory. They are deleted when the room ends: after 30 minutes without activity, after at most 6 hours, or when the server restarts. Reports are kept only as long as needed to review them, and not longer than 90 days where we control the retention (our hosting provider's logs follow its own schedule).</p>
 <h3>Your choices</h3>

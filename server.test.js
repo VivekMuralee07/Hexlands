@@ -3,7 +3,8 @@ process.env.BOT_DELAY_MS = '0';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('http');
-const { server, rooms, reports } = require('./server');
+const { server, rooms, reports, limits } = require('./server');
+limits.enabled = false;   // these tests share one address; matchmaking.test.js covers the limits
 
 let base;
 test.before(() => new Promise(r => server.listen(0, () => { base = `http://127.0.0.1:${server.address().port}`; r(); })));
