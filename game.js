@@ -126,7 +126,7 @@ class Game {
     this.phase = 'lobby';
     this.buildings = {}; this.roads = {};
     this.turn = 0; this.turnNumber = 0; this.rolled = false; this.dice = null;
-    this.subphase = null; this.pendingDiscards = {}; this.freeRoads = 0; this.devPlayed = false;
+    this.subphase = null; this.pendingDiscards = {}; this.pendingDiamond = {}; this.freeRoads = 0; this.devPlayed = false;
     this.trade = null; this.largestArmy = null; this.longestRoad = null;
     this.setup = null; this.winner = null; this.log = []; this.lastRoll = null; this.version = 0;
     this.forcedDice = null;
@@ -136,7 +136,8 @@ class Game {
   // Builds everything that depends on the map. Also used when the host picks another map in the waiting room.
   initBoard(map) {
     const geo = buildGeometry(map.tiles);
-    this.board = { name: map.name, key: map.key, ...geo, goblets: !!map.goblets, fogFreeStart: !!map.fogFreeStart };
+    const dm = geo.tiles.findIndex(t => t.terrain === 'diamond');
+    this.board = { name: map.name, key: map.key, ...geo, goblets: !!map.goblets, fogFreeStart: !!map.fogFreeStart, snakes: map.snakes || 0, diamond: dm >= 0 ? dm : null };
     this.board.ports = placePorts(geo, this.rng, map);
     const desert = geo.tiles.findIndex(t => t.terrain === 'desert');
     this.robber = desert >= 0 ? desert : 0;
@@ -170,17 +171,24 @@ class Game {
   placeGoblets(n) {
     shuffle(this.board.tiles.filter(t => t.fog), this.rng).slice(0, n).forEach(t => { t.terrain = 'goblet'; t.number = null; });
   }
+  // Chamber of Secrets: two of the four fog tiles around the diamond are snakes (no resource, no number).
+  placeSnakes(n) {
+    shuffle(this.board.tiles.filter(t => t.fog), this.rng).slice(0, n).forEach(t => { t.terrain = 'snake'; t.number = null; });
+  }
   isHidden(id) { const t = this.board.tiles[id]; return !!(t && t.fog && !this.revealed.has(id)); }
   // A road or settlement next to a fog tile uncovers it for everyone, and the player who did it receives one card
   // of that tile's resource from the bank (if the bank has it).
   revealTiles(ids, pi, pay = true) {
     const fresh = ids.filter(id => this.isHidden(id)); if (!fresh.length) return [];
-    const NAME = { forest: 'Forest', hills: 'Hills', pasture: 'Pasture', fields: 'Fields', mountains: 'Mountains', desert: 'Desert', goblet: 'the Goblet of Fire' };
+    const NAME = { forest: 'Forest', hills: 'Hills', pasture: 'Pasture', fields: 'Fields', mountains: 'Mountains', desert: 'Desert', goblet: 'the Goblet of Fire', snake: 'a Snake' };
     const label = id => { const t = this.board.tiles[id]; return t.number ? `${NAME[t.terrain]} ${t.number}` : NAME[t.terrain]; };
     fresh.forEach(id => this.revealed.add(id)); this.boardVersion++;
     // A Goblet of Fire burns whoever unlocks it: every wood, sheep and hay card goes back to the bank.
     const burning = fresh.filter(id => this.board.tiles[id].terrain === 'goblet'), lost = {};
     if (burning.length) for (const k of ['wood', 'sheep', 'wheat']) { const n = this.players[pi].res[k]; if (n) { lost[k] = n; this.players[pi].res[k] = 0; this.bank[k] += n; } }
+    // A snake bites whoever uncovers it: one card of every kind that player holds goes back to the bank (for each snake).
+    const snakes = fresh.filter(id => this.board.tiles[id].terrain === 'snake'), bitten = {};
+    if (snakes.length) for (const k of RES) { const n = Math.min(this.players[pi].res[k], snakes.length); if (n) { bitten[k] = n; this.players[pi].res[k] -= n; this.bank[k] += n; } }
     const got = [];
     if (pay) fresh.forEach(id => { const r = PRODUCES[this.board.tiles[id].terrain]; if (r && this.giveFromBank(pi, r, 1)) got.push(r); });
     this.emit('reveal', { p: pi, tiles: fresh, res: got });
@@ -189,6 +197,11 @@ class Game {
       const list = Object.entries(lost).map(([k, n]) => `${n} ${LABEL[k]}`).join(', ');
       this.emit('goblet', { p: pi, tiles: burning, lost });
       this.addLog(list ? `The flames burned ${this.players[pi].name}'s ${list}.` : `The flames found no wood, sheep or hay in ${this.players[pi].name}'s hand.`);
+    }
+    if (snakes.length) {
+      const list = Object.entries(bitten).map(([k, n]) => `${n} ${LABEL[k]}`).join(', ');
+      this.emit('snake', { p: pi, tiles: snakes, lost: bitten });
+      this.addLog(list ? `The snakes bit ${this.players[pi].name}, who lost ${list}.` : `The snakes found nothing to take from ${this.players[pi].name}.`);
     }
     return got;
   }
@@ -375,7 +388,7 @@ class Game {
   }
 
   clockSig() {
-    return [this.phase, this.turn, this.turnNumber, this.subphase, this.setup ? this.setup.step + this.setup.expect : '', this.rolled, Object.keys(this.pendingDiscards).join(','), this.freeRoads].join('|');
+    return [this.phase, this.turn, this.turnNumber, this.subphase, this.setup ? this.setup.step + this.setup.expect : '', this.rolled, Object.keys(this.pendingDiscards).join(','), Object.keys(this.pendingDiamond).join(','), this.freeRoads].join('|');
   }
   // Seconds the current step is allowed to take; 0 means no clock (off, or a bot is acting).
   clockLimit() {
@@ -384,6 +397,7 @@ class Game {
     if (this.phase === 'setup') return this.isBot(this.turn) ? 0 : 60;
     if (this.phase !== 'main') return 0;
     if (this.subphase === 'discard') return Object.keys(this.pendingDiscards).some(k => !this.isBot(+k)) ? Math.max(T, 20) : 0;
+    if (this.subphase === 'diamond') return Object.keys(this.pendingDiamond).some(k => !this.isBot(+k)) ? Math.max(T, 20) : 0;
     return this.isBot(this.turn) ? 0 : T;
   }
   timerView() {
@@ -399,6 +413,9 @@ class Game {
     else if (this.subphase === 'discard') {
       Object.keys(this.pendingDiscards).map(Number).filter(k => !this.isBot(k)).forEach(k => this.autoDiscard(k));
       this.addLog('Time ran out: cards were discarded automatically.');
+    } else if (this.subphase === 'diamond') {
+      Object.keys(this.pendingDiamond).map(Number).filter(k => !this.isBot(k)).forEach(k => this.autoDiamond(k));
+      this.addLog('Time ran out: the diamond cards were chosen automatically.');
     } else if (this.subphase === 'robber') { this.addLog(`${who.name} ran out of time; the robber moved automatically.`); this.autoRobber(this.turn); }
     else if (this.subphase === 'roadBuilding') { this.subphase = null; this.freeRoads = 0; this.addLog(`${who.name} ran out of time; the free roads were skipped.`); }
     else if (!this.rolled) { this.addLog(`${who.name} ran out of time; the dice rolled automatically.`); this.do_roll(this.turn); }
@@ -543,7 +560,7 @@ class Game {
     if (needRoll && !this.rolled) fail('Roll the dice first.');
   }
   subphaseHint() {
-    return { discard: 'Waiting for players to discard.', robber: 'Move the robber first.', roadBuilding: 'Place your free roads first.' }[this.subphase] || 'Finish the current step first.';
+    return { discard: 'Waiting for players to discard.', diamond: 'Waiting for players to choose their diamond cards.', robber: 'Move the robber first.', roadBuilding: 'Place your free roads first.' }[this.subphase] || 'Finish the current step first.';
   }
 
   do_chat(pi, a) {
@@ -559,6 +576,7 @@ class Game {
     this.assignColors();
     const n = this.players.length;
     if (this.board.goblets) this.placeGoblets(n);
+    if (this.board.snakes) this.placeSnakes(this.board.snakes);
     const order = [...Array(n).keys(), ...[...Array(n).keys()].reverse()];
     this.setup = { order, step: 0, expect: 'settlement', last: null };
     this.phase = 'setup'; this.turn = order[0];
@@ -661,10 +679,47 @@ class Game {
       this.players.forEach((p, i) => { const t = total(p.res); if (t > limit) this.pendingDiscards[i] = this.discardAmount(t); });
       this.subphase = Object.keys(this.pendingDiscards).length ? 'discard' : 'robber';
       if (this.subphase === 'discard') this.addLog(`Players with more than ${limit} cards must discard ${this.opts.discardMode === 'four' ? '4' : 'half'}.`);
-    } else this.produce(sum, gains);
+    } else { this.produce(sum, gains); this.diamondPayout(sum); }
     this.lastRoll = { dice: d, gains, seq: (this.lastRoll ? this.lastRoll.seq : 0) + 1 };
   }
 
+  // Chamber of Secrets: when the diamond's number is rolled, every settlement on it lets its owner choose 2 cards from the
+  // bank and every city 3. The robber blocks it like any other tile.
+  diamondPayout(sum) {
+    const d = this.board.diamond;
+    if (d === null || this.board.tiles[d].number !== sum || d === this.robber) return;
+    const owed = {};
+    for (const v of this.board.tiles[d].vertices) { const b = this.buildings[v]; if (b) owed[b.p] = (owed[b.p] || 0) + (b.type === 'city' ? 3 : 2); }
+    const who = Object.keys(owed).map(Number);
+    if (!who.length) return;
+    this.pendingDiamond = {}; who.forEach(i => { this.pendingDiamond[i] = owed[i]; });
+    this.subphase = 'diamond';
+    this.emit('diamondopen', { tile: d, who: who.slice() });
+    this.addLog(`The diamond opens! ${who.map(i => this.players[i].name).join(' and ')} choose${who.length > 1 ? '' : 's'} cards from the bank.`);
+  }
+  do_diamond(pi, a) {
+    if (this.subphase !== 'diamond') fail('No diamond cards are waiting.');
+    const need = this.pendingDiamond[pi]; if (!need) fail('You have no diamond cards to take.');
+    const room = RES.reduce((s, k) => s + this.bank[k], 0), n = Math.min(need, room), pick = Array.isArray(a.res) ? a.res : [];
+    if (pick.length !== n || !pick.every(r => RES.includes(r))) fail(`Pick ${n} resource${n === 1 ? '' : 's'}.`);
+    const want = emptyRes(); pick.forEach(r => want[r]++);
+    if (RES.some(k => want[k] > this.bank[k])) fail('The bank does not have those resources.');
+    pick.forEach(r => this.giveFromBank(pi, r, 1));
+    this.players[pi].stats.collected += pick.length;
+    delete this.pendingDiamond[pi];
+    this.emit('diamond', { p: pi, res: pick.slice() });
+    this.addLog(`${this.players[pi].name} took ${pick.map(r => LABEL[r]).join(', ')} from the diamond.`);
+    if (!Object.keys(this.pendingDiamond).length) this.subphase = null;
+  }
+  autoDiamond(i) {
+    const need = this.pendingDiamond[i]; if (!need) return;
+    const room = RES.reduce((s, k) => s + this.bank[k], 0), n = Math.min(need, room), have = { ...this.players[i].res }, pick = [];
+    for (let c = 0; c < n; c++) {
+      const k = RES.filter(r => this.bank[r] - pick.filter(x => x === r).length > 0).sort((x, y) => have[x] - have[y])[0];
+      pick.push(k); have[k]++;
+    }
+    this.do_diamond(i, { res: pick });
+  }
   produce(sum, gains) {
     const owed = this.players.map(() => emptyRes());
     this.board.tiles.forEach((t, ti) => {
@@ -883,9 +938,10 @@ class Game {
     if (!this.isHost(pi)) fail('Only the host can skip.');
     const stuck = [];
     if (this.subphase === 'discard') Object.keys(this.pendingDiscards).forEach(k => { if (!this.players[k].connected) stuck.push(+k); });
+    if (this.subphase === 'diamond') Object.keys(this.pendingDiamond).forEach(k => { if (!this.players[k].connected) stuck.push(+k); });
     const cur = this.turn;
     if (!stuck.length && this.players[cur].connected) fail('Players can only be skipped while disconnected.');
-    stuck.forEach(i => this.autoDiscard(i));
+    stuck.forEach(i => { this.autoDiscard(i); this.autoDiamond(i); });
     if (!this.players[cur].connected) this.autoTurn(cur);
   }
   autoDiscard(i) {
@@ -909,7 +965,9 @@ class Game {
     if (this.phase !== 'main') return;
     if (!this.rolled && !this.subphase) this.do_roll(i);
     if (this.subphase === 'discard') Object.keys(this.pendingDiscards).forEach(k => { if (!this.players[k].connected) this.autoDiscard(+k); });
+    if (this.subphase === 'diamond') Object.keys(this.pendingDiamond).forEach(k => { if (!this.players[k].connected) this.autoDiamond(+k); });
     if (this.subphase === 'discard') { this.addLog('Waiting on discards before skipping.'); return; }
+    if (this.subphase === 'diamond') { this.addLog('Waiting on diamond choices before skipping.'); return; }
     if (this.subphase === 'robber') this.autoRobber(i);
     if (this.subphase === 'roadBuilding') { this.subphase = null; this.freeRoads = 0; }
     this.addLog(`${this.players[i].name}'s turn was skipped.`);
@@ -953,7 +1011,7 @@ class Game {
         ratios: Object.fromEntries(RES.map(k => [k, this.tradeRatio(pi, k)])) } : null,
       buildings: this.buildings, roads: this.roads, robber: this.robber,
       turn: this.turn, turnNumber: this.turnNumber, rolled: this.rolled, dice: this.dice,
-      subphase: this.subphase, pendingDiscards: this.pendingDiscards, freeRoads: this.freeRoads, devPlayed: this.devPlayed,
+      subphase: this.subphase, pendingDiscards: this.pendingDiscards, pendingDiamond: this.pendingDiamond, freeRoads: this.freeRoads, devPlayed: this.devPlayed,
       setup: this.setup ? { expect: this.setup.expect, last: this.setup.last, round: this.setup.step < this.players.length ? 1 : 2, order: this.setup.order, step: this.setup.step } : null,
       trade: this.trade, largestArmy: this.largestArmy, longestRoad: this.longestRoad,
       bank: this.bank, devLeft: this.devDeck.length, diceCounts: this.diceCounts, log: this.log.slice(-40), winner: this.winner,

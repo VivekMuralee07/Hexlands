@@ -7,8 +7,8 @@ const U = 60;
 const RES = ['wood', 'brick', 'sheep', 'wheat', 'ore'];
 const RES_LABEL = { wood: 'Wood', brick: 'Brick', sheep: 'Sheep', wheat: 'Hay', ore: 'Ore' };
 const TERRAINS = ['forest', 'hills', 'pasture', 'fields', 'mountains', 'desert'];
-const TERRAIN_LABEL = { forest: 'Forest', hills: 'Hills', pasture: 'Pasture', fields: 'Fields', mountains: 'Mountains', desert: 'Desert', sea: 'Sea', fog: 'Hidden', goblet: 'Goblet of Fire' };
-const TERRAIN_RES = { forest: 'wood', hills: 'brick', pasture: 'sheep', fields: 'wheat', mountains: 'ore', desert: null, fog: null, goblet: null };
+const TERRAIN_LABEL = { forest: 'Forest', hills: 'Hills', pasture: 'Pasture', fields: 'Fields', mountains: 'Mountains', desert: 'Desert', sea: 'Sea', fog: 'Hidden', goblet: 'Goblet of Fire', diamond: 'Diamond', snake: 'Snake' };
+const TERRAIN_RES = { forest: 'wood', hills: 'brick', pasture: 'sheep', fields: 'wheat', mountains: 'ore', desert: null, fog: null, goblet: null, diamond: null, snake: null };
 const COST = { road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 }, city: { wheat: 2, ore: 3 }, dev: { sheep: 1, wheat: 1, ore: 1 }, heist: { wood: 1, brick: 1, sheep: 2, wheat: 1, ore: 1 } };
 const DEV = {
   knight: { name: 'Knight', text: 'Move the robber and steal a card. Three knights earn Largest Army.' },
@@ -103,7 +103,7 @@ function bounds(b, pad = 70) {
   (b.ports || []).forEach(p => { add(p.x * U, p.y * U, 34); add(p.x * U, p.y * U - 44, 5); });   // the ship and its pennants   // plate, plus the boat above it
   return { x: x0 - pad, y: y0 - pad, w: x1 - x0 + 2 * pad, h: y1 - y0 + 2 * pad };
 }
-const SIDE = { goblet: '#0d141c', forest: '#0e6527', hills: '#9a431d', pasture: '#637a07', fields: '#a57e18', mountains: '#6f7370', desert: '#89845a' };
+const SIDE = { diamond: '#0c1534', snake: '#0b1a10', goblet: '#0d141c', forest: '#0e6527', hills: '#9a431d', pasture: '#637a07', fields: '#a57e18', mountains: '#6f7370', desert: '#89845a' };
 function shade(hex, f) {
   const n = parseInt(hex.slice(1), 16);
   const ch = [n >> 16, (n >> 8) & 255, n & 255].map(c => Math.max(0, Math.min(255, Math.round(f < 0 ? c * (1 + f) : c + (255 - c) * f))));
@@ -193,7 +193,7 @@ function boardPreviewSvg(b) {
 }
 function terrainCounts(tiles) {
   const c = {}; tiles.forEach(t => { c[t.terrain] = (c[t.terrain] || 0) + 1; });
-  return TERRAINS.filter(k => c[k]).map(k => `<span>${k === 'desert' ? '<svg class="ic" viewBox="-60 -60 120 120"><polygon points="' + ART.HEX + '" fill="#e2c98c"/></svg>' : icon(TERRAIN_RES[k])} ${c[k]} ${TERRAIN_LABEL[k]}</span>`).join('') + (c.fog ? `<span><svg class="ic" viewBox="-62 -62 124 124"><path d="${cloudPath({ id: 1 }, 1, 4)}" fill="#c9ccd1"/></svg> ${c.fog} Hidden</span>` : '');
+  return TERRAINS.filter(k => c[k]).map(k => `<span>${k === 'desert' ? '<svg class="ic" viewBox="-60 -60 120 120"><polygon points="' + ART.HEX + '" fill="#e2c98c"/></svg>' : icon(TERRAIN_RES[k])} ${c[k]} ${TERRAIN_LABEL[k]}</span>`).join('') + (c.fog ? `<span><svg class="ic" viewBox="-62 -62 124 124"><path d="${cloudPath({ id: 1 }, 1, 4)}" fill="#c9ccd1"/></svg> ${c.fog} Hidden</span>` : '') + (c.diamond ? `<span><svg class="ic" viewBox="-50 -50 100 100"><path d="M-44,-20 L-26,-46 L26,-46 L44,-20 L0,48 Z" fill="#56c8ff" stroke="#e8fbff" stroke-width="5"/></svg> ${c.diamond} Diamond</span>` : '');
 }
 
 // ---------- screens ----------
@@ -275,7 +275,7 @@ ${cat === 'misc' ? `<button class="map-opt" data-map="custom" aria-pressed="${S.
       <div class="stack">
         <div class="preview" id="preview"></div>
         <div class="preview-meta"><div class="terrain-counts" id="counts"></div>
-          <div class="row"><button class="btn small" id="reroll">${S.mapKey === 'custom' ? 'Reshuffle harbors' : 'Shuffle tiles'}</button><button class="btn small" id="edit"${S.mapKey === 'gobletoffire' ? ' disabled title="Fog maps cannot be copied"' : ''}>${S.mapKey === 'custom' ? 'Edit map' : 'Copy into editor'}</button></div></div>
+          <div class="row"><button class="btn small" id="reroll">${S.mapKey === 'custom' ? 'Reshuffle harbors' : 'Shuffle tiles'}</button><button class="btn small" id="edit"${['gobletoffire', 'chamberofsecrets'].includes(S.mapKey) ? ' disabled title="Fog maps cannot be copied"' : ''}>${S.mapKey === 'custom' ? 'Edit map' : 'Copy into editor'}</button></div></div>
         <div class="panel row">
           <span class="grow"><b>Next: the waiting room</b><br><span class="muted" style="font-size:.88em">Pick points to win, discard limit, move timer, friendly robber and balanced dice there, and add bots.</span></span>
           <button class="btn primary" id="create">Create room</button>
@@ -614,7 +614,7 @@ function buildShell(app) {
 function updateGame() {
   validatePick();
   const st = S.state;
-  drawDyn(); drawPlayers(); drawBanner(); drawHand(); drawActions(); drawLog(); drawOffer(); drawClock(); drawSetupStrip(); drawPlacing(); drawTrade();
+  drawDyn(); drawPlayers(); drawBanner(); drawHand(); drawActions(); drawLog(); drawOffer(); drawClock(); drawSetupStrip(); drawPlacing(); drawTrade(); drawDiamond();
   syncModals();
 }
 
@@ -880,7 +880,7 @@ function drawPlayers() {
   $('#players').innerHTML = bank + st.players.map((p, i) => {
     const turn = st.turn === i && st.phase !== 'ended';
     const crown = p.vp === leader && leader >= 3 ? `<span class="crown">${icon('monopoly')}</span>` : '';
-    const skippable = st.players[me()].host && i !== me() && !p.connected && (st.turn === i || (st.subphase === 'discard' && st.pendingDiscards[i]));
+    const skippable = st.players[me()].host && i !== me() && !p.connected && (st.turn === i || (st.subphase === 'discard' && st.pendingDiscards[i]) || (st.subphase === 'diamond' && st.pendingDiamond[i]));
     const piece = (k, n, label) => `<span class="pp" title="${label} left to build" style="color:${p.color}">${icon(k)}<b>${n}</b></span>`;
     const badges = [];
     if (st.longestRoad && st.longestRoad.p === i) badges.push(`<span class="badge">${icon('road')} Longest Road</span>`);
@@ -897,6 +897,7 @@ function drawPlayers() {
       <div class="ppieces">${piece('road', p.pieces.road, 'Roads')}${piece('settlement', p.pieces.settlement, 'Settlements')}${piece('city', p.pieces.city, 'Cities')}</div>
       ${badges.length ? `<div class="row badges" style="margin-top:.35rem;gap:.3rem">${badges.join('')}</div>` : ''}
       ${st.pendingDiscards[i] ? `<div class="muted" style="font-size:.85em;margin-top:.2rem">Discarding ${st.pendingDiscards[i]}</div>` : ''}
+      ${st.subphase === 'diamond' && st.pendingDiamond[i] ? `<div class="muted" style="font-size:.85em;margin-top:.2rem">Choosing ${st.pendingDiamond[i]}</div>` : ''}
       ${skippable ? `<button class="btn small" style="margin-top:.4rem" data-skip>Skip offline player</button>` : ''}
       ${turn ? `<div class="yourturn">${i === me() ? 'Your turn' : esc(p.name) + "'s turn"}<span class="tm"></span></div>` : ''}
     </div>`;
@@ -918,6 +919,9 @@ function drawBanner() {
   } else if (st.subphase === 'discard') {
     const mineN = st.pendingDiscards[me()];
     t = mineN ? `Discard ${mineN} cards` : `Waiting for ${Object.keys(st.pendingDiscards).map(i => st.players[i].name).join(', ')} to discard`;
+  } else if (st.subphase === 'diamond') {
+    const mineN = st.pendingDiamond[me()];
+    t = mineN ? `The diamond opens! Choose ${mineN} cards from the bank` : `Waiting for ${Object.keys(st.pendingDiamond).map(i => st.players[i].name).join(', ')} to choose diamond cards`;
   } else if (st.subphase === 'robber') t = mine ? (st.opts.friendlyRobber ? 'Move the robber to a glowing tile. Players with 2 points or fewer are protected' : 'Tap a tile to move the robber') : `${p.name} is moving the robber`;
   else if (st.subphase === 'roadBuilding') t = mine ? `Place ${plural(st.freeRoads, 'free road')}` : `${p.name} is placing free roads`;
   else if (mine) {
@@ -1373,8 +1377,8 @@ function tickClock() {
   const el = $('#clock'), st = S.state;
   if (!el || !S.clock || !st || el.hidden) return;
   const left = Math.max(0, S.clock.until - Date.now()), secs = Math.ceil(left / 1000), frac = Math.max(0, Math.min(1, left / S.clock.limit));
-  const discarding = st.subphase === 'discard', mine = discarding ? !!st.pendingDiscards[me()] : myTurn();
-  const who = discarding ? 'Discarding' : mine ? 'You' : st.players[st.turn].name;
+  const pend = st.subphase === 'discard' ? st.pendingDiscards : st.subphase === 'diamond' ? st.pendingDiamond : null, discarding = !!pend, mine = discarding ? !!pend[me()] : myTurn();
+  const who = discarding ? (st.subphase === 'diamond' ? 'Choosing' : 'Discarding') : mine ? 'You' : st.players[st.turn].name;
   const col = secs <= 5 ? '#ff6b57' : secs <= 10 ? '#ffd23f' : '#6cf08a';
   el.className = 'clock' + (secs <= 5 ? ' urgent' : secs <= 10 ? ' warn' : '');
   el.innerHTML = `<svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="4"/><circle cx="18" cy="18" r="15" fill="none" stroke="${col}" stroke-width="4" stroke-linecap="round" stroke-dasharray="${(94.2 * frac).toFixed(1)} 94.2"/></svg><b>${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}</b><span>${esc(who)}</span>`;
@@ -1537,6 +1541,58 @@ function showHeist(e) {
     + `<div class="htxt"><b>HEIST!</b><span>${esc(text)}</span></div>`;
   document.body.append(el); setTimeout(() => el.remove(), 4000);
 }
+// The diamond opens: a burst of light and gems from the middle of the board.
+function showDiamond(e) {
+  const st = S.state, t = S.board.tiles[e.tile], names = e.who.map(i => st.players[i].name);
+  Sound.play('gem');
+  const text = `${names.join(' and ')} ${names.length > 1 ? 'choose' : 'chooses'} from the bank`;
+  if (reducedMotion()) return toast(`The diamond opens! ${esc(text)}`, 'gain', true);
+  const pt = new DOMPoint(t.x * U, t.y * U).matrixTransform($('#board').getScreenCTM());
+  const el = document.createElement('div'); el.className = 'diamondfx'; el.setAttribute('role', 'status');
+  el.style.setProperty('--sx', `${pt.x}px`); el.style.setProperty('--sy', `${pt.y}px`);
+  const rays = Array.from({ length: 12 }, (_, i) => `<i class="ray" style="--a:${i * 30}deg;--d:${((i % 4) * .05).toFixed(2)}s"></i>`).join('');
+  const gems = Array.from({ length: 16 }, (_, i) => { const a = i / 16 * Math.PI * 2, d = 70 + (i * 29) % 90; return `<i class="gm" style="--dx:${(Math.cos(a) * d).toFixed(0)}px;--dy:${(Math.sin(a) * d).toFixed(0)}px;--d:${((i % 5) * .06).toFixed(2)}s"></i>`; }).join('');
+  el.innerHTML = `<div class="dglow"></div><div class="dburst">${rays}${gems}</div><div class="dtxt"><b>The Diamond opens!</b><span>${esc(text)}</span></div>`;
+  document.body.append(el); setTimeout(() => el.remove(), 3400);
+}
+// Snakes slither across the screen and bite: the discarded cards fly back to the bank.
+function showSnakes(e) {
+  const st = S.state, who = st.players[e.p].name, lost = Object.entries(e.lost || {}), list = lost.map(([k, n]) => `${n} ${RES_LABEL[k]}`).join(', ');
+  const sub = list ? `${who} lost ${list}` : `${who} had nothing to lose`;
+  Sound.play('hiss');
+  lost.forEach(([k, n]) => { for (let c = 0; c < Math.min(n, 4); c++) flyCard(anchorOf(e.p, k), $(`#players .bank .bk.${k}`) || $('#players .bank'), k, 900 + c * 180); });
+  if (reducedMotion()) return toast(`Snakes! ${esc(sub)}`, 'err', true);
+  const W = innerWidth, H = innerHeight, el = document.createElement('div'); el.className = 'snakefx'; el.setAttribute('role', 'status');
+  const head = '<ellipse rx="24" ry="16" fill="#2f9a45" stroke="#0a1710" stroke-width="4"/><circle cx="5" cy="-7" r="5" fill="#ffe34a"/><circle cx="5" cy="7" r="5" fill="#ffe34a"/><ellipse cx="5.5" cy="-7" rx="1.4" ry="4" fill="#111"/><ellipse cx="5.5" cy="7" rx="1.4" ry="4" fill="#111"/><path d="M22,0 H36 M36,0 L45,-6 M36,0 L45,6" stroke="#e8283a" stroke-width="3.2" fill="none" stroke-linecap="round"/>';
+  const snake = (y, amp, waves, dir, delay, dur) => {
+    let d = ''; const n = 28;
+    for (let i = 0; i <= n; i++) { const x = dir > 0 ? W * (-.12 + 1.24 * i / n) : W * (1.12 - 1.24 * i / n); d += `${i ? 'L' : 'M'}${x.toFixed(1)} ${(y + Math.sin(i / n * Math.PI * waves) * amp).toFixed(1)} `; }
+    return `<g style="--delay:${delay}s;--dur:${dur}s"><path class="snb0" d="${d}" pathLength="1"/><path class="snb1" d="${d}" pathLength="1"/><path class="snb2" d="${d}" pathLength="1"/>`
+      + `<g><animateMotion dur="${dur}s" begin="${delay}s" fill="freeze" rotate="auto" path="${d}" calcMode="spline" keyTimes="0;1" keySplines=".2 .6 .3 1"/>${head}</g></g>`;
+  };
+  el.innerHTML = `<div class="smist"></div><svg viewBox="0 0 ${W} ${H}" aria-hidden="true">${snake(H * .3, 38, 5, 1, 0, 1.7)}${snake(H * .52, 46, 4, -1, .25, 1.9)}${snake(H * .74, 34, 6, 1, .5, 1.8)}</svg>`
+    + `<div class="stxt"><b>SNAKES!</b><span>${esc(sub)}</span></div>`;
+  document.body.append(el); setTimeout(() => el.remove(), 3800);
+}
+// The floating window where the owners of the diamond choose their cards from the bank.
+function drawDiamond() {
+  const st = S.state, n = st.subphase === 'diamond' ? (st.pendingDiamond || {})[me()] : 0;
+  let el = $('#diamondwin');
+  if (!n) { if (el) el.remove(); S.dw = null; return; }
+  const room = RES.reduce((a, k) => a + st.bank[k], 0), need = Math.min(n, room);
+  if (!S.dw || S.dw.n !== need) S.dw = { n: need, picks: {} };
+  const picks = S.dw.picks, count = () => RES.reduce((a, k) => a + (picks[k] || 0), 0), left = need - count();
+  if (!el) { el = document.createElement('div'); el.id = 'diamondwin'; el.className = 'dwin'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Choose cards from the diamond'); document.body.append(el); }
+  const card = k => `<button class="tcard ${k}" data-dpick="${k}" aria-label="${RES_LABEL[k]}">${icon(k)}${picks[k] ? `<b class="cnt">${picks[k]}</b>` : ''}<small class="rt">${st.bank[k] - (picks[k] || 0)} left</small></button>`;
+  el.innerHTML = `<div class="dhead"><svg class="dgemico" viewBox="-50 -50 100 100" aria-hidden="true"><path d="M-44,-20 L-26,-46 L26,-46 L44,-20 L0,48 Z" fill="#56c8ff" stroke="#e8fbff" stroke-width="4"/><path d="M-44,-20 H44 M-26,-46 L-12,-20 L0,48 M26,-46 L12,-20 L0,48" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="3"/></svg><div><b>The diamond opens!</b><span>Choose ${need} card${need === 1 ? '' : 's'} from the bank</span></div></div>`
+    + `<div class="drow">${RES.map(card).join('')}</div><p class="dhint">${left ? `Pick ${left} more` : 'Ready to take'}</p>`
+    + `<div class="dbtns"><button class="btn small" id="dclear">Clear</button><button class="btn small" id="drand">Surprise me</button><button class="btn primary" id="dtake" ${left ? 'disabled' : ''}>Take ${need}</button></div>`;
+  const room1 = k => st.bank[k] - (picks[k] || 0) > 0;
+  el.querySelectorAll('[data-dpick]').forEach(b => b.onclick = () => { const k = b.dataset.dpick; if (count() < need && room1(k)) { picks[k] = (picks[k] || 0) + 1; drawDiamond(); } });
+  $('#dclear').onclick = () => { S.dw.picks = {}; drawDiamond(); };
+  $('#drand').onclick = () => { while (count() < need) { const opts = RES.filter(room1), k = opts[Math.floor(Math.random() * opts.length)]; picks[k] = (picks[k] || 0) + 1; } drawDiamond(); };
+  if (!left) $('#dtake').onclick = async () => { $('#dtake').disabled = true; const res = RES.flatMap(k => Array(picks[k] || 0).fill(k)); const r = await act({ type: 'diamond', res }); if (!r.ok && $('#dtake')) $('#dtake').disabled = false; };
+}
 function animateEvent(e) {
   if (e.type === 'reveal') {   // tiles uncovered from the fog, and the card each one pays
     const parts = e.tiles.map(id => S.board.tiles[id]).filter(t => t && t.number).map(t => `${icon(TERRAIN_RES[t.terrain])} ${t.number}`), got = e.res || [];
@@ -1552,6 +1608,8 @@ function animateEvent(e) {
     return;
   }
   if (e.type === 'heist') return showHeist(e);
+  if (e.type === 'snake') return showSnakes(e);
+  if (e.type === 'diamondopen') return showDiamond(e);
   const bank = k => $(`#players .bank .bk.${k}`) || $('#players .bank');
   const each = (cards, fn, after = 0) => Object.entries(cards).forEach(([k, n]) => { for (let c = 0; c < Math.min(n, 4); c++) fn(k, after + c * 180); });
   if (e.type === 'bank') {
@@ -1562,7 +1620,7 @@ function animateEvent(e) {
     each(e.get, (k, d) => flyCard(anchorOf(e.b, k), anchorOf(e.a, k), k, d), 350);
   } else if (e.type === 'heistbuy') {
     each(COST.heist, (k, d) => flyCard(anchorOf(e.p, k), bank(k), k, d)); Sound.play('devbuy');
-  } else if (e.type === 'yop' || e.type === 'start') e.res.forEach((k, c) => flyCard(bank(k), anchorOf(e.p, k), k, c * 320));
+  } else if (e.type === 'yop' || e.type === 'start' || e.type === 'diamond') e.res.forEach((k, c) => flyCard(bank(k), anchorOf(e.p, k), k, c * 320));
 }
 function soundReactions(prev, st) {
   processEvents(prev, st);

@@ -397,6 +397,7 @@ function botStep(g, rng) {
     return g.act(pi, { type: 'road', edge: pick(g.board.vertices[g.setup.last].edges.filter(e => g.roads[e] === undefined)) });
   }
   if (g.subphase === 'discard') { const k = +Object.keys(g.pendingDiscards)[0]; return g.autoDiscard(k); }
+  if (g.subphase === 'diamond') { const k = +Object.keys(g.pendingDiamond)[0]; return g.autoDiamond(k); }
   if (g.subphase === 'robber') {
     const t = pick(g.legalRobberTiles(pi).map(id => g.board.tiles[id])).id;
     return g.act(pi, { type: 'robber', tile: t, victim: pick(g.robberVictims(pi, t)) });

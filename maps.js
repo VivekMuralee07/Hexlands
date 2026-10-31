@@ -130,19 +130,20 @@ function numberPool(count) {
 
 // Place numbers so that red numbers (6, 8) never touch where avoidable.
 function assignNumbers(tiles, rng) {
-  const prod = tiles.filter(t => t.terrain !== 'desert');
-  const pool = numberPool(prod.length);
+  const prod = tiles.filter(t => t.terrain !== 'desert' && t.terrain !== 'snake' && t.terrain !== 'diamond');
+  const fixed = tiles.filter(t => t.terrain === 'diamond');          // the diamond keeps its own 8, and still counts for keeping 6s and 8s apart
+  const all = prod.concat(fixed), pool = numberPool(prod.length);
   let best = null, bestBad = Infinity;
   for (let attempt = 0; attempt < 400 && bestBad > 0; attempt++) {
     const nums = shuffle(pool.slice(), rng);
     prod.forEach((t, i) => { t.number = nums[i]; });
     let bad = 0;
-    for (const t of prod) if (t.number === 6 || t.number === 8)
-      for (const n of neighbors(t, prod)) if (n.number === 6 || n.number === 8) bad++;
+    for (const t of all) if (t.number === 6 || t.number === 8)
+      for (const n of neighbors(t, all)) if (n.number === 6 || n.number === 8) bad++;
     if (bad < bestBad) { bestBad = bad; best = nums; }
   }
   prod.forEach((t, i) => { t.number = best[i]; });
-  tiles.forEach(t => { if (t.terrain === 'desert') t.number = null; });
+  tiles.forEach(t => { if (t.terrain === 'desert' || t.terrain === 'snake') t.number = null; });
 }
 
 // Categories for the map picker: every country is under "countries", everything else is a misc map.
@@ -150,8 +151,7 @@ Object.keys(PRESETS).forEach(k => { PRESETS[k].category = 'countries'; });
 PRESETS.classic.category = 'misc';
 
 // The Goblet of Fire layout: a hexagon of radius 4 around a lake. The middle is a desert island, the ring around it is
-// water, the next two rings are forest, and everything else is fog. Fog hides a random resource that is
-// never wood, and is revealed when a road or settlement touches it. Every harbor sits in the lake and is 2:1 wood.
+// water, the next two rings are forest, and everything else is fog.
 const LAKE = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
 function forestLake(rng, name, extra = {}) {
   const tiles = [];
@@ -175,6 +175,26 @@ PRESETS.gobletoffire = {
   name: 'Goblet of Fire', category: 'misc',
   blurb: 'A forest around a lake island with fog. One Goblet of Fire per player hides in it: unlock one and you lose your wood, sheep and hay.',
   generate: rng => forestLake(rng, 'Goblet of Fire', { goblets: true, fogFreeStart: true }),
+};
+
+// Chamber of Secrets: the same hexagon as Goblet of Fire, but all land. A diamond with an 8 sits in the middle and four
+// fog tiles surround it on its diagonal sides. When the game starts, two of those four become snakes.
+function chamberOfSecrets(rng) {
+  const tiles = [];
+  for (let q = -4; q <= 4; q++) for (let r = -4; r <= 4; r++) { const s = -q - r; if (Math.max(Math.abs(q), Math.abs(r), Math.abs(s)) <= 4) tiles.push({ q, r, terrain: null, number: null, fog: false }); }
+  const at = (q, r) => tiles.find(t => t.q === q && t.r === r);
+  const centre = at(0, 0); centre.terrain = 'diamond'; centre.number = 8;
+  const fog = [[0, -1], [1, -1], [-1, 1], [0, 1]].map(([q, r]) => at(q, r)); fog.forEach(t => { t.fog = true; });
+  const pool = shuffle([...Array(12).fill('forest'), ...Array(11).fill('hills'), ...Array(12).fill('pasture'), ...Array(12).fill('fields'), ...Array(11).fill('mountains'), 'desert', 'desert'], rng);
+  fog.forEach(t => { t.terrain = pool.splice(pool.findIndex(x => x !== 'desert'), 1)[0]; });   // fog never hides a desert
+  tiles.filter(t => !t.terrain).forEach(t => { t.terrain = pool.pop(); });
+  assignNumbers(tiles, rng);
+  return { name: 'Chamber of Secrets', tiles, snakes: 2 };
+}
+PRESETS.chamberofsecrets = {
+  name: 'Chamber of Secrets', category: 'misc',
+  blurb: 'A diamond with an 8 sits in the middle, guarded by four fog tiles. Two of them hide snakes.',
+  generate: rng => chamberOfSecrets(rng),
 };
 
 function generatePreset(key, seed) {

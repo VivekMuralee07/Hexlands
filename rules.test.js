@@ -516,11 +516,11 @@ test('development card pile: totals, what has been played, and the view for ever
 // The fog rules without the goblets and without the fog-free start (those are tested separately).
 function plainFog(n, seed) { const g = mk(n, seed, 'gobletoffire'); g.board.goblets = false; g.board.fogFreeStart = false; g.act(0, { type: 'start' }); return g; }
 
-test('map categories: 15 countries and the misc maps (Classic Island and Goblet of Fire)', () => {
+test('map categories: 15 countries and the misc maps (Classic Island, Goblet of Fire, Chamber of Secrets)', () => {
   const list = maps.presetList();
   assert.ok(list.every(m => ['countries', 'misc'].includes(m.category)));
   assert.equal(list.filter(m => m.category === 'countries').length, 15);
-  assert.deepEqual(list.filter(m => m.category === 'misc').map(m => m.key).sort(), ['classic', 'gobletoffire']);
+  assert.deepEqual(list.filter(m => m.category === 'misc').map(m => m.key).sort(), ['chamberofsecrets', 'classic', 'gobletoffire']);
 });
 
 test('Goblet of Fire layout: lake island, 24 visible forest tiles, 30 fog tiles that never hide wood, six wood harbors in the lake', () => {
@@ -879,4 +879,117 @@ test('Heist card: when exactly two of the victim\'s roads touch the settlement, 
   ({ g, me, victim, v, edgesAt } = setup(15, 2));
   g.act(me, { type: 'playDev', card: 'heist', vertex: v });
   assert.ok(g.roadLength(me) >= 2 && g.roadLength(victim) <= 1);
+});
+
+// ---- Chamber of Secrets ----
+function chamber(n = 3, seed = 6) { const g = mk(n, seed, 'chamberofsecrets'); g.act(0, { type: 'start' }); finishSetup(g); return g; }
+const tileAt = (g, q, r) => g.board.tiles.find(t => t.q === q && t.r === r);
+const MAIN = ['forest', 'hills', 'pasture', 'fields', 'mountains'];
+
+test('Chamber of Secrets: the Goblet of Fire hexagon, all land, a diamond 8 in the middle and four fog tiles around it', () => {
+  const dist = t => Math.max(Math.abs(t.q), Math.abs(t.r), Math.abs(t.q + t.r));
+  for (let seed = 1; seed <= 12; seed++) {
+    const g = mk(2, seed, 'chamberofsecrets'), T = g.board.tiles, fog = T.filter(t => t.fog), c = tileAt(g, 0, 0);
+    assert.equal(T.length, 61); assert.ok(T.every(t => dist(t) <= 4), 'the same radius-4 hexagon as Goblet of Fire, with no lake');
+    assert.deepEqual([c.terrain, c.number, c.fog], ['diamond', 8, false]);
+    assert.deepEqual(fog.map(t => `${t.q},${t.r}`).sort(), ['-1,1', '0,-1', '0,1', '1,-1'], 'fog on the four diagonal sides of the diamond');
+    assert.ok(!tileAt(g, 1, 0).fog && !tileAt(g, -1, 0).fog, 'its east and west neighbours are open land, so it can be reached');
+    assert.ok(fog.every(t => MAIN.includes(t.terrain) && t.number >= 2), 'before the game starts the fog hides ordinary tiles');
+    assert.equal(T.filter(t => t.terrain === 'desert').length, 2); assert.equal(T[g.robber].terrain, 'desert');
+    assert.ok(T.filter(t => t.terrain !== 'diamond').every(t => (t.terrain === 'desert') === (t.number === null) && (t.number === null || (t.number >= 2 && t.number <= 12))), 'random numbers everywhere else');
+    for (const k of MAIN) assert.ok(T.some(t => t.terrain === k && !t.fog), k + ' is on the open land');
+    assert.ok(g.board.ports.length >= 8);
+  }
+});
+
+test('Chamber of Secrets: two of the four fog tiles become snakes when the game starts, whatever the player count', () => {
+  const seen = new Set();
+  for (const n of [2, 3, 4]) for (let seed = 1; seed <= 6; seed++) {
+    const g = mk(n, seed, 'chamberofsecrets'); assert.equal(g.board.tiles.filter(t => t.terrain === 'snake').length, 0, 'nothing is hidden yet');
+    g.act(0, { type: 'start' });
+    const S = g.board.tiles.filter(t => t.terrain === 'snake'), bv = g.boardView(), rest = g.board.tiles.filter(t => t.fog && t.terrain !== 'snake');
+    assert.equal(S.length, 2); assert.ok(S.every(t => t.fog && t.number === null && bv.tiles[t.id].terrain === 'fog' && bv.tiles[t.id].number === null), 'nobody can see which ones');
+    assert.equal(rest.length, 2); assert.ok(rest.every(t => MAIN.includes(t.terrain) && t.number >= 2), 'the other two hide ordinary tiles');
+    seen.add(S.map(t => t.id).sort().join());
+  }
+  assert.ok(seen.size > 1, 'the snakes are placed at random');
+});
+
+test('Chamber of Secrets: uncovering a snake costs one card of every kind you hold, for each snake', () => {
+  const g = chamber(3, 6), me = g.turn, other = (me + 1) % 3, snakes = g.board.tiles.filter(t => t.terrain === 'snake');
+  g.players[me].res = { wood: 3, brick: 0, sheep: 1, wheat: 2, ore: 1 };
+  const bank = { ...g.bank }, otherRes = { ...g.players[other].res }, known = g.revealed.size;
+  const got = g.revealTiles([snakes[0].id], me);
+  assert.deepEqual(g.players[me].res, { wood: 2, brick: 0, sheep: 0, wheat: 1, ore: 0 }, '1 wood, 1 sheep, 1 hay and 1 ore are lost; brick was not held');
+  assert.deepEqual(['wood', 'brick', 'sheep', 'wheat', 'ore'].map(k => g.bank[k] - bank[k]), [1, 0, 1, 1, 1], 'they go back to the bank');
+  assert.deepEqual(got, [], 'a snake pays nothing'); assert.deepEqual(g.players[other].res, otherRes, 'nobody else loses anything');
+  const ev = g.events.filter(e => e.type === 'snake').pop();
+  assert.deepEqual([ev.p, ev.tiles, ev.lost], [me, [snakes[0].id], { wood: 1, sheep: 1, wheat: 1, ore: 1 }]);
+  assert.ok(g.log.some(l => /snakes bit/.test(l.text || l)) && g.boardView().tiles[snakes[0].id].terrain === 'snake', 'the snake is now shown to everyone');
+  // two snakes at once bite twice, and nothing to lose is fine
+  const h = chamber(3, 6), hs = h.board.tiles.filter(t => t.terrain === 'snake'); h.players[me].res = { wood: 3, brick: 1, sheep: 0, wheat: 0, ore: 0 };
+  h.revealTiles(hs.map(t => t.id), me); assert.deepEqual(h.players[me].res, { wood: 1, brick: 0, sheep: 0, wheat: 0, ore: 0 }, 'two snakes: 2 wood, and the 1 brick');
+  const k = chamber(3, 6); k.players[me].res = { wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 0 }; k.revealTiles([k.board.tiles.find(t => t.terrain === 'snake').id], me);
+  assert.deepEqual(k.events.filter(e => e.type === 'snake').pop().lost, {}); assert.ok(k.log.some(l => /found nothing to take/.test(l.text || l)));
+  assert.ok(g.revealed.size > known);
+});
+
+test('Chamber of Secrets: a road whose tip touches a snake gets bitten (after paying for the road)', () => {
+  const g = chamber(3, 7), me = g.turn; g.forcedDice = [[1, 2]]; g.act(me, { type: 'roll' });
+  const S = g.board.tiles.find(t => t.terrain === 'snake'), { edges } = g.board;
+  const e = edges.find(x => g.roadReach(x.id).includes(S.id) && g.roads[x.id] === undefined && !g.buildings[x.v[0]] && !g.buildings[x.v[1]]);
+  assert.ok(e, 'a road reaches the snake'); g.buildings[e.v[0]] = { p: me, type: 'settlement' };
+  g.players[me].res = { wood: 2, brick: 1, sheep: 1, wheat: 1, ore: 1 };
+  const known = new Set(g.revealed); g.act(me, { type: 'road', edge: e.id });
+  assert.ok(g.revealed.has(S.id));
+  const pays = { wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 0 }; [...g.revealed].filter(id => !known.has(id)).forEach(id => { const r = maps.PRODUCES[g.board.tiles[id].terrain]; if (r) pays[r]++; });
+  assert.deepEqual(g.players[me].res, pays, 'road: -1 wood, -1 brick; snake: -1 of each card still held; any ordinary fog tile uncovered at the same time still pays one card');
+});
+
+function diamondGame(n = 3, seed = 6) {          // `me` has two settlements on the diamond, the next player a city
+  const g = chamber(n, seed), me = g.turn, b = (me + 1) % n, V = g.board.tiles[g.board.diamond].vertices;
+  V.forEach(v => { delete g.buildings[v]; });
+  g.buildings[V[0]] = { p: me, type: 'settlement' }; g.buildings[V[2]] = { p: me, type: 'settlement' }; g.buildings[V[4]] = { p: b, type: 'city' };
+  return { g, me, b, V, d: g.board.diamond };
+}
+
+test('Chamber of Secrets: an 8 lets each settlement on the diamond choose 2 cards and each city 3, from the bank', () => {
+  const { g, me, b, d } = diamondGame();
+  g.players[me].res = { wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 0 }; g.players[b].res = { wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 0 };
+  g.forcedDice = [[4, 4]]; g.act(me, { type: 'roll' });
+  assert.equal(g.subphase, 'diamond'); assert.deepEqual(g.pendingDiamond, { [me]: 4, [b]: 3 }, 'two settlements = 4 cards, one city = 3');
+  assert.deepEqual(g.view(b).pendingDiamond, g.pendingDiamond);
+  const open = g.events.filter(e => e.type === 'diamondopen').pop(); assert.deepEqual([open.tile, open.who.slice().sort()], [d, [me, b].sort()]);
+  assert.throws(() => g.act(me, { type: 'endTurn' }), /diamond/, 'the turn waits for everybody');
+  assert.throws(() => g.act(b, { type: 'diamond', res: ['ore'] }), /Pick 3/); assert.throws(() => g.act(b, { type: 'diamond', res: ['ore', 'ore', 'gold'] }), /Pick 3/);
+  g.bank.ore = 1; assert.throws(() => g.act(b, { type: 'diamond', res: ['ore', 'ore', 'wheat'] }), /bank does not have/); g.bank.ore = 19;
+  const before = { ...g.bank }, hb = { ...g.players[b].res }, hm = { ...g.players[me].res };   // the same 8 also paid ordinary tiles
+  g.act(b, { type: 'diamond', res: ['ore', 'ore', 'wheat'] });
+  assert.deepEqual(g.players[b].res, { ...hb, wheat: hb.wheat + 1, ore: hb.ore + 2 }); assert.equal(g.bank.ore, before.ore - 2); assert.equal(g.subphase, 'diamond', 'still waiting for the other owner');
+  assert.throws(() => g.act(b, { type: 'diamond', res: ['ore', 'ore', 'wheat'] }), /no diamond cards/);
+  g.act(me, { type: 'diamond', res: ['brick', 'brick', 'sheep', 'wood'] });
+  assert.deepEqual(g.players[me].res, { ...hm, wood: hm.wood + 1, brick: hm.brick + 2, sheep: hm.sheep + 1 }); assert.equal(g.subphase, null); assert.deepEqual(g.pendingDiamond, {});
+  assert.deepEqual(g.events.filter(e => e.type === 'diamond').map(e => [e.p, e.res.length]), [[b, 3], [me, 4]]);
+  g.act(me, { type: 'endTurn' });                       // the turn carries on as usual
+  // an 8 that nobody owns, a different number, or the robber on the diamond: nothing happens
+  const e1 = diamondGame(); e1.g.board.tiles[d].vertices.forEach(v => { delete e1.g.buildings[v]; }); e1.g.forcedDice = [[4, 4]]; e1.g.act(e1.me, { type: 'roll' }); assert.equal(e1.g.subphase, null);
+  const e2 = diamondGame(); e2.g.forcedDice = [[3, 4]]; e2.g.act(e2.me, { type: 'roll' }); assert.notEqual(e2.g.subphase, 'diamond');
+  const e3 = diamondGame(); e3.g.robber = d; e3.g.forcedDice = [[4, 4]]; e3.g.act(e3.me, { type: 'roll' }); assert.equal(e3.g.subphase, null, 'the robber blocks the diamond');
+  const e4 = diamondGame(); e4.g.buildings[e4.V[0]] = { p: e4.me, type: 'city' }; delete e4.g.buildings[e4.V[2]]; delete e4.g.buildings[e4.V[4]]; e4.g.forcedDice = [[4, 4]]; e4.g.act(e4.me, { type: 'roll' });
+  assert.deepEqual(e4.g.pendingDiamond, { [e4.me]: 3 }, 'one city alone = 3');
+});
+
+test('Chamber of Secrets: the clock, an offline player and the bots all settle the diamond choices', () => {
+  let { g, me, b } = diamondGame(); g.forcedDice = [[4, 4]]; g.act(me, { type: 'roll' });
+  g.opts.timer = 15; g.clockAt = Date.now() - 60000;
+  const before = [g.players[me].res, g.players[b].res].map(r => Object.values(r).reduce((x, y) => x + y, 0));
+  assert.ok(g.timeout()); assert.equal(g.subphase, null); assert.deepEqual([g.players[me].res, g.players[b].res].map(r => Object.values(r).reduce((x, y) => x + y, 0)), [before[0] + 4, before[1] + 3], 'time ran out: the cards were chosen for them');
+  ({ g, me, b } = diamondGame()); g.forcedDice = [[4, 4]]; g.act(me, { type: 'roll' });
+  g.players.forEach(p => { p.connected = true; }); g.players[b].connected = false; g.act(g.players.findIndex(p => p.token === g.hostToken), { type: 'skip' });
+  assert.equal(g.pendingDiamond[b], undefined, 'the offline player was chosen for'); assert.equal(g.subphase, 'diamond', 'the connected owner still decides');
+  for (const level of ['easy', 'medium', 'hard']) {
+    ({ g, me, b } = diamondGame()); g.players[b].bot = level; g.forcedDice = [[4, 4]]; g.act(me, { type: 'roll' });
+    assert.deepEqual(bots.nextActor(g), { pi: b, kind: 'diamond' }); const a = bots.decide(g, b);
+    assert.equal(a.type, 'diamond'); assert.equal(a.res.length, 3); g.act(b, a); assert.equal(g.pendingDiamond[b], undefined);
+  }
 });

@@ -40,6 +40,7 @@ function vertexScore(g, pi, v, level, prof = profile(g, pi)) {
   let s = 0;
   for (const h of V.hexes) {
     const t = g.board.tiles[h], r = PRODUCES[t.terrain];
+    if (t.terrain === 'diamond') { s += level === 'easy' ? 3 : 7; continue; }   // an 8 that pays cards of your choice
     if (hiddenTile(g, t)) { s += 3.2; continue; }   // fog: nobody knows what is under it, so count an average tile
     if (!r) continue;
     let w = level === 'hard' ? sc[r] : 1;
@@ -221,6 +222,17 @@ function robberAction(g, pi, level) {
   return { type: 'robber', tile: tile.id, victim };
 }
 
+// The diamond lets a bot choose cards from the bank: whatever its next build still lacks.
+function diamondAction(g, pi, level) {
+  const need = g.pendingDiamond[pi], room = RES.reduce((s, k) => s + g.bank[k], 0), n = Math.min(need, room);
+  const have = { ...g.players[pi].res }, picks = [], goal = level === 'easy' ? null : targetGoal(g, pi), want = goal ? goal.cost : {};
+  for (let i = 0; i < n; i++) {
+    const avail = RES.filter(k => g.bank[k] - picks.filter(x => x === k).length > 0);
+    const k = level === 'easy' ? pick(g, avail) : best(avail, x => (want[x] || 0) - have[x] + g.rng() * 0.1);
+    picks.push(k); have[k]++;
+  }
+  return { type: 'diamond', res: picks };
+}
 function discardAction(g, pi, level) {
   const need = g.pendingDiscards[pi];
   const res = { ...g.players[pi].res }, out = { wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 0 };
@@ -309,6 +321,10 @@ function nextActor(g) {
     const k = Object.keys(g.pendingDiscards).map(Number).find(i => g.isBot(i));
     return k === undefined ? null : { pi: k, kind: 'discard' };
   }
+  if (g.subphase === 'diamond') {
+    const k = Object.keys(g.pendingDiamond).map(Number).find(i => g.isBot(i));
+    return k === undefined ? null : { pi: k, kind: 'diamond' };
+  }
   if (g.trade && g.phase === 'main') {
     const t = g.trade;
     const i = g.players.findIndex((p, j) => p.bot && j !== t.from && !t.accepted.includes(j) && !t.declined.includes(j));
@@ -319,6 +335,7 @@ function nextActor(g) {
 }
 
 function decide(g, pi, level = g.players[pi].bot || 'medium') {
+  if (g.subphase === 'diamond' && g.pendingDiamond[pi]) return diamondAction(g, pi, level);
   if (g.subphase === 'discard' && g.pendingDiscards[pi]) return discardAction(g, pi, level);
   if (g.trade && g.phase === 'main' && g.trade.from !== pi && !g.trade.accepted.includes(pi) && !g.trade.declined.includes(pi) && g.turn !== pi)
     return respondAction(g, pi, level);
