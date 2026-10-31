@@ -82,7 +82,6 @@
     gain(t) { sweep(t, 700, 5200, 0.18, 2.0, 2); [660, 880].forEach((f, i) => tone(sfxBus, 'sine', f, t + 0.12 + i * 0.06, 0.16, 0.003, 0.2)); },
     steal(t) { sweep(t, 900, 4200, 0.16, 0.9, 2); sweep(t + 0.1, 4200, 900, 0.16, 0.8, 2); },
     gem(t) { [880, 1175, 1568, 2093, 2637].forEach((f, i) => tone(sfxBus, 'sine', f, t + i * 0.085, 0.2, 0.002, 0.55)); noise(sfxBus, t, 0.1, 0.25, 'highpass', 8000, 0.7); },   // a bright shimmer
-    hiss(t) { noise(sfxBus, t, 0.55, 0.9, 'highpass', 5200, 0.8); noise(sfxBus, t + 0.4, 0.4, 0.7, 'highpass', 6500, 0.8); tone(sfxBus, 'sawtooth', 70, t, 0.14, 0.05, 0.8, { to: 50, filter: 220 }); },   // snakes
     heist(t) { [392, 349, 311, 262].forEach((f, i) => tone(sfxBus, 'triangle', f, t + i * 0.13, 0.3, 0.003, 0.2)); knock(t + 0.58, 120, 0.5, 0.12); [1568, 2093, 2637].forEach((f, i) => tone(sfxBus, 'sine', f, t + 0.72 + i * 0.07, 0.22, 0.001, 0.42)); noise(sfxBus, t + 0.7, 0.14, 0.06, 'highpass', 7000); },   // sneaking steps, then coins
     fire(t) { sweep(t, 300, 2600, 0.8, 1.7, 0.8); noise(sfxBus, t + 0.05, 0.45, 1.1, 'highpass', 1800, 0.7); [0, 0.12, 0.26, 0.41, 0.6, 0.8].forEach((d, i) => noise(sfxBus, t + d, 0.5, 0.05, 'bandpass', 2400 + i * 500, 4)); tone(sfxBus, 'sawtooth', 82, t, 0.25, 0.05, 0.9, { to: 55, filter: 300 }); },   // a whoosh and crackle
     devbuy(t) { noise(sfxBus, t, 0.7, 0.05, 'bandpass', 3500, 1); noise(sfxBus, t + 0.07, 0.55, 0.05, 'bandpass', 2500, 1); tone(sfxBus, 'sine', 500, t + 0.1, 0.12, 0.01, 0.16, { to: 900 }); },

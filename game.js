@@ -137,7 +137,7 @@ class Game {
   initBoard(map) {
     const geo = buildGeometry(map.tiles);
     const dm = geo.tiles.findIndex(t => t.terrain === 'diamond');
-    this.board = { name: map.name, key: map.key, ...geo, goblets: !!map.goblets, fogFreeStart: !!map.fogFreeStart, snakes: map.snakes || 0, diamond: dm >= 0 ? dm : null };
+    this.board = { name: map.name, key: map.key, ...geo, goblets: !!map.goblets, fogFreeStart: !!map.fogFreeStart, gobletExtra: map.gobletExtra || 0, diamond: dm >= 0 ? dm : null };
     this.board.ports = placePorts(geo, this.rng, map);
     const desert = geo.tiles.findIndex(t => t.terrain === 'desert');
     this.robber = desert >= 0 ? desert : 0;
@@ -171,24 +171,17 @@ class Game {
   placeGoblets(n) {
     shuffle(this.board.tiles.filter(t => t.fog), this.rng).slice(0, n).forEach(t => { t.terrain = 'goblet'; t.number = null; });
   }
-  // Chamber of Secrets: two of the four fog tiles around the diamond are snakes (no resource, no number).
-  placeSnakes(n) {
-    shuffle(this.board.tiles.filter(t => t.fog), this.rng).slice(0, n).forEach(t => { t.terrain = 'snake'; t.number = null; });
-  }
   isHidden(id) { const t = this.board.tiles[id]; return !!(t && t.fog && !this.revealed.has(id)); }
   // A road or settlement next to a fog tile uncovers it for everyone, and the player who did it receives one card
   // of that tile's resource from the bank (if the bank has it).
   revealTiles(ids, pi, pay = true) {
     const fresh = ids.filter(id => this.isHidden(id)); if (!fresh.length) return [];
-    const NAME = { forest: 'Forest', hills: 'Hills', pasture: 'Pasture', fields: 'Fields', mountains: 'Mountains', desert: 'Desert', goblet: 'the Goblet of Fire', snake: 'a Snake' };
+    const NAME = { forest: 'Forest', hills: 'Hills', pasture: 'Pasture', fields: 'Fields', mountains: 'Mountains', desert: 'Desert', goblet: 'the Goblet of Fire' };
     const label = id => { const t = this.board.tiles[id]; return t.number ? `${NAME[t.terrain]} ${t.number}` : NAME[t.terrain]; };
     fresh.forEach(id => this.revealed.add(id)); this.boardVersion++;
     // A Goblet of Fire burns whoever unlocks it: every wood, sheep and hay card goes back to the bank.
     const burning = fresh.filter(id => this.board.tiles[id].terrain === 'goblet'), lost = {};
     if (burning.length) for (const k of ['wood', 'sheep', 'wheat']) { const n = this.players[pi].res[k]; if (n) { lost[k] = n; this.players[pi].res[k] = 0; this.bank[k] += n; } }
-    // A snake bites whoever uncovers it: one card of every kind that player holds goes back to the bank (for each snake).
-    const snakes = fresh.filter(id => this.board.tiles[id].terrain === 'snake'), bitten = {};
-    if (snakes.length) for (const k of RES) { const n = Math.min(this.players[pi].res[k], snakes.length); if (n) { bitten[k] = n; this.players[pi].res[k] -= n; this.bank[k] += n; } }
     const got = [];
     if (pay) fresh.forEach(id => { const r = PRODUCES[this.board.tiles[id].terrain]; if (r && this.giveFromBank(pi, r, 1)) got.push(r); });
     this.emit('reveal', { p: pi, tiles: fresh, res: got });
@@ -197,11 +190,6 @@ class Game {
       const list = Object.entries(lost).map(([k, n]) => `${n} ${LABEL[k]}`).join(', ');
       this.emit('goblet', { p: pi, tiles: burning, lost });
       this.addLog(list ? `The flames burned ${this.players[pi].name}'s ${list}.` : `The flames found no wood, sheep or hay in ${this.players[pi].name}'s hand.`);
-    }
-    if (snakes.length) {
-      const list = Object.entries(bitten).map(([k, n]) => `${n} ${LABEL[k]}`).join(', ');
-      this.emit('snake', { p: pi, tiles: snakes, lost: bitten });
-      this.addLog(list ? `The snakes bit ${this.players[pi].name}, who lost ${list}.` : `The snakes found nothing to take from ${this.players[pi].name}.`);
     }
     return got;
   }
@@ -575,8 +563,7 @@ class Game {
     shuffle(this.players, this.rng);
     this.assignColors();
     const n = this.players.length;
-    if (this.board.goblets) this.placeGoblets(n);
-    if (this.board.snakes) this.placeSnakes(this.board.snakes);
+    if (this.board.goblets) this.placeGoblets(n + this.board.gobletExtra);   // one per player (the Chamber of Secrets adds two more)
     const order = [...Array(n).keys(), ...[...Array(n).keys()].reverse()];
     this.setup = { order, step: 0, expect: 'settlement', last: null };
     this.phase = 'setup'; this.turn = order[0];

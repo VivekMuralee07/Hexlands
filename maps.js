@@ -130,7 +130,7 @@ function numberPool(count) {
 
 // Place numbers so that red numbers (6, 8) never touch where avoidable.
 function assignNumbers(tiles, rng) {
-  const prod = tiles.filter(t => t.terrain !== 'desert' && t.terrain !== 'snake' && t.terrain !== 'diamond');
+  const prod = tiles.filter(t => t.terrain !== 'desert' && t.terrain !== 'diamond');
   const fixed = tiles.filter(t => t.terrain === 'diamond');          // the diamond keeps its own 8, and still counts for keeping 6s and 8s apart
   const all = prod.concat(fixed), pool = numberPool(prod.length);
   let best = null, bestBad = Infinity;
@@ -143,7 +143,7 @@ function assignNumbers(tiles, rng) {
     if (bad < bestBad) { bestBad = bad; best = nums; }
   }
   prod.forEach((t, i) => { t.number = best[i]; });
-  tiles.forEach(t => { if (t.terrain === 'desert' || t.terrain === 'snake') t.number = null; });
+  tiles.forEach(t => { if (t.terrain === 'desert') t.number = null; });
 }
 
 // Categories for the map picker: every country is under "countries", everything else is a misc map.
@@ -177,23 +177,22 @@ PRESETS.gobletoffire = {
   generate: rng => forestLake(rng, 'Goblet of Fire', { goblets: true, fogFreeStart: true }),
 };
 
-// Chamber of Secrets: the same hexagon as Goblet of Fire, but all land. A diamond with an 8 sits in the middle and four
-// fog tiles surround it on its diagonal sides. When the game starts, two of those four become snakes.
+// Chamber of Secrets: the same hexagon as Goblet of Fire, but all land. A diamond with an 8 sits in the middle, buried under
+// two rings of fog (6 + 12 tiles). When the game starts, goblets of fire are hidden in that fog: two more than there are players.
 function chamberOfSecrets(rng) {
-  const tiles = [];
+  const tiles = [], ring = t => Math.max(Math.abs(t.q), Math.abs(t.r), Math.abs(t.q + t.r));
   for (let q = -4; q <= 4; q++) for (let r = -4; r <= 4; r++) { const s = -q - r; if (Math.max(Math.abs(q), Math.abs(r), Math.abs(s)) <= 4) tiles.push({ q, r, terrain: null, number: null, fog: false }); }
-  const at = (q, r) => tiles.find(t => t.q === q && t.r === r);
-  const centre = at(0, 0); centre.terrain = 'diamond'; centre.number = 8;
-  const fog = [[0, -1], [1, -1], [-1, 1], [0, 1]].map(([q, r]) => at(q, r)); fog.forEach(t => { t.fog = true; });
+  const centre = tiles.find(t => ring(t) === 0); centre.terrain = 'diamond'; centre.number = 8;
+  const fog = tiles.filter(t => ring(t) === 1 || ring(t) === 2); fog.forEach(t => { t.fog = true; });
   const pool = shuffle([...Array(12).fill('forest'), ...Array(11).fill('hills'), ...Array(12).fill('pasture'), ...Array(12).fill('fields'), ...Array(11).fill('mountains'), 'desert', 'desert'], rng);
   fog.forEach(t => { t.terrain = pool.splice(pool.findIndex(x => x !== 'desert'), 1)[0]; });   // fog never hides a desert
   tiles.filter(t => !t.terrain).forEach(t => { t.terrain = pool.pop(); });
   assignNumbers(tiles, rng);
-  return { name: 'Chamber of Secrets', tiles, snakes: 2 };
+  return { name: 'Chamber of Secrets', tiles, goblets: true, gobletExtra: 2, fogFreeStart: true };
 }
 PRESETS.chamberofsecrets = {
   name: 'Chamber of Secrets', category: 'misc',
-  blurb: 'A diamond with an 8 sits in the middle, guarded by four fog tiles. Two of them hide snakes.',
+  blurb: 'A diamond with an 8 sits in the middle, buried under two rings of fog. Goblets of Fire hide in the fog: unlock one and you lose your wood, sheep and hay.',
   generate: rng => chamberOfSecrets(rng),
 };
 

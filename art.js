@@ -138,11 +138,6 @@
     + '<path d="M-46,-20 H46 M-27,-48 L-12,-20 L0,52 M27,-48 L12,-20 L0,52 M-27,-48 L0,-20 L27,-48 M-12,-20 L0,-48 L12,-20" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.6" stroke-linejoin="round"/>'
     + '<path d="M-27,-48 L-12,-20 L-46,-20 Z" fill="#fff" fill-opacity=".38"/></g>'
     + '<path class="dsp dsp1" d="M-40,-46 l2.5,6 l6,2.5 l-6,2.5 l-2.5,6 l-2.5,-6 l-6,-2.5 l6,-2.5z" fill="#fff"/><path class="dsp dsp2" d="M40,8 l2,5 l5,2 l-5,2 l-2,5 l-2,-5 l-5,-2 l5,-2z" fill="#cfeeff"/><path class="dsp dsp3" d="M-36,28 l1.6,4 l4,1.6 l-4,1.6 l-1.6,4 l-1.6,-4 l-4,-1.6 l4,-1.6z" fill="#fff"/>';
-  // Snake: a coiled green snake with a flicking tongue, on dark swampy ground.
-  const SNAKE = 'M-28,36 C-40,8 24,16 28,-6 C32,-26 -22,-14 -18,-34';
-  t.snake = '<rect x="-60" y="-60" width="120" height="120" fill="#142a1c"/><circle r="56" fill="#1f4a2c" opacity=".6"/>'
-    + `<path d="${SNAKE}" fill="none" stroke="#0a1710" stroke-width="20" stroke-linecap="round"/><path d="${SNAKE}" fill="none" stroke="#3fae52" stroke-width="14" stroke-linecap="round"/><path d="${SNAKE}" fill="none" stroke="#c9f08a" stroke-width="4" stroke-linecap="round" stroke-dasharray="2 9" opacity=".85"/>`
-    + '<g transform="translate(-18 -38) rotate(-25)"><ellipse rx="13" ry="9" fill="#2f9a45" stroke="#0a1710" stroke-width="2.4"/><circle cx="-4" cy="-3.5" r="2.7" fill="#ffe34a"/><circle cx="4" cy="-3.5" r="2.7" fill="#ffe34a"/><ellipse cx="-4" cy="-3.5" rx=".8" ry="2.3" fill="#111"/><ellipse cx="4" cy="-3.5" rx=".8" ry="2.3" fill="#111"/><path class="sntongue" d="M0,8 L0,17 M0,17 L-3.5,22 M0,17 L3.5,22" stroke="#e8283a" stroke-width="1.8" fill="none" stroke-linecap="round"/></g>';
   const symbols = Object.keys(t).map(k => `<symbol id="t-${k}" viewBox="-60 -60 120 120" overflow="visible">${t[k]}</symbol>`).join('');
 
   const icons = {

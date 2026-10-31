@@ -867,8 +867,6 @@ span.pcardx { cursor: default; }
 @keyframes dgemp { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.28) drop-shadow(0 0 4px #9fe6ff); } }
 .dsp { transform-box: fill-box; transform-origin: center; animation: dtwinkle 2.2s ease-in-out infinite; } .dsp2 { animation-delay: -.7s; } .dsp3 { animation-delay: -1.4s; }
 @keyframes dtwinkle { 0%, 100% { transform: scale(.3); opacity: 0; } 50% { transform: scale(1.1); opacity: 1; } }
-.sntongue { transform-box: fill-box; transform-origin: 50% 0%; animation: snflick 1.4s ease-in-out infinite; }
-@keyframes snflick { 0%, 60%, 100% { transform: scaleY(1); } 70% { transform: scaleY(.4); } 80% { transform: scaleY(1.25); } }
 /* the diamond opens */
 .diamondfx { position: fixed; inset: 0; z-index: 94; pointer-events: none; overflow: hidden; animation: dfxout 3.4s ease-out forwards; }
 @keyframes dfxout { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
@@ -882,18 +880,6 @@ span.pcardx { cursor: default; }
 .diamondfx .dtxt { position: absolute; left: 0; right: 0; bottom: 22%; text-align: center; color: #fff; padding: 0 1rem; text-shadow: 0 0 16px #62c8ff, 0 3px 0 #0a1c40; animation: ftxt 3.2s ease-out forwards; }
 .diamondfx .dtxt b { display: block; font-size: clamp(1.8rem, 8vw, 3rem); letter-spacing: .05em; color: #c8f1ff; }
 .diamondfx .dtxt span { display: block; margin-top: .4rem; font-size: clamp(1rem, 4.2vw, 1.4rem); font-weight: 800; }
-/* snakes slither across the screen */
-.snakefx { position: fixed; inset: 0; z-index: 95; pointer-events: none; overflow: hidden; animation: snakeout 3.8s ease-out forwards; }
-@keyframes snakeout { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
-.snakefx .smist { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 55%, rgba(60, 190, 90, .45), rgba(8, 40, 20, .78) 80%); animation: smist 3.6s ease-out forwards; }
-@keyframes smist { 0% { opacity: 0; } 15% { opacity: 1; } 85% { opacity: .9; } 100% { opacity: 0; } }
-.snakefx svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-.snb0, .snb1, .snb2 { fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 1; animation: sngrow var(--dur) cubic-bezier(.2, .6, .3, 1) var(--delay) forwards; }
-.snb0 { stroke: #0a1710; stroke-width: 34px; } .snb1 { stroke: #3fae52; stroke-width: 25px; } .snb2 { stroke: #9be38a; stroke-width: 7px; opacity: .75; transform: translateY(-5px); }
-@keyframes sngrow { to { stroke-dashoffset: 0; } }
-.snakefx .stxt { position: absolute; left: 0; right: 0; top: 12%; text-align: center; color: #e9ffd9; padding: 0 1rem; text-shadow: 0 0 16px #46d26a, 0 3px 0 #06200e; animation: ftxt 3.6s ease-out forwards; }
-.snakefx .stxt b { display: block; font-size: clamp(2.2rem, 10vw, 3.8rem); letter-spacing: .12em; color: #a6f58a; }
-.snakefx .stxt span { display: block; margin-top: .4rem; font-size: clamp(1rem, 4.2vw, 1.5rem); font-weight: 800; }
 /* the floating window where owners of the diamond choose their cards */
 .dwin { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 7.6rem); transform: translateX(-50%); z-index: 72; width: min(94vw, 440px); padding: .7rem .8rem .8rem; border-radius: 16px; border: 2px solid #8fd8ff; color: #fff;
   background: linear-gradient(#1c3a85, #0f2557); box-shadow: 0 14px 34px rgba(0, 0, 0, .55), 0 0 28px rgba(110, 200, 255, .55); animation: dwinin .45s cubic-bezier(.2, 1.3, .4, 1); }

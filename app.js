@@ -7,8 +7,8 @@ const U = 60;
 const RES = ['wood', 'brick', 'sheep', 'wheat', 'ore'];
 const RES_LABEL = { wood: 'Wood', brick: 'Brick', sheep: 'Sheep', wheat: 'Hay', ore: 'Ore' };
 const TERRAINS = ['forest', 'hills', 'pasture', 'fields', 'mountains', 'desert'];
-const TERRAIN_LABEL = { forest: 'Forest', hills: 'Hills', pasture: 'Pasture', fields: 'Fields', mountains: 'Mountains', desert: 'Desert', sea: 'Sea', fog: 'Hidden', goblet: 'Goblet of Fire', diamond: 'Diamond', snake: 'Snake' };
-const TERRAIN_RES = { forest: 'wood', hills: 'brick', pasture: 'sheep', fields: 'wheat', mountains: 'ore', desert: null, fog: null, goblet: null, diamond: null, snake: null };
+const TERRAIN_LABEL = { forest: 'Forest', hills: 'Hills', pasture: 'Pasture', fields: 'Fields', mountains: 'Mountains', desert: 'Desert', sea: 'Sea', fog: 'Hidden', goblet: 'Goblet of Fire', diamond: 'Diamond' };
+const TERRAIN_RES = { forest: 'wood', hills: 'brick', pasture: 'sheep', fields: 'wheat', mountains: 'ore', desert: null, fog: null, goblet: null, diamond: null };
 const COST = { road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 }, city: { wheat: 2, ore: 3 }, dev: { sheep: 1, wheat: 1, ore: 1 }, heist: { wood: 1, brick: 1, sheep: 2, wheat: 1, ore: 1 } };
 const DEV = {
   knight: { name: 'Knight', text: 'Move the robber and steal a card. Three knights earn Largest Army.' },
@@ -103,7 +103,7 @@ function bounds(b, pad = 70) {
   (b.ports || []).forEach(p => { add(p.x * U, p.y * U, 34); add(p.x * U, p.y * U - 44, 5); });   // the ship and its pennants   // plate, plus the boat above it
   return { x: x0 - pad, y: y0 - pad, w: x1 - x0 + 2 * pad, h: y1 - y0 + 2 * pad };
 }
-const SIDE = { diamond: '#0c1534', snake: '#0b1a10', goblet: '#0d141c', forest: '#0e6527', hills: '#9a431d', pasture: '#637a07', fields: '#a57e18', mountains: '#6f7370', desert: '#89845a' };
+const SIDE = { diamond: '#0c1534', goblet: '#0d141c', forest: '#0e6527', hills: '#9a431d', pasture: '#637a07', fields: '#a57e18', mountains: '#6f7370', desert: '#89845a' };
 function shade(hex, f) {
   const n = parseInt(hex.slice(1), 16);
   const ch = [n >> 16, (n >> 8) & 255, n & 255].map(c => Math.max(0, Math.min(255, Math.round(f < 0 ? c * (1 + f) : c + (255 - c) * f))));
@@ -1555,25 +1555,6 @@ function showDiamond(e) {
   el.innerHTML = `<div class="dglow"></div><div class="dburst">${rays}${gems}</div><div class="dtxt"><b>The Diamond opens!</b><span>${esc(text)}</span></div>`;
   document.body.append(el); setTimeout(() => el.remove(), 3400);
 }
-// Snakes slither across the screen and bite: the discarded cards fly back to the bank.
-function showSnakes(e) {
-  const st = S.state, who = st.players[e.p].name, lost = Object.entries(e.lost || {}), list = lost.map(([k, n]) => `${n} ${RES_LABEL[k]}`).join(', ');
-  const sub = list ? `${who} lost ${list}` : `${who} had nothing to lose`;
-  Sound.play('hiss');
-  lost.forEach(([k, n]) => { for (let c = 0; c < Math.min(n, 4); c++) flyCard(anchorOf(e.p, k), $(`#players .bank .bk.${k}`) || $('#players .bank'), k, 900 + c * 180); });
-  if (reducedMotion()) return toast(`Snakes! ${esc(sub)}`, 'err', true);
-  const W = innerWidth, H = innerHeight, el = document.createElement('div'); el.className = 'snakefx'; el.setAttribute('role', 'status');
-  const head = '<ellipse rx="24" ry="16" fill="#2f9a45" stroke="#0a1710" stroke-width="4"/><circle cx="5" cy="-7" r="5" fill="#ffe34a"/><circle cx="5" cy="7" r="5" fill="#ffe34a"/><ellipse cx="5.5" cy="-7" rx="1.4" ry="4" fill="#111"/><ellipse cx="5.5" cy="7" rx="1.4" ry="4" fill="#111"/><path d="M22,0 H36 M36,0 L45,-6 M36,0 L45,6" stroke="#e8283a" stroke-width="3.2" fill="none" stroke-linecap="round"/>';
-  const snake = (y, amp, waves, dir, delay, dur) => {
-    let d = ''; const n = 28;
-    for (let i = 0; i <= n; i++) { const x = dir > 0 ? W * (-.12 + 1.24 * i / n) : W * (1.12 - 1.24 * i / n); d += `${i ? 'L' : 'M'}${x.toFixed(1)} ${(y + Math.sin(i / n * Math.PI * waves) * amp).toFixed(1)} `; }
-    return `<g style="--delay:${delay}s;--dur:${dur}s"><path class="snb0" d="${d}" pathLength="1"/><path class="snb1" d="${d}" pathLength="1"/><path class="snb2" d="${d}" pathLength="1"/>`
-      + `<g><animateMotion dur="${dur}s" begin="${delay}s" fill="freeze" rotate="auto" path="${d}" calcMode="spline" keyTimes="0;1" keySplines=".2 .6 .3 1"/>${head}</g></g>`;
-  };
-  el.innerHTML = `<div class="smist"></div><svg viewBox="0 0 ${W} ${H}" aria-hidden="true">${snake(H * .3, 38, 5, 1, 0, 1.7)}${snake(H * .52, 46, 4, -1, .25, 1.9)}${snake(H * .74, 34, 6, 1, .5, 1.8)}</svg>`
-    + `<div class="stxt"><b>SNAKES!</b><span>${esc(sub)}</span></div>`;
-  document.body.append(el); setTimeout(() => el.remove(), 3800);
-}
 // The floating window where the owners of the diamond choose their cards from the bank.
 function drawDiamond() {
   const st = S.state, n = st.subphase === 'diamond' ? (st.pendingDiamond || {})[me()] : 0;
@@ -1608,7 +1589,6 @@ function animateEvent(e) {
     return;
   }
   if (e.type === 'heist') return showHeist(e);
-  if (e.type === 'snake') return showSnakes(e);
   if (e.type === 'diamondopen') return showDiamond(e);
   const bank = k => $(`#players .bank .bk.${k}`) || $('#players .bank');
   const each = (cards, fn, after = 0) => Object.entries(cards).forEach(([k, n]) => { for (let c = 0; c < Math.min(n, 4); c++) fn(k, after + c * 180); });
