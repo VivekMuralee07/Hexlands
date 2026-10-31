@@ -514,19 +514,19 @@ test('development card pile: totals, what has been played, and the view for ever
 });
 
 // The fog rules without the goblets and without the fog-free start (those are tested separately).
-function plainFog(n, seed) { const g = mk(n, seed, 'gobletoffire'); g.board.goblets = false; g.board.fogFreeStart = false; g.act(0, { type: 'start' }); return g; }
+function plainFog(n, seed) { const g = mk(n, seed, 'flamecup'); g.board.goblets = false; g.board.fogFreeStart = false; g.act(0, { type: 'start' }); return g; }
 
-test('map categories: 15 countries and the misc maps (Classic Island, Goblet of Fire, Chamber of Secrets)', () => {
+test('map categories: 15 countries and the misc maps (Classic Island, Blue Flame Cup, Hidden Vault)', () => {
   const list = maps.presetList();
   assert.ok(list.every(m => ['countries', 'misc'].includes(m.category)));
   assert.equal(list.filter(m => m.category === 'countries').length, 15);
-  assert.deepEqual(list.filter(m => m.category === 'misc').map(m => m.key).sort(), ['chamberofsecrets', 'classic', 'gobletoffire']);
+  assert.deepEqual(list.filter(m => m.category === 'misc').map(m => m.key).sort(), ['classic', 'flamecup', 'hiddenvault']);
 });
 
-test('Goblet of Fire layout: lake island, 24 visible forest tiles, 30 fog tiles that never hide wood, six wood harbors in the lake', () => {
+test('Blue Flame Cup layout: lake island, 24 visible forest tiles, 30 fog tiles that never hide wood, six wood harbors in the lake', () => {
   const dist = t => Math.max(Math.abs(t.q), Math.abs(t.r), Math.abs(t.q + t.r));
   for (let seed = 1; seed <= 12; seed++) {
-    const g = mk(2, seed, 'gobletoffire'), T = g.board.tiles, at = (q, r) => T.find(t => t.q === q && t.r === r);
+    const g = mk(2, seed, 'flamecup'), T = g.board.tiles, at = (q, r) => T.find(t => t.q === q && t.r === r);
     assert.equal(T.length, 55, 'a hexagon of radius 4 without the six lake tiles');
     assert.deepEqual([T[g.robber].terrain, T[g.robber].q, T[g.robber].r], ['desert', 0, 0], 'the robber starts on the island');
     for (const [q, r] of [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]]) assert.equal(at(q, r), undefined, 'water around the island');
@@ -548,7 +548,7 @@ test('Goblet of Fire layout: lake island, 24 visible forest tiles, 30 fog tiles 
 test('fog: hidden in the board view until a settlement or road touches it, then uncovered for everyone', () => {
   const g = plainFog(3, 6);
   let bv = g.boardView();
-  assert.equal(bv.key, 'gobletoffire');
+  assert.equal(bv.key, 'flamecup');
   assert.equal(bv.tiles.filter(t => t.terrain === 'fog').length, 30);
   assert.ok(bv.tiles.filter(t => t.fog).every(t => t.terrain === 'fog' && t.number === null), 'neither terrain nor number leaks');
   // a settlement uncovers every fog tile around its corner
@@ -602,14 +602,14 @@ test('fog: bots cannot see under the fog either (a corner next to fog scores the
 
 test('the host can change the map in the waiting room, and only there', () => {
   const g = mk(2, 3), v0 = g.boardVersion;
-  g.setMap(maps.generatePreset('gobletoffire', 4));
-  assert.equal(g.board.key, 'gobletoffire'); assert.ok(g.boardVersion > v0);
+  g.setMap(maps.generatePreset('flamecup', 4));
+  assert.equal(g.board.key, 'flamecup'); assert.ok(g.boardVersion > v0);
   assert.equal(g.board.tiles.length, 55); assert.equal(g.revealed.size, 0); assert.equal(g.bank.wood, 55);
   assert.deepEqual(g.devTotal, { knight: 28, vp: 10, roadBuilding: 4, yearOfPlenty: 4, monopoly: 4 }, 'a big map gets the bigger deck');
   g.setMap(maps.generatePreset('classic', 4));
   assert.equal(g.board.tiles.length, 19); assert.equal(g.bank.wood, 19);
   g.act(0, { type: 'start' });
-  assert.throws(() => g.setMap(maps.generatePreset('gobletoffire', 1)), /cannot change/);
+  assert.throws(() => g.setMap(maps.generatePreset('flamecup', 1)), /cannot change/);
 });
 
 test('fog: tiles pay one card when uncovered, and the second setup round does not pay them twice', () => {
@@ -663,13 +663,13 @@ test('fog: a road uncovers every fog tile at either tip, not only the two beside
   assert.ok(pays[maps.PRODUCES[F.terrain]] >= 1);
 });
 
-// ---- Goblet of Fire ----
-function goblet(n = 3, seed = 6) { const g = mk(n, seed, 'gobletoffire'); g.act(0, { type: 'start' }); return g; }
+// ---- Blue Flame Cup ----
+function goblet(n = 3, seed = 6) { const g = mk(n, seed, 'flamecup'); g.act(0, { type: 'start' }); return g; }
 const total = (g, k) => g.bank[k] + g.players.reduce((a, p) => a + p.res[k], 0);
 
-test('Goblet of Fire: lake, fog and wood harbors, and one goblet hides in the fog for every player', () => {
+test('Blue Flame Cup: lake, fog and wood harbors, and one goblet hides in the fog for every player', () => {
   for (const n of [2, 3, 4]) for (const seed of [1, 2, 3]) {
-    const g = mk(n, seed, 'gobletoffire');
+    const g = mk(n, seed, 'flamecup');
     assert.ok(g.board.goblets && g.board.fogFreeStart && g.board.tiles.length === 55 && g.board.ports.length === 6 && g.board.ports.every(p => p.type === 'wood'));
     assert.equal(g.board.tiles.filter(t => t.terrain === 'goblet').length, 0, 'nothing is placed before the game starts, the number of players is not known yet');
     g.act(0, { type: 'start' });
@@ -684,7 +684,7 @@ test('Goblet of Fire: lake, fog and wood harbors, and one goblet hides in the fo
   assert.ok(spots.size > 6, 'the goblets are placed at random');
 });
 
-test('Goblet of Fire: the first two settlements cannot touch the fog', () => {
+test('Blue Flame Cup: the first two settlements cannot touch the fog', () => {
   const g = goblet(3, 4), touchesFog = v => g.board.vertices[v].hexes.some(h => g.board.tiles[h].fog);
   const ok = g.validSettlements(g.turn, false);
   assert.ok(ok.length > 20 && ok.every(v => !touchesFog(v)), 'no glowing corner touches the fog');
@@ -696,7 +696,7 @@ test('Goblet of Fire: the first two settlements cannot touch the fog', () => {
   assert.ok(g.canSettle(g.turn, bad.id, false), 'the rule only applies to the first two settlements');
 });
 
-test('Goblet of Fire: unlocking one burns every wood, sheep and hay card, and nothing else', () => {
+test('Blue Flame Cup: unlocking one burns every wood, sheep and hay card, and nothing else', () => {
   const g = goblet(3, 5); finishSetup(g);
   const cur = g.turn, other = (cur + 1) % 3; g.forcedDice = [[1, 2]]; g.act(cur, { type: 'roll' });
   const G = g.board.tiles.find(t => t.terrain === 'goblet'), { edges, vertices } = g.board;
@@ -714,10 +714,10 @@ test('Goblet of Fire: unlocking one burns every wood, sheep and hay card, and no
   for (const k of Object.keys(before)) assert.equal(total(g, k), before[k], k + ' cards only moved to the bank');
   const ev = g.events.filter(x => x.type === 'goblet').pop();
   assert.deepEqual([ev.p, ev.tiles, ev.lost], [cur, [G.id], { wood: 2, sheep: 2, wheat: 4 }], 'the event drives the fire animation');
-  assert.ok(g.log.some(l => /flames burned/.test(l.text || l)) && g.log.some(l => /Goblet of Fire/.test(l.text || l)));
+  assert.ok(g.log.some(l => /flames burned/.test(l.text || l)) && g.log.some(l => /Blue Flame Cup/.test(l.text || l)));
 });
 
-test('Goblet of Fire: with nothing to burn the goblet still opens, and a normal tile pays nothing from a goblet', () => {
+test('Blue Flame Cup: with nothing to burn the goblet still opens, and a normal tile pays nothing from a goblet', () => {
   const g = goblet(2, 7); finishSetup(g);
   const cur = g.turn, G = g.board.tiles.find(t => t.terrain === 'goblet'); g.players[cur].res = { wood: 0, brick: 3, sheep: 0, wheat: 0, ore: 2 };
   const known = new Set(g.revealed); const got = g.revealTiles([G.id], cur);
@@ -828,7 +828,7 @@ test('Heist card: medium and hard bots buy it once they have the cities and the 
 });
 
 test('Heist card: full bot games on several maps stay legal with the new card in play', () => {
-  for (const key of ['classic', 'india', 'gobletoffire']) {
+  for (const key of ['classic', 'india', 'flamecup']) {
     const g = mk(1, key.length * 5, key); ['hard', 'medium', 'hard'].forEach(l => g.act(0, { type: 'addBot', level: l })); g.players[0].bot = 'medium'; g.act(0, { type: 'start' });
     let steps = 0;
     while (g.phase !== 'ended' && steps++ < 40000) { const n = bots.nextActor(g); try { g.act(n.pi, bots.decide(g, n.pi)); } catch (e) { assert.ok(bots.rescue(g, n.pi)); } if (steps % 3 === 0) assert.deepEqual(g.checkInvariants(), [], key); }
@@ -881,16 +881,16 @@ test('Heist card: when exactly two of the victim\'s roads touch the settlement, 
   assert.ok(g.roadLength(me) >= 2 && g.roadLength(victim) <= 1);
 });
 
-// ---- Chamber of Secrets ----
-function chamber(n = 3, seed = 6) { const g = mk(n, seed, 'chamberofsecrets'); g.act(0, { type: 'start' }); finishSetup(g); return g; }
+// ---- Hidden Vault ----
+function chamber(n = 3, seed = 6) { const g = mk(n, seed, 'hiddenvault'); g.act(0, { type: 'start' }); finishSetup(g); return g; }
 const tileAt = (g, q, r) => g.board.tiles.find(t => t.q === q && t.r === r);
 const MAIN = ['forest', 'hills', 'pasture', 'fields', 'mountains'];
 
-test('Chamber of Secrets: the Goblet of Fire hexagon, all land, a diamond 8 in the middle under two rings of fog', () => {
+test('Hidden Vault: the Blue Flame Cup hexagon, all land, a diamond 8 in the middle under two rings of fog', () => {
   const ring = t => Math.max(Math.abs(t.q), Math.abs(t.r), Math.abs(t.q + t.r));
   for (let seed = 1; seed <= 12; seed++) {
-    const g = mk(2, seed, 'chamberofsecrets'), T = g.board.tiles, fog = T.filter(t => t.fog), c = tileAt(g, 0, 0);
-    assert.equal(T.length, 61); assert.ok(T.every(t => ring(t) <= 4), 'the same radius-4 hexagon as Goblet of Fire, with no lake');
+    const g = mk(2, seed, 'hiddenvault'), T = g.board.tiles, fog = T.filter(t => t.fog), c = tileAt(g, 0, 0);
+    assert.equal(T.length, 61); assert.ok(T.every(t => ring(t) <= 4), 'the same radius-4 hexagon as Blue Flame Cup, with no lake');
     assert.deepEqual([c.terrain, c.number, c.fog], ['diamond', 8, false]);
     assert.equal(fog.length, 18, 'two rings of fog: 6 + 12 tiles'); assert.ok(fog.every(t => ring(t) === 1 || ring(t) === 2));
     assert.ok(T.filter(t => ring(t) >= 1 && ring(t) <= 2).every(t => t.fog) && T.filter(t => ring(t) >= 3).every(t => !t.fog), 'every other tile is open land');
@@ -902,10 +902,10 @@ test('Chamber of Secrets: the Goblet of Fire hexagon, all land, a diamond 8 in t
   }
 });
 
-test('Chamber of Secrets: goblets of fire hide in the fog when the game starts: 4, 5 and 6 for 2, 3 and 4 players', () => {
+test('Hidden Vault: blue flame cups hide in the fog when the game starts: 4, 5 and 6 for 2, 3 and 4 players', () => {
   const seen = new Set();
   for (const [n, want] of [[2, 4], [3, 5], [4, 6]]) for (let seed = 1; seed <= 6; seed++) {
-    const g = mk(n, seed, 'chamberofsecrets'); assert.equal(g.board.tiles.filter(t => t.terrain === 'goblet').length, 0, 'nothing is hidden yet');
+    const g = mk(n, seed, 'hiddenvault'); assert.equal(g.board.tiles.filter(t => t.terrain === 'goblet').length, 0, 'nothing is hidden yet');
     g.act(0, { type: 'start' });
     const G = g.board.tiles.filter(t => t.terrain === 'goblet'), bv = g.boardView(), rest = g.board.tiles.filter(t => t.fog && t.terrain !== 'goblet');
     assert.equal(G.length, want, `${n} players, ${want} goblets`);
@@ -917,8 +917,8 @@ test('Chamber of Secrets: goblets of fire hide in the fog when the game starts: 
   assert.ok(seen.size > 6, 'the goblets are placed at random');
 });
 
-test('Chamber of Secrets: the first two settlements stay out of the fog, and a goblet burns wood, sheep and hay as on Goblet of Fire', () => {
-  const g = mk(3, 4, 'chamberofsecrets'); g.act(0, { type: 'start' });
+test('Hidden Vault: the first two settlements stay out of the fog, and a goblet burns wood, sheep and hay as on Blue Flame Cup', () => {
+  const g = mk(3, 4, 'hiddenvault'); g.act(0, { type: 'start' });
   const touches = v => g.board.vertices[v].hexes.some(h => g.board.tiles[h].fog);
   const ok = g.validSettlements(g.turn, false);
   assert.ok(ok.length > 20 && ok.every(v => !touches(v)), 'no glowing corner touches the fog');
@@ -933,7 +933,7 @@ test('Chamber of Secrets: the first two settlements stay out of the fog, and a g
   assert.deepEqual(g.events.filter(e => e.type === 'goblet').pop().lost, { wood: 3, sheep: 2, wheat: 4 });
 });
 
-test('Chamber of Secrets: a road can be built from the open land through both rings of fog to the diamond, and a settlement there pays', () => {
+test('Hidden Vault: a road can be built from the open land through both rings of fog to the diamond, and a settlement there pays', () => {
   const g = chamber(3, 5), me = g.turn, { vertices, edges, tiles } = g.board, d = g.board.diamond;
   g.forcedDice = [[1, 2]]; g.act(me, { type: 'roll' });
   g.buildings = {};                                                                     // an empty board, so the path is free
@@ -959,7 +959,7 @@ function diamondGame(n = 3, seed = 6) {          // `me` has two settlements on 
   return { g, me, b, V, d: g.board.diamond };
 }
 
-test('Chamber of Secrets: an 8 lets each settlement on the diamond choose 2 cards and each city 3, from the bank', () => {
+test('Hidden Vault: an 8 lets each settlement on the diamond choose 2 cards and each city 3, from the bank', () => {
   const { g, me, b, d } = diamondGame();
   g.players[me].res = { wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 0 }; g.players[b].res = { wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 0 };
   g.forcedDice = [[4, 4]]; g.act(me, { type: 'roll' });
@@ -985,7 +985,7 @@ test('Chamber of Secrets: an 8 lets each settlement on the diamond choose 2 card
   assert.deepEqual(e4.g.pendingDiamond, { [e4.me]: 3 }, 'one city alone = 3');
 });
 
-test('Chamber of Secrets: the clock, an offline player and the bots all settle the diamond choices', () => {
+test('Hidden Vault: the clock, an offline player and the bots all settle the diamond choices', () => {
   let { g, me, b } = diamondGame(); g.forcedDice = [[4, 4]]; g.act(me, { type: 'roll' });
   g.opts.timer = 15; g.clockAt = Date.now() - 60000;
   const before = [g.players[me].res, g.players[b].res].map(r => Object.values(r).reduce((x, y) => x + y, 0));

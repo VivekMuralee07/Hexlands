@@ -167,7 +167,7 @@ class Game {
   // and playing it steals any opponent's settlement.
   heistNeed() { return this.vpTarget <= 10 ? 3 : 4; }
   heistTargets(pi) { return Object.entries(this.buildings).filter(([, b]) => b.p !== pi && b.type === 'settlement').map(([v]) => +v); }
-  // Goblet of Fire map: hide one goblet in the fog for every player. A goblet has no resource and no number.
+  // Blue Flame Cup map: hide one goblet in the fog for every player. A goblet has no resource and no number.
   placeGoblets(n) {
     shuffle(this.board.tiles.filter(t => t.fog), this.rng).slice(0, n).forEach(t => { t.terrain = 'goblet'; t.number = null; });
   }
@@ -176,10 +176,10 @@ class Game {
   // of that tile's resource from the bank (if the bank has it).
   revealTiles(ids, pi, pay = true) {
     const fresh = ids.filter(id => this.isHidden(id)); if (!fresh.length) return [];
-    const NAME = { forest: 'Forest', hills: 'Hills', pasture: 'Pasture', fields: 'Fields', mountains: 'Mountains', desert: 'Desert', goblet: 'the Goblet of Fire' };
+    const NAME = { forest: 'Forest', hills: 'Hills', pasture: 'Pasture', fields: 'Fields', mountains: 'Mountains', desert: 'Desert', goblet: 'the Blue Flame Cup' };
     const label = id => { const t = this.board.tiles[id]; return t.number ? `${NAME[t.terrain]} ${t.number}` : NAME[t.terrain]; };
     fresh.forEach(id => this.revealed.add(id)); this.boardVersion++;
-    // A Goblet of Fire burns whoever unlocks it: every wood, sheep and hay card goes back to the bank.
+    // A Blue Flame Cup burns whoever unlocks it: every wood, sheep and hay card goes back to the bank.
     const burning = fresh.filter(id => this.board.tiles[id].terrain === 'goblet'), lost = {};
     if (burning.length) for (const k of ['wood', 'sheep', 'wheat']) { const n = this.players[pi].res[k]; if (n) { lost[k] = n; this.players[pi].res[k] = 0; this.bank[k] += n; } }
     const got = [];
@@ -563,7 +563,7 @@ class Game {
     shuffle(this.players, this.rng);
     this.assignColors();
     const n = this.players.length;
-    if (this.board.goblets) this.placeGoblets(n + this.board.gobletExtra);   // one per player (the Chamber of Secrets adds two more)
+    if (this.board.goblets) this.placeGoblets(n + this.board.gobletExtra);   // one per player (the Hidden Vault adds two more)
     const order = [...Array(n).keys(), ...[...Array(n).keys()].reverse()];
     this.setup = { order, step: 0, expect: 'settlement', last: null };
     this.phase = 'setup'; this.turn = order[0];
@@ -670,7 +670,7 @@ class Game {
     this.lastRoll = { dice: d, gains, seq: (this.lastRoll ? this.lastRoll.seq : 0) + 1 };
   }
 
-  // Chamber of Secrets: when the diamond's number is rolled, every settlement on it lets its owner choose 2 cards from the
+  // Hidden Vault: when the diamond's number is rolled, every settlement on it lets its owner choose 2 cards from the
   // bank and every city 3. The robber blocks it like any other tile.
   diamondPayout(sum) {
     const d = this.board.diamond;

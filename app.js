@@ -7,7 +7,7 @@ const U = 60;
 const RES = ['wood', 'brick', 'sheep', 'wheat', 'ore'];
 const RES_LABEL = { wood: 'Wood', brick: 'Brick', sheep: 'Sheep', wheat: 'Hay', ore: 'Ore' };
 const TERRAINS = ['forest', 'hills', 'pasture', 'fields', 'mountains', 'desert'];
-const TERRAIN_LABEL = { forest: 'Forest', hills: 'Hills', pasture: 'Pasture', fields: 'Fields', mountains: 'Mountains', desert: 'Desert', sea: 'Sea', fog: 'Hidden', goblet: 'Goblet of Fire', diamond: 'Diamond' };
+const TERRAIN_LABEL = { forest: 'Forest', hills: 'Hills', pasture: 'Pasture', fields: 'Fields', mountains: 'Mountains', desert: 'Desert', sea: 'Sea', fog: 'Hidden', goblet: 'Blue Flame Cup', diamond: 'Diamond' };
 const TERRAIN_RES = { forest: 'wood', hills: 'brick', pasture: 'sheep', fields: 'wheat', mountains: 'ore', desert: null, fog: null, goblet: null, diamond: null };
 const COST = { road: { wood: 1, brick: 1 }, settlement: { wood: 1, brick: 1, sheep: 1, wheat: 1 }, city: { wheat: 2, ore: 3 }, dev: { sheep: 1, wheat: 1, ore: 1 }, heist: { wood: 1, brick: 1, sheep: 2, wheat: 1, ore: 1 } };
 const DEV = {
@@ -220,12 +220,14 @@ function renderHome(app) {
         <div class="divider">or join a friend</div>
         <div class="row"><input id="code" class="code-input grow" maxlength="5" placeholder="CODE" autocomplete="off" value="${esc(S.joinCode)}" aria-label="Room code"><button class="btn" id="go-join">Join room</button></div>
         ${S.session ? `<button class="btn" id="resume">Return to room ${esc(S.session.code)}</button>` : ''}
+        <p class="legalfoot"><button class="linkbtn" data-legal="terms">Terms of Use</button><span>·</span><button class="linkbtn" data-legal="privacy">Privacy Policy</button></p>
       </div>
     </div>
   </div>`;
   S.error = null;
   fetch('/api/preview?map=classic').then(r => r.json()).then(j => { const h = $('#hero'); if (h) h.innerHTML = boardPreviewSvg(j.board); }).catch(() => {});
   $('#info').onclick = openRules;
+  $$('[data-legal]').forEach(b => b.onclick = () => openLegal(b.dataset.legal));
   showInstall();
   const nameOk = () => { const n = $('#name').value.trim(); if (!n) { toast('Enter your name first.', 'err'); $('#name').focus(); return null; } S.name = n; store.set('name', n); return n; };
   $('#go-create').onclick = () => { if (nameOk()) go('create'); };
@@ -275,7 +277,7 @@ ${cat === 'misc' ? `<button class="map-opt" data-map="custom" aria-pressed="${S.
       <div class="stack">
         <div class="preview" id="preview"></div>
         <div class="preview-meta"><div class="terrain-counts" id="counts"></div>
-          <div class="row"><button class="btn small" id="reroll">${S.mapKey === 'custom' ? 'Reshuffle harbors' : 'Shuffle tiles'}</button><button class="btn small" id="edit"${['gobletoffire', 'chamberofsecrets'].includes(S.mapKey) ? ' disabled title="Fog maps cannot be copied"' : ''}>${S.mapKey === 'custom' ? 'Edit map' : 'Copy into editor'}</button></div></div>
+          <div class="row"><button class="btn small" id="reroll">${S.mapKey === 'custom' ? 'Reshuffle harbors' : 'Shuffle tiles'}</button><button class="btn small" id="edit"${['flamecup', 'hiddenvault'].includes(S.mapKey) ? ' disabled title="Fog maps cannot be copied"' : ''}>${S.mapKey === 'custom' ? 'Edit map' : 'Copy into editor'}</button></div></div>
         <div class="panel row">
           <span class="grow"><b>Next: the waiting room</b><br><span class="muted" style="font-size:.88em">Pick points to win, discard limit, move timer, friendly robber and balanced dice there, and add bots.</span></span>
           <button class="btn primary" id="create">Create room</button>
@@ -593,7 +595,7 @@ function buildShell(app) {
       <div class="gbtns"><button class="gbtn drawer-toggle" id="logbtn" title="Messages" aria-label="Messages">${GB_ICON.msg}</button><button class="gbtn" id="quit" title="Leave game" aria-label="Leave game">${GB_ICON.exit}</button></div>
       <div class="zoom"><button class="btn" id="zin" aria-label="Zoom in">+</button><button class="btn" id="zout" aria-label="Zoom out">−</button><button class="btn" id="zfit" aria-label="Fit board">⤢</button></div>
     </main></section>
-    <aside class="side" id="side"><div class="panel"><h3>Ship's log</h3><div class="log" id="log"></div>
+    <aside class="side" id="side"><div class="panel"><h3>Ship's log</h3><div class="mutebar" id="mutebar" hidden></div><div class="log" id="log"></div>
       <form class="chatform" id="chat"><input id="chatin" maxlength="200" placeholder="Message the table" autocomplete="off" aria-label="Chat message"><button class="btn small">Send</button></form></div></aside>
     <footer class="dock"><div class="hand" id="hand"></div><div class="actions" id="actions"></div></footer>
   </div>`;
@@ -1027,8 +1029,17 @@ function drawLog() {
   const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
   const names = st.players.map(p => [esc(p.name), p.color]).sort((a, b) => b[0].length - a[0].length);
   const paint = t => { let s = esc(t); names.forEach(([n, c]) => { s = s.split(n).join(`<b style="color:${c}">${n}</b>`); }); return s; };
-  box.innerHTML = st.log.map(l => l.chat != null && st.players[l.chat]
-    ? `<p class="chat"><b style="color:${st.players[l.chat].color}">${esc(st.players[l.chat].name)}:</b> ${esc(l.text)}</p>` : `<p>${paint(l.text)}</p>`).join('');
+  box.innerHTML = st.log.map(l => {
+    if (l.chat != null && st.players[l.chat]) {
+      const p = st.players[l.chat], other = l.chat !== me();
+      if (other && isMutedPlayer(l.chat)) return '';
+      return `<p class="chat"><b style="color:${p.color}">${esc(p.name)}:</b> ${esc(l.text)}${other ? `<button class="cmenu" data-cat="${l.at}" data-cp="${l.chat}" aria-label="Report or mute ${esc(p.name)}" title="Report or mute">⋯</button>` : ''}</p>`;
+    }
+    return `<p>${paint(l.text)}</p>`;
+  }).join('');
+  box.querySelectorAll('[data-cat]').forEach(b => b.onclick = () => openChatMenu(+b.dataset.cat, +b.dataset.cp));
+  const bar = $('#mutebar'), ms = mutedNames();
+  if (bar) { bar.hidden = !ms.length; bar.innerHTML = ms.length ? `Muted: ${ms.map(esc).join(', ')} · <button class="linkbtn" id="mutes">Manage</button>` : ''; if (ms.length) $('#mutes').onclick = openMutes; }
   if (atBottom) box.scrollTop = box.scrollHeight;
 }
 
@@ -1065,12 +1076,12 @@ function openModal(kind, html, bind) {
   const layer = $('#modal');
   layer.innerHTML = `<div class="modal" role="dialog" aria-modal="true">${html}</div>`;
   layer.hidden = false;
-  layer.onclick = e => { if (e.target === layer && kind !== 'discard') closeModal(); };
+  layer.onclick = e => { if (e.target === layer && !['discard', 'consent'].includes(kind)) closeModal(); };
   if (bind) bind(layer);
   const f = layer.querySelector('button, input'); if (f) f.focus({ preventScroll: true });
 }
 function closeModal() { S.modal = null; const l = $('#modal'); l.hidden = true; l.innerHTML = ''; }
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && S.modal && S.modal !== 'discard') closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && S.modal && !['discard', 'consent'].includes(S.modal)) closeModal(); });
 
 function syncModals() {
   const st = S.state;
@@ -1581,9 +1592,9 @@ function animateEvent(e) {
     got.forEach((k, c) => flyCard($(`#players .bank .bk.${k}`) || $('#players .bank'), anchorOf(e.p, k), k, c * 320));
     return;
   }
-  if (e.type === 'goblet') {   // the Goblet of Fire burns whoever unlocked it
+  if (e.type === 'goblet') {   // the Blue Flame Cup burns whoever unlocked it
     const who = S.state.players[e.p].name, lost = Object.entries(e.lost || {}), list = lost.map(([k, n]) => `${n} ${RES_LABEL[k]}`).join(', ');
-    showFire('The Goblet of Fire!', list ? `${who} lost ${list}` : `${who} had nothing to burn`);
+    showFire('The Blue Flame Cup!', list ? `${who} lost ${list}` : `${who} had nothing to burn`);
     Sound.play('fire');
     lost.forEach(([k, n]) => { for (let c = 0; c < Math.min(n, 4); c++) flyCard(anchorOf(e.p, k), $(`#players .bank .bk.${k}`) || $('#players .bank'), k, 700 + c * 180); });
     return;
@@ -1657,6 +1668,71 @@ function openColorPicker(seat) {
   });
 }
 
+// ---------- terms, privacy, reporting and muting ----------
+const LEGAL_VERSION = '2026-10-31';   // must match legal.js (a server test checks it); change both to ask everyone to agree again
+S.muted = store.get('muted', {});
+const needConsent = () => store.get('terms', null) !== LEGAL_VERSION;
+function openConsent() {
+  openModal('consent', `<h3>Before you play</h3>
+    <p>Hexlands is a free multiplayer game. Other players in your room can see your name and your chat messages. Be kind: no harassment, hate, threats or spam. You can report any message and mute any player.</p>
+    <p class="legallinks"><button class="linkbtn" data-legal="terms">Terms of Use</button><span>·</span><button class="linkbtn" data-legal="privacy">Privacy Policy</button></p>
+    <p class="muted" style="font-size:.88em">You must be 13 or older. By continuing you agree to the Terms of Use and the Privacy Policy.</p>
+    <div class="foot"><button class="btn primary" id="agree">I agree</button></div>`, layer => {
+    layer.querySelectorAll('[data-legal]').forEach(b => b.onclick = () => openLegal(b.dataset.legal, 'consent'));
+    $('#agree').onclick = () => { store.set('terms', LEGAL_VERSION); closeModal(); };
+  });
+}
+async function openLegal(which, from) {
+  try { if (!S.legal) S.legal = await (await fetch('/api/legal')).json(); } catch { window.open(`/${which}`, '_blank', 'noopener'); return; }
+  openModal(from === 'consent' ? 'consent' : 'legal', `<div class="legalwin">${S.legal[which]}</div><div class="foot"><button class="btn primary" id="lback">${from === 'consent' ? 'Back' : 'Close'}</button></div>`, () => {
+    $('#lback').onclick = () => from === 'consent' ? openConsent() : closeModal();
+  });
+}
+const mutedNames = () => (S.state && S.muted[S.state.code]) || [];
+const isMutedPlayer = i => { const p = S.state.players[i]; return !!p && mutedNames().includes(p.name); };
+function setMuted(name, on) {
+  const code = S.state.code, list = new Set(S.muted[code] || []); on ? list.add(name) : list.delete(name);
+  if (list.size) S.muted[code] = [...list]; else delete S.muted[code];
+  const codes = Object.keys(S.muted); while (codes.length > 10) delete S.muted[codes.shift()];
+  store.set('muted', S.muted); drawLog();
+}
+const chatLine = (at, p) => S.state.log.find(l => l.at === at && l.chat === p);
+function openChatMenu(at, p) {
+  const l = chatLine(at, p); if (!l) return toast('That message is gone.');
+  const name = esc(S.state.players[p].name);
+  openModal('chatmenu', `<h3>${name}</h3><p class="quote">${esc(l.text)}</p><div class="menubtns"><button class="btn" id="cm-report">Report this message</button><button class="btn" id="cm-mute">Mute ${name}</button></div><div class="foot"><button class="btn" id="cm-close">Cancel</button></div>`, () => {
+    $('#cm-close').onclick = closeModal; $('#cm-report').onclick = () => openReport(at, p);
+    $('#cm-mute').onclick = () => { const n = S.state.players[p].name; setMuted(n, true); closeModal(); toast(`${n} is muted. Their messages are hidden.`); };
+  });
+}
+const REPORT_REASONS = [['harassment', 'Harassment or hate'], ['sexual', 'Sexual or violent content'], ['spam', 'Spam or advertising'], ['personal', 'Personal information'], ['cheating', 'Cheating'], ['other', 'Something else']];
+function openReport(at, p) {
+  const l = chatLine(at, p); if (!l) return closeModal();
+  const name = esc(S.state.players[p].name);
+  openModal('report', `<h3>Report ${name}</h3><p class="quote">${esc(l.text)}</p>
+    <div class="reasons" role="radiogroup" aria-label="Reason">${REPORT_REASONS.map(([k, t], i) => `<label class="reason"><input type="radio" name="reason" value="${k}" ${i === 0 ? 'checked' : ''}> ${t}</label>`).join('')}</div>
+    <label class="field">Details (optional)<input id="rnote" maxlength="200" autocomplete="off"></label>
+    <div class="foot"><button class="btn" id="r-back">Back</button><button class="btn primary" id="r-send">Send report</button></div>`, () => {
+    $('#r-back').onclick = () => openChatMenu(at, p);
+    $('#r-send').onclick = async () => {
+      const btn = $('#r-send'), reason = (document.querySelector('input[name=reason]:checked') || {}).value; btn.disabled = true;
+      try {
+        const r = await fetch('/api/report', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: S.session.code, token: S.session.token, target: p, text: l.text, reason, note: $('#rnote').value.trim() }) });
+        const j = await r.json(); if (!r.ok) throw new Error(j.error || 'The report could not be sent.');
+        openModal('reported', `<h3>Report sent</h3><p>Thank you. We will look at it. Do you want to mute ${name} too?</p><div class="foot"><button class="btn" id="rn">Not now</button><button class="btn primary" id="rm">Mute ${name}</button></div>`, () => {
+          $('#rn').onclick = closeModal; $('#rm').onclick = () => { setMuted(S.state.players[p].name, true); closeModal(); };
+        });
+      } catch (e) { toast(e.message, 'err'); btn.disabled = false; }
+    };
+  });
+}
+function openMutes() {
+  const ms = mutedNames();
+  openModal('mutes', `<h3>Muted players</h3>${ms.length ? ms.map(n => `<div class="devrow"><b class="grow">${esc(n)}</b><button class="btn small" data-un="${esc(n)}">Unmute</button></div>`).join('') : '<p>Nobody is muted.</p>'}<div class="foot"><button class="btn primary" id="mclose2">Close</button></div>`, layer => {
+    $('#mclose2').onclick = closeModal; layer.querySelectorAll('[data-un]').forEach(b => b.onclick = () => { setMuted(b.dataset.un, false); openMutes(); });
+  });
+}
+
 // ---------- map categories ----------
 function mapTabsHtml(cat, attr) {
   const n = k => S.maps.filter(m => m.category === k).length;
@@ -1680,6 +1756,7 @@ addEventListener('pageshow', () => { S.unloading = false; });
 fetch('/api/maps').then(r => r.json()).then(j => { S.maps = j.maps; }).catch(() => {});
 if (S.session && (!S.joinCode || S.joinCode === S.session.code)) startSession(S.session);
 render();
+if (needConsent()) openConsent();   // everyone agrees to the Terms of Use and Privacy Policy once, before chatting or playing
 { // home-screen shortcuts from the installed app
   if (LAUNCH_ACTION === 'rules') openRules(); else if (LAUNCH_ACTION === 'create' && S.name && S.screen === 'home') go('create');
 }

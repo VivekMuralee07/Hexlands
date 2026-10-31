@@ -150,7 +150,7 @@ function assignNumbers(tiles, rng) {
 Object.keys(PRESETS).forEach(k => { PRESETS[k].category = 'countries'; });
 PRESETS.classic.category = 'misc';
 
-// The Goblet of Fire layout: a hexagon of radius 4 around a lake. The middle is a desert island, the ring around it is
+// The Blue Flame Cup layout: a hexagon of radius 4 around a lake. The middle is a desert island, the ring around it is
 // water, the next two rings are forest, and everything else is fog.
 const LAKE = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
 function forestLake(rng, name, extra = {}) {
@@ -168,17 +168,17 @@ function forestLake(rng, name, extra = {}) {
   assignNumbers(tiles, rng);
   return { name, tiles, lake: LAKE.map(([q, r]) => ({ q, r })), portType: 'wood', ...extra };
 }
-// Goblet of Fire: a forest around a lake island with fog, plus a goblet hidden in the fog for every player (the game places them when it
+// Blue Flame Cup: a forest around a lake island with fog, plus a goblet hidden in the fog for every player (the game places them when it
 // starts, because only then is the number of players known). Whoever unlocks one loses all their wood, sheep and
 // hay. The first two settlements are not allowed to touch the fog.
-PRESETS.gobletoffire = {
-  name: 'Goblet of Fire', category: 'misc',
-  blurb: 'A forest around a lake island with fog. One Goblet of Fire per player hides in it: unlock one and you lose your wood, sheep and hay.',
-  generate: rng => forestLake(rng, 'Goblet of Fire', { goblets: true, fogFreeStart: true }),
+PRESETS.flamecup = {
+  name: 'Blue Flame Cup', category: 'misc',
+  blurb: 'A forest around a lake island with fog. One Blue Flame Cup per player hides in it: unlock one and you lose your wood, sheep and hay.',
+  generate: rng => forestLake(rng, 'Blue Flame Cup', { goblets: true, fogFreeStart: true }),
 };
 
-// Chamber of Secrets: the same hexagon as Goblet of Fire, but all land. A diamond with an 8 sits in the middle, buried under
-// two rings of fog (6 + 12 tiles). When the game starts, goblets of fire are hidden in that fog: two more than there are players.
+// Hidden Vault: the same hexagon as Blue Flame Cup, but all land. A diamond with an 8 sits in the middle, buried under
+// two rings of fog (6 + 12 tiles). When the game starts, blue flame cups are hidden in that fog: two more than there are players.
 function chamberOfSecrets(rng) {
   const tiles = [], ring = t => Math.max(Math.abs(t.q), Math.abs(t.r), Math.abs(t.q + t.r));
   for (let q = -4; q <= 4; q++) for (let r = -4; r <= 4; r++) { const s = -q - r; if (Math.max(Math.abs(q), Math.abs(r), Math.abs(s)) <= 4) tiles.push({ q, r, terrain: null, number: null, fog: false }); }
@@ -188,11 +188,11 @@ function chamberOfSecrets(rng) {
   fog.forEach(t => { t.terrain = pool.splice(pool.findIndex(x => x !== 'desert'), 1)[0]; });   // fog never hides a desert
   tiles.filter(t => !t.terrain).forEach(t => { t.terrain = pool.pop(); });
   assignNumbers(tiles, rng);
-  return { name: 'Chamber of Secrets', tiles, goblets: true, gobletExtra: 2, fogFreeStart: true };
+  return { name: 'Hidden Vault', tiles, goblets: true, gobletExtra: 2, fogFreeStart: true };
 }
-PRESETS.chamberofsecrets = {
-  name: 'Chamber of Secrets', category: 'misc',
-  blurb: 'A diamond with an 8 sits in the middle, buried under two rings of fog. Goblets of Fire hide in the fog: unlock one and you lose your wood, sheep and hay.',
+PRESETS.hiddenvault = {
+  name: 'Hidden Vault', category: 'misc',
+  blurb: 'A diamond with an 8 sits in the middle, buried under two rings of fog. Blue Flame Cups hide in the fog: unlock one and you lose your wood, sheep and hay.',
   generate: rng => chamberOfSecrets(rng),
 };
 

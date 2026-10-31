@@ -114,7 +114,7 @@
     return `<g transform="${pos}"><g fill="${ink}" stroke="${ink}" stroke-width="3.4" stroke-linejoin="round">${SHAPES[k]}</g><g fill="${fill}">${SHAPES[k]}</g>${k === 'pasture' ? `<circle cx="-12.5" cy="-2" r="1.2" fill="${ink}"/>` : ''}</g>`;
   };
   Object.keys(t).forEach(k => { t[k] = `<rect x="-60" y="-60" width="120" height="120" fill="${PLAIN[k]}"/>${glyph(k)}`; });
-  // Goblet of Fire: a rough-hewn wooden cup on dark ground, with blue-white flames that flicker (see style.css).
+  // Blue Flame Cup: a rough-hewn wooden cup on dark ground, with blue-white flames that flicker (see style.css).
   t.goblet = '<defs><radialGradient id="g-gob" cx="50%" cy="46%" r="52%"><stop offset="0" stop-color="#5ec2ff" stop-opacity=".6"/><stop offset=".55" stop-color="#2a6fd8" stop-opacity=".24"/><stop offset="1" stop-color="#2a6fd8" stop-opacity="0"/></radialGradient></defs>'
     + '<rect x="-60" y="-60" width="120" height="120" fill="#1b2430"/>'
     + '<path d="M-52,22 l9,-6 l10,7 l-8,9Z M30,30 l12,-8 l9,9 l-12,6Z M-20,-50 l10,4 l-3,10 l-9,-5Z M38,-34 l9,3 l-2,9 l-9,-4Z M-44,-24 l8,-3 l5,8 l-9,3Z" fill="#26323f"/>'

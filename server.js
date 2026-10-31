@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const { Game, GameError } = require('./game');
 const maps = require('./maps');
 const bots = require('./bots');
+const legal = require('./legal');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC = __dirname;
@@ -111,8 +112,38 @@ function setConnected(room, token) {
   if (was !== now) { room.game.players[pi].connected = now; room.game.version++; }
 }
 
+// Reports of chat messages. Google Play wants apps with chat to let players report messages; the developer then sees them in the
+// server log ("REPORT {...}"), or from /api/admin/reports?key=... when ADMIN_KEY is set in the hosting settings.
+const REPORT_REASONS = { harassment: 'Harassment or hate', sexual: 'Sexual or violent content', spam: 'Spam or advertising', personal: 'Personal information', cheating: 'Cheating', other: 'Something else' };
+const reports = [], reportTimes = new Map(); let reportSeq = 0;
+
 async function api(req, res, url) {
   const route = url.pathname;
+  if (req.method === 'GET' && route === '/api/legal') return sendJson(res, 200, legal.bundle());
+  if (req.method === 'POST' && route === '/api/report') {
+    const body = await readBody(req);
+    const room = rooms.get(String(body.code || '').toUpperCase());
+    if (!room) throw new GameError('This room no longer exists.');
+    const pi = room.game.indexOf(body.token);
+    if (pi < 0) throw new GameError('You are not in this room.');
+    const target = Number.isInteger(body.target) ? body.target : -1, reason = String(body.reason || ''), text = String(body.text || '').slice(0, 200);
+    if (!REPORT_REASONS[reason]) throw new GameError('Choose a reason for the report.');
+    if (target < 0 || target >= room.game.players.length || target === pi) throw new GameError('You cannot report that player.');
+    if (!room.game.log.some(l => l.chat === target && l.text === text)) throw new GameError('That message is no longer in the chat.');
+    const now = Date.now(), recent = (reportTimes.get(body.token) || []).filter(t => now - t < 60000);
+    if (recent.length >= 5) throw new GameError('Too many reports in a minute. Please wait a little.');
+    recent.push(now); reportTimes.set(body.token, recent); if (reportTimes.size > 5000) reportTimes.clear();
+    const entry = { id: ++reportSeq, at: new Date(now).toISOString(), room: room.game.code, reporter: room.game.players[pi].name, reported: room.game.players[target].name, reason, note: String(body.note || '').slice(0, 200), text };
+    reports.push(entry); if (reports.length > 200) reports.shift();
+    console.log('REPORT ' + JSON.stringify(entry));
+    return sendJson(res, 200, { ok: true });
+  }
+  if (req.method === 'GET' && route === '/api/admin/reports') {
+    const key = process.env.ADMIN_KEY || '', given = url.searchParams.get('key') || '';
+    const ok = key && given.length === key.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(key));
+    if (!ok) return sendJson(res, 404, { error: 'Not found' });
+    return sendJson(res, 200, { reports });
+  }
   if (req.method === 'GET' && route === '/api/maps') return sendJson(res, 200, { maps: maps.presetList() });
 
   if (req.method === 'GET' && route === '/api/preview') {
@@ -235,6 +266,10 @@ const server = http.createServer(async (req, res) => {
     }
     return;
   }
+  if (req.method === 'GET' && (url.pathname === '/terms' || url.pathname === '/privacy')) {   // public pages for the Play listing
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+    return res.end(url.pathname === '/terms' ? legal.termsPage() : legal.privacyPage());
+  }
   serveStatic(req, res, url);
 });
 
@@ -248,4 +283,4 @@ setInterval(() => {
 }, 60e3).unref();
 
 if (require.main === module) server.listen(PORT, () => console.log(`Hexlands running on http://localhost:${PORT}`));
-module.exports = { server, rooms, readAssetLinks };
+module.exports = { server, rooms, readAssetLinks, reports };

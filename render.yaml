@@ -9,3 +9,11 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "20"
+      # Shown in the Terms of Use and Privacy Policy. Render asks for these when you deploy.
+      - key: OPERATOR_NAME
+        sync: false
+      - key: CONTACT_EMAIL
+        sync: false
+      # Optional: lets you read chat reports at /api/admin/reports?key=YOUR_KEY
+      - key: ADMIN_KEY
+        sync: false

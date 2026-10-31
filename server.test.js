@@ -3,7 +3,7 @@ process.env.BOT_DELAY_MS = '0';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('http');
-const { server, rooms } = require('./server');
+const { server, rooms, reports } = require('./server');
 
 let base;
 test.before(() => new Promise(r => server.listen(0, () => { base = `http://127.0.0.1:${server.address().port}`; r(); })));
@@ -41,7 +41,7 @@ test('static files and SPA routes', async () => {
   for (const p of ['/', '/room/ABCDE', '/app.js', '/art.js', '/style.css']) {
     const r = await fetch(base + p); assert.equal(r.status, 200, p); await r.text();
   }
-  for (const p of ['/server.js', '/game.js', '/maps.js', '/package.json', '/render.yaml', '/README.md', '/..%2fserver.js']) {
+  for (const p of ['/server.js', '/game.js', '/maps.js', '/legal.js', '/package.json', '/render.yaml', '/README.md', '/..%2fserver.js']) {
     const x = await fetch(base + p); assert.equal(x.status, 404, p); await x.text();
   }
   assert.equal((await fetch(base + '/healthz')).status, 200);
@@ -289,14 +289,14 @@ test('the host picks another map in the waiting room; fog is hidden over the wir
   try {
     await L.waitFor(s => s.phase === 'lobby'); await G.waitFor(s => s.phase === 'lobby');
     assert.equal(L.last('board').name, 'Classic Island');
-    const denied = await post('/api/action', { code, token: guest, action: { type: 'setMap', preset: 'gobletoffire' } });
+    const denied = await post('/api/action', { code, token: guest, action: { type: 'setMap', preset: 'flamecup' } });
     assert.equal(denied.status, 400); assert.match(denied.body.error, /Only the host/);
     assert.equal((await post('/api/action', { code, token: host, action: { type: 'setMap', preset: 'nowhere' } })).status, 400);
-    assert.equal((await post('/api/action', { code, token: host, action: { type: 'setMap', preset: 'gobletoffire' } })).status, 200);
-    await L.waitFor(s => s.mapName === 'Goblet of Fire'); await G.waitFor(s => s.mapName === 'Goblet of Fire');
+    assert.equal((await post('/api/action', { code, token: host, action: { type: 'setMap', preset: 'flamecup' } })).status, 200);
+    await L.waitFor(s => s.mapName === 'Blue Flame Cup'); await G.waitFor(s => s.mapName === 'Blue Flame Cup');
     for (const x of [L, G]) {
       const b = x.last('board'), fog = b.tiles.filter(t => t.terrain === 'fog');
-      assert.equal(b.key, 'gobletoffire'); assert.equal(b.tiles.length, 55); assert.equal(fog.length, 30);
+      assert.equal(b.key, 'flamecup'); assert.equal(b.tiles.length, 55); assert.equal(fog.length, 30);
       assert.ok(fog.every(t => t.number === null)); assert.equal(b.ports.length, 6);
     }
     rooms.get(code).game.board.goblets = false; rooms.get(code).game.board.fogFreeStart = false;   // plain fog, so a setup settlement may touch it
@@ -312,4 +312,52 @@ test('the host picks another map in the waiting room; fog is hidden over the wir
     }
     assert.equal((await post('/api/action', { code, token: host, action: { type: 'setMap', preset: 'classic' } })).status, 400, 'no map change once the game started');
   } finally { L.close(); G.close(); }
+});
+
+test('legal pages: Terms of Use and Privacy Policy are public web pages and in-app JSON, from one source', async () => {
+  for (const [p, h, needles] of [['/terms', 'Terms of Use', ['at least 13', 'report', 'mute', 'independent game']], ['/privacy', 'Privacy Policy', ['no ads', 'chat messages', 'hosting provider', 'under 13']]]) {
+    const r = await fetch(base + p); assert.equal(r.status, 200, p); assert.match(r.headers.get('content-type'), /text\/html/);
+    const html = await r.text(); assert.ok(html.includes(`<h2>${h}</h2>`), p + ' has its title'); assert.ok(html.includes('<meta name="viewport"'), 'works on a phone');
+    for (const n of needles) assert.ok(html.toLowerCase().includes(n.toLowerCase()), `${p} mentions "${n}"`);
+  }
+  const j = await (await fetch(base + '/api/legal')).json();
+  assert.equal(j.version, require('./legal').VERSION); assert.ok(j.terms.includes('Terms of Use') && j.privacy.includes('Privacy Policy'));
+  assert.equal((await fetch(base + '/legal.js')).status, 404, 'the module itself is never served');
+  process.env.OPERATOR_NAME = '<i>Acme</i>'; process.env.CONTACT_EMAIL = 'help@example.com';     // the hosting settings fill in who runs the game
+  try {
+    const t = await (await fetch(base + '/terms')).text(), p = await (await fetch(base + '/privacy')).text();
+    assert.ok(t.includes('&lt;i&gt;Acme&lt;/i&gt;') && !t.includes('<i>Acme</i>'), 'escaped'); assert.ok(p.includes('href="mailto:help@example.com"'));
+  } finally { delete process.env.OPERATOR_NAME; delete process.env.CONTACT_EMAIL; }
+});
+
+test('reporting a chat message: checked, stored, rate limited, and readable by the admin only', async () => {
+  const c = await post('/api/create', { name: 'Hosty', map: { preset: 'classic' } }), code = c.body.code, host = c.body.token;
+  const j = await post('/api/join', { code, name: 'Rude' }), guest = j.body.token;
+  assert.equal((await post('/api/action', { code, token: guest, action: { type: 'chat', text: 'you are all terrible' } })).status, 200);
+  const game = rooms.get(code).game, rude = game.indexOf(guest), me = game.indexOf(host);
+  const report = (extra = {}) => post('/api/report', { code, token: host, target: rude, text: 'you are all terrible', reason: 'harassment', note: 'rude', ...extra });
+  assert.equal((await report({ reason: 'nonsense' })).status, 400, 'a real reason is needed');
+  assert.equal((await report({ target: me })).status, 400, 'not yourself'); assert.equal((await report({ target: 9 })).status, 400);
+  assert.equal((await report({ text: 'something nobody said' })).status, 400, 'the message has to be in the chat');
+  assert.equal((await post('/api/report', { code, token: 'nobody', target: rude, text: 'you are all terrible', reason: 'spam' })).status, 400, 'only people in the room');
+  const n = reports.length, ok = await report(); assert.equal(ok.status, 200);
+  const last = reports[reports.length - 1]; assert.equal(reports.length, n + 1);
+  assert.deepEqual([last.room, last.reporter, last.reported, last.reason, last.note, last.text], [code, 'Hosty', 'Rude', 'harassment', 'rude', 'you are all terrible']);
+  for (let i = 0; i < 4; i++) assert.equal((await report()).status, 200);
+  const slow = await report(); assert.equal(slow.status, 400); assert.match(slow.body.error, /Too many/);
+  // only someone with the admin key can read them
+  delete process.env.ADMIN_KEY; assert.equal((await fetch(base + '/api/admin/reports?key=anything')).status, 404, 'closed when no key is set');
+  process.env.ADMIN_KEY = 'secret-key-123';
+  try {
+    assert.equal((await fetch(base + '/api/admin/reports?key=wrong-key-1234')).status, 404);
+    const r = await fetch(base + '/api/admin/reports?key=secret-key-123'); assert.equal(r.status, 200);
+    const list = (await r.json()).reports; assert.ok(list.some(x => x.id === last.id && x.reported === 'Rude'));
+  } finally { delete process.env.ADMIN_KEY; }
+});
+
+test('the app asks everyone to agree to the same version of the terms that the server serves', () => {
+  const app = require('fs').readFileSync(require('path').join(__dirname, 'app.js'), 'utf8'), m = /const LEGAL_VERSION = '([^']+)'/.exec(app);
+  assert.ok(m, 'app.js declares LEGAL_VERSION'); assert.equal(m[1], require('./legal').VERSION, 'change both together');
+  assert.ok(/render\(\);\nif \(needConsent\(\)\) openConsent\(\);/.test(app), 'the consent dialog opens at start-up');
+  assert.ok(app.includes("!['discard', 'consent'].includes(kind)") && app.includes("!['discard', 'consent'].includes(S.modal)"), 'it cannot be dismissed without agreeing');
 });
