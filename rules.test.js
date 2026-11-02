@@ -999,3 +999,13 @@ test('Hidden Vault: the clock, an offline player and the bots all settle the dia
     assert.equal(a.type, 'diamond'); assert.equal(a.res.length, 3); g.act(b, a); assert.equal(g.pendingDiamond[b], undefined);
   }
 });
+
+test('robber hits: every other player with a building on the new tile is counted, the mover is not', () => {
+  const g = mk(3, 5); g.act(0, { type: 'start' }); finishSetup(g);
+  const mover = g.turn, tile = g.board.tiles.find(t => t.id !== g.robber && t.vertices.some(v => g.buildings[v] && g.buildings[v].p !== mover)).id;
+  const owners = new Set(g.board.tiles[tile].vertices.map(v => g.buildings[v]).filter(Boolean).map(b => b.p));
+  const before = g.players.map(p => p.stats.robberOn);
+  g.rolled = true; g.subphase = 'robber'; g.act(mover, { type: 'robber', tile, victim: g.robberVictims(mover, tile)[0] });
+  g.players.forEach((p, i) => assert.equal(p.stats.robberOn, before[i] + (owners.has(i) && i !== mover ? 1 : 0), 'player ' + i));
+  assert.equal(g.view(0).players[mover].stats.robberOn, before[mover]);
+});

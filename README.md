@@ -41,7 +41,7 @@ Requires Node.js 18 or newer.
 
 ```bash
 npm start            # http://localhost:3000
-npm test             # 111 tests, including full simulated games and matchmaking
+npm test             # 112 tests, including full simulated games and matchmaking
 ```
 
 Open two browser windows (or a phone on the same network at `http://<your-ip>:3000`) to play against yourself.
@@ -82,7 +82,7 @@ Only the web app itself is sent to browsers: the page, scripts, styles, icons, s
 
 ## Playing with people from anywhere
 
-Anyone in the world can open your Render address. These parts help strangers find each other:
+Anyone in the world can open your Render address. Public play is **off by default**: set `PUBLIC_ROOMS` to `on` in the Render dashboard (Environment) to open it, and back to `off` to close it again (no code change, a restart applies it). While it is off, the home screen shows only *Create a room* and join by code, and the server refuses Quick play and public rooms. When it is on, these parts help strangers find each other:
 
 - **Quick play** (home screen) joins the fullest open public room, or opens a new public room (Classic Island, 10 points, 30 second move timer).
 - **Public rooms** shows the list of waiting public rooms (host name, map, points, timer, seats). The list refreshes every few seconds.

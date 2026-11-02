@@ -1,5 +1,6 @@
 'use strict';
 process.env.BOT_DELAY_MS = '0';
+process.env.PUBLIC_ROOMS = 'on';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('http');
@@ -304,6 +305,21 @@ test('limits: the address comes from the Cloudflare header first, then x-forward
   assert.equal(clientIp(req({ 'x-forwarded-for': 'fake, 6.6.6.6, 10.1.1.1' })), '6.6.6.6', 'second to last: the proxy appended the real visitor before itself');
   assert.equal(clientIp(req({ 'x-forwarded-for': '7.7.7.7' })), '7.7.7.7');
   assert.equal(clientIp(req({})), '10.0.0.1');
+});
+
+test('with PUBLIC_ROOMS off, public play is closed: no Quick play, empty list, rooms stay private', async () => {
+  process.env.PUBLIC_ROOMS = 'off';
+  try {
+    assert.equal((await get('/api/config')).body.publicRooms, false);
+    const q = await post('/api/quickplay', { name: 'Ann' }); assert.equal(q.status, 400); assert.match(q.body.error, /not open yet/);
+    const c = (await post('/api/create', { name: 'Hosty', map: { preset: 'classic' }, public: true })).body; online(c.code, c.token);
+    assert.equal(rooms.get(c.code).public, false, 'asking for public still makes a private room');
+    assert.equal(rooms.get(c.code).game.opts.timer, 0);
+    assert.equal((await act(c.code, c.token, { type: 'setPublic', value: true })).status, 400);
+    assert.deepEqual((await get('/api/rooms')).body.rooms, []);
+    process.env.PUBLIC_ROOMS = 'on';
+    assert.equal((await get('/api/config')).body.publicRooms, true);
+  } finally { process.env.PUBLIC_ROOMS = 'on'; }
 });
 
 test('the terms and privacy policy describe public rooms, bots standing in, and address use', () => {

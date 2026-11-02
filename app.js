@@ -30,7 +30,7 @@ const S = {
   screen: 'home', name: store.get('name', ''), session: store.get('session', null),
   maps: [], mapKey: 'classic', seed: null, previewBoard: null, vpTarget: 10,
   custom: store.get('custom', null), board: null, state: null, mode: null, vb: null, base: null,
-  es: null, error: null, hot: null, modal: null, publicRoom: store.get('public', false), stateAt: 0, shellReady: false, editor: { tool: 'forest', num: null }, joinCode: '', botLevel: store.get('botLevel', 'medium'),
+  es: null, error: null, hot: null, modal: null, publicRoom: false, stateAt: 0, publicOn: false, shellReady: false, editor: { tool: 'forest', num: null }, joinCode: '', botLevel: store.get('botLevel', 'medium'),
 };
 // Everyone starts with a name such as "Player 4821", so strangers always have something to call each other.
 if (!S.name) { S.name = 'Player ' + (1000 + Math.floor(Math.random() * 9000)); store.set('name', S.name); }
@@ -218,8 +218,8 @@ function renderHome(app) {
       <div class="panel stack">
         ${S.error ? `<div class="notice">${esc(S.error)}</div>` : ''}
         <label class="field">Your name<input id="name" maxlength="16" autocomplete="nickname" placeholder="e.g. Vivek" value="${esc(S.name)}"></label>
-        <button class="btn primary quick" id="quick"><b>Quick play</b><small>Join a public game with players from anywhere</small></button>
-        <div class="row"><button class="btn grow" id="browse">Public rooms</button><button class="btn grow" id="go-create">Create a room</button></div>
+        ${S.publicOn ? `<button class="btn primary quick" id="quick"><b>Quick play</b><small>Join a public game with players from anywhere</small></button>
+        <div class="row"><button class="btn grow" id="browse">Public rooms</button><button class="btn grow" id="go-create">Create a room</button></div>` : '<button class="btn primary" id="go-create">Create a room</button>'}
         <div class="divider">or join a friend</div>
         <div class="row"><input id="code" class="code-input grow" maxlength="5" placeholder="CODE" autocomplete="off" value="${esc(S.joinCode)}" aria-label="Room code"><button class="btn" id="go-join">Join room</button></div>
         ${S.session ? `<button class="btn" id="resume">Return to room ${esc(S.session.code)}</button>` : ''}
@@ -234,8 +234,8 @@ function renderHome(app) {
   showInstall();
   const nameOk = () => { const n = $('#name').value.trim() || S.name; $('#name').value = n; S.name = n; store.set('name', n); return n; };
   $('#go-create').onclick = () => { if (nameOk()) go('create'); };
-  $('#browse').onclick = () => { if (nameOk()) openRooms(); };
-  $('#quick').onclick = async e => {
+  if ($('#browse')) $('#browse').onclick = () => { if (nameOk()) openRooms(); };
+  if ($('#quick')) $('#quick').onclick = async e => {
     const name = nameOk(), btn = e.currentTarget; btn.disabled = true;
     try {
       const j = await post('/api/quickplay', { name });
@@ -290,9 +290,9 @@ ${cat === 'misc' ? `<button class="map-opt" data-map="custom" aria-pressed="${S.
         <div class="preview" id="preview"></div>
         <div class="preview-meta"><div class="terrain-counts" id="counts"></div>
           <div class="row"><button class="btn small" id="reroll">${S.mapKey === 'custom' ? 'Reshuffle harbors' : 'Shuffle tiles'}</button><button class="btn small" id="edit"${['flamecup', 'hiddenvault'].includes(S.mapKey) ? ' disabled title="Fog maps cannot be copied"' : ''}>${S.mapKey === 'custom' ? 'Edit map' : 'Copy into editor'}</button></div></div>
-        <div class="panel stack"><b>Who can join?</b>
+        ${S.publicOn ? `<div class="panel stack"><b>Who can join?</b>
           <div class="seg two" role="group" aria-label="Who can join">${[[false, 'Private'], [true, 'Public']].map(([v, l]) => `<button data-vis="${v}" aria-pressed="${S.publicRoom === v}">${l}</button>`).join('')}</div>
-          <span class="muted" style="font-size:.88em">${S.publicRoom ? 'Anyone can find this room in the public list and join. The move timer starts at 30 seconds.' : 'Only people you give the room code or link to.'}</span></div>
+          <span class="muted" style="font-size:.88em">${S.publicRoom ? 'Anyone can find this room in the public list and join. The move timer starts at 30 seconds.' : 'Only people you give the room code or link to.'}</span></div>` : ''}
         <div class="panel row">
           <span class="grow"><b>Next: the waiting room</b><br><span class="muted" style="font-size:.88em">Pick points to win, discard limit, move timer, friendly robber and balanced dice there, and add bots.</span></span>
           <button class="btn primary" id="create">Create room</button>
@@ -316,7 +316,7 @@ ${cat === 'misc' ? `<button class="map-opt" data-map="custom" aria-pressed="${S.
     e.target.disabled = true;
     try {
       const map = S.mapKey === 'custom' ? { tiles: S.custom.tiles } : { preset: S.mapKey };
-      const j = await post('/api/create', { name: S.name, map, seed: S.seed, public: S.publicRoom });
+      const j = await post('/api/create', { name: S.name, map, seed: S.seed, public: S.publicOn && S.publicRoom });
       startSession({ code: j.code, token: j.token });
     } catch (err) { toast(err.message, 'err'); e.target.disabled = false; }
   };
@@ -1361,7 +1361,7 @@ function openLeaderboard() {
       ${medal(r)}
       <div class="who"><b>${esc(x.p.name)}${x.i === me() ? ' (you)' : ''}</b> ${botTag(x.p)}
         <div class="ptsrow">${chip(x.settlements, `${x.settlements} settlement${x.settlements > 1 ? 's' : ''} +${x.settlements}`)}${chip(x.cities, `${x.cities} cit${x.cities > 1 ? 'ies' : 'y'} +${x.cities * 2}`)}${chip(x.road, 'Longest Road +2')}${chip(x.army, 'Largest Army +2')}${chip(x.hidden, `${x.hidden} hidden +${x.hidden}`)}</div>
-        <div class="statrow"><span>${icon('cards')}${s.collected} harvested</span><span>${icon('robber')}${s.stolen} stolen</span><span>${icon('any')}${s.bankTrades + s.playerTrades} trades</span><span>${icon('knight')}${x.p.knights} knights</span><span>${icon('dev')}${s.devBought} dev bought</span></div>
+        <div class="statrow"><span>${icon('cards')}${s.collected} harvested</span><span>${icon('robber')}${s.stolen} stolen</span><span title="Times the robber was moved onto a tile where this player had a settlement or city">${icon('robber')}${s.robberOn || 0} robber hits</span><span>${icon('any')}${s.bankTrades + s.playerTrades} trades</span><span>${icon('knight')}${x.p.knights} knights</span><span>${icon('dev')}${s.devBought} dev bought</span></div>
       </div>
       <div class="score">${x.p.vp}<small>pts</small></div></li>`;
   }).join('');
@@ -1827,6 +1827,7 @@ setInterval(tickClock, 250);
 addEventListener('pagehide', () => { S.unloading = true; });
 addEventListener('pageshow', () => { S.unloading = false; });
 fetch('/api/maps').then(r => r.json()).then(j => { S.maps = j.maps; }).catch(() => {});
+fetch('/api/config').then(r => r.json()).then(j => { S.publicOn = !!j.publicRooms; if (S.publicOn) S.publicRoom = store.get('public', false); if (S.screen === 'home') render(); }).catch(() => {});
 if (S.session && (!S.joinCode || S.joinCode === S.session.code)) startSession(S.session);
 render();
 if (needConsent()) openConsent();   // everyone agrees to the Terms of Use and Privacy Policy once, before chatting or playing

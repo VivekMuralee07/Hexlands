@@ -20,7 +20,7 @@ const MAX_PLAYERS = 4;
 const SQ3 = Math.sqrt(3);
 
 const emptyRes = () => ({ wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 0 });
-const newStats = () => ({ collected: 0, stolen: 0, lostToRobber: 0, discarded: 0, bankTrades: 0, playerTrades: 0, devBought: 0, devPlayed: 0, sevens: 0 });
+const newStats = () => ({ collected: 0, stolen: 0, lostToRobber: 0, discarded: 0, bankTrades: 0, playerTrades: 0, devBought: 0, devPlayed: 0, sevens: 0, robberOn: 0 });
 const BOT_LEVELS = ['easy', 'medium', 'hard'];
 const BOT_NAMES = ['Ada', 'Bram', 'Cora', 'Dax', 'Elin', 'Finn', 'Gus', 'Hana', 'Ivo', 'Juno'];
 const total = r => RES.reduce((a, k) => a + (r[k] || 0), 0);
@@ -815,6 +815,8 @@ class Game {
       if (victims.length === 1) victim = victims[0]; else fail('Choose a player to steal from.');
     }
     this.robber = t; this.subphase = null;
+    // Everyone (except the mover) with a settlement or city on this tile has the robber land on them.
+    new Set(this.board.tiles[t].vertices.map(v => this.buildings[v]).filter(x => x && x.p !== pi).map(x => x.p)).forEach(i => { this.players[i].stats.robberOn++; });
     let msg = `${this.players[pi].name} moved the robber`;
     if (victims.length) {
       const pool = [];

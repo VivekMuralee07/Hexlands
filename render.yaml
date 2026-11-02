@@ -14,6 +14,9 @@ services:
         sync: false
       - key: CONTACT_EMAIL
         sync: false
+      # Public play (Quick play, public rooms). Keep "off" until you are ready; change it to "on" in the Render dashboard to open the game to everyone.
+      - key: PUBLIC_ROOMS
+        value: "off"
       # Optional: lets you read chat reports at /api/admin/reports?key=YOUR_KEY
       - key: ADMIN_KEY
         sync: false

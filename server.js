@@ -36,6 +36,8 @@ function guard(req, kind, max, windowMs, msg) {
   if (recent(key, windowMs, now).length >= max) throw tooMany(msg);
   hit(key, windowMs, now);
 }
+// Public play (Quick play, the room list, public rooms) is off until PUBLIC_ROOMS is set to "on" in the hosting settings.
+const publicOn = () => /^(1|true|on|yes)$/i.test(String(process.env.PUBLIC_ROOMS || '').trim());
 const MAX_ROOMS = 3000, ROOMS_PER_IP = 5;
 const COUNTDOWN_MS = 5000, FILL_AFTER_MS = 60e3, DROP_LOBBY_MS = 30e3, TAKEOVER_MS = 45e3;
 
@@ -103,6 +105,7 @@ function destroyRoom(room) {
 }
 const hostOf = g => g.players.find(p => p.token === g.hostToken);
 function openLobbies() {   // public rooms still waiting for players, with a free seat and a human actually connected
+  if (!publicOn()) return [];
   return [...rooms.values()].filter(r => r.public && r.game.phase === 'lobby' && r.game.players.length < MAX_PLAYERS && r.game.players.some(p => !p.bot && p.connected));
 }
 function roomCard(r) {
@@ -276,6 +279,7 @@ async function api(req, res, url) {
     if (!ok) return sendJson(res, 404, { error: 'Not found' });
     return sendJson(res, 200, { reports });
   }
+  if (req.method === 'GET' && route === '/api/config') return sendJson(res, 200, { publicRooms: publicOn() });
   if (req.method === 'GET' && route === '/api/rooms') {   // the public rooms anyone may join
     guard(req, 'list', 60, 60e3, 'Too many requests. Please wait a moment.');
     const list = openLobbies().sort((a, b) => b.game.players.length - a.game.players.length || a.createdAt - b.createdAt).slice(0, 30).map(roomCard);
@@ -283,6 +287,7 @@ async function api(req, res, url) {
   }
   if (req.method === 'POST' && route === '/api/quickplay') {   // join the fullest open public room, or open a new one
     const body = await readBody(req);
+    if (!publicOn()) throw new GameError('Public play is not open yet. Create a private room and share the code.');
     guard(req, 'join', 40, 60e3, 'Too many attempts. Please wait a moment.');
     const name = cleanName(body.name), token = newToken();
     const open = openLobbies().sort((a, b) => b.game.players.length - a.game.players.length || a.createdAt - b.createdAt)[0];
@@ -313,7 +318,7 @@ async function api(req, res, url) {
   if (req.method === 'POST' && route === '/api/create') {
     const body = await readBody(req);
     guard(req, 'create', 20, 3600e3, 'You have opened many rooms in the last hour. Please try again later.');
-    const name = cleanName(body.name), ip = checkCapacity(req), code = newCode(), token = newToken(), pub = body.public === true;
+    const name = cleanName(body.name), ip = checkCapacity(req), code = newCode(), token = newToken(), pub = body.public === true && publicOn();
     const { game } = makeGame(code, body.map, body.seed, Number(body.vpTarget) || 10);
     if (pub) game.opts.timer = 30;   // strangers: the move clock is on unless the host turns it off
     game.addPlayer(name, token);
@@ -367,6 +372,7 @@ async function api(req, res, url) {
       const g = room.game;
       if (g.phase !== 'lobby') throw new GameError('This can only change in the waiting room.');
       if (!g.isHost(pi)) throw new GameError('Only the host can change who may join.');
+      if (action.value === true && !publicOn()) throw new GameError('Public play is not open yet.');
       room.public = action.value === true; room.countdownAt = null; room.lastJoinAt = Date.now(); room.fillShown = false;
       g.addLog(room.public ? 'The room is now public.' : 'The room is now private. Only people with the code can join.'); g.version++;
       broadcast(room);
