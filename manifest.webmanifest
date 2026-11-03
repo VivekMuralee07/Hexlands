@@ -2,7 +2,7 @@
   "id": "/",
   "name": "Hexlands",
   "short_name": "Hexlands",
-  "description": "Settle an island with friends. Gather wood, brick, sheep, hay and ore, trade, build and race to victory. Play with room codes, bots of three difficulties, and maps of eight countries.",
+  "description": "Settle an island with friends or with players from anywhere. Gather wood, brick, sheep, hay and ore, trade, build and race to victory. Quick play online, room codes, bots of three difficulties, and 19 maps.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -52,7 +52,7 @@
       "sizes": "540x960",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "Create a room or join a friend with a code"
+      "label": "Quick play with players worldwide, or join a friend with a code"
     },
     {
       "src": "/screenshot-game.png",

@@ -83,7 +83,7 @@ Only the web app itself is sent to browsers: the page, scripts, styles, icons, s
 
 ## Playing with people from anywhere
 
-Anyone in the world can open your Render address. Public play is **off by default**: set `PUBLIC_ROOMS` to `on` in the Render dashboard (Environment) to open it, and back to `off` to close it again (no code change, a restart applies it). While it is off, the home screen shows only *Create a room* and join by code, and the server refuses Quick play and public rooms. When it is on, these parts help strangers find each other:
+Anyone in the world can open your Render address. Public play is **on by default**, and new rooms start as Public. To close it, set `PUBLIC_ROOMS` to `off` in the Render dashboard (Environment); a restart applies it, with no code change. While it is off, the home screen shows only *Create a room* and join by code, and the server refuses Quick play and public rooms. When it is on, these parts help strangers find each other:
 
 - **Quick play** (home screen) joins the fullest open public room, or opens a new public room (Classic Island, 10 points, 30 second move timer).
 - **Public rooms** shows the list of waiting public rooms (host name, map, points, timer, seats). The list refreshes every few seconds.
@@ -193,6 +193,61 @@ Still seeing the address bar? Work through these in order:
 3. Ask Google to confirm the link by opening this address (fill in the three parts): `https://digitalassetlinks.googleapis.com/v1/assetlinks:check?source.web.site=https://YOUR-SITE&relation=delegate_permission/common.handle_all_urls&target.android_app.package_name=YOUR.PACKAGE.ID&target.android_app.certificate.sha256_fingerprint=YOUR:SHA256:FINGERPRINT`. It should answer `"linked": true`.
 4. Android remembers a failed check. Uninstall the app and install the APK again (or clear Chrome's data), then open the app twice.
 5. On Render's free plan, wake the site first by opening it in a browser. If the server is asleep while the app launches, the check can time out.
+
+## Publish on Google Play
+
+You need: a Play Console developer account (one-time fee, identity checks), the live HTTPS site, and the signed `.aab` from PWABuilder (previous section).
+
+**Before you build the Android package**
+1. In Render set `OPERATOR_NAME` and `CONTACT_EMAIL` (the Terms and Privacy pages show them) and `ADMIN_KEY` (to read chat reports). Check `https://YOUR-SITE/privacy` and `/terms` open without logging in.
+2. Use a paid Render instance. Google's reviewers open the app on their own schedule; a sleeping free server looks like a broken app.
+3. Pick the package ID now (for example `com.yourname.hexlands`). It can never change after the first upload.
+
+**In Play Console (Create app: Game, Free)**
+1. *Store listing:* use the texts below, the 512 px `icon-512.png`, a 1024 x 500 feature graphic, and 2 to 8 phone screenshots (`screenshot-home.png`, `screenshot-game.png`; take more of your own if you like).
+2. *App content:* Privacy policy URL `https://YOUR-SITE/privacy`. Ads: **No**. App access: **All functionality available without login**. Target audience: **13 and older** (not children; do not pick the under-13 groups). News app, government, health, financial features: **No**.
+3. *Content rating (IARC questionnaire):* no violence beyond abstract board-game moves, no sexual content, no gambling, no purchases. Answer **Yes** to "users can interact or exchange content" (the chat). Expect an "Everyone 10+" or "Teen" style result with a "users interact" notice.
+4. *User-generated content:* Google requires reporting, blocking and terms. Hexlands has report and mute on every chat message, a word filter, rate limits, and Terms of Use. If a form asks, say reports are reviewed through the admin report list.
+5. *Data safety:* see the suggested answers below. Check them against Google's own definitions before you submit; you are the one who signs the form.
+6. *Release:* upload the `.aab` to **Closed testing** first. Turn on **Play App Signing** when asked.
+7. *Digital Asset Links:* after the first upload open Play Console, Setup, **App integrity**, copy the **App signing key certificate SHA-256**, and add it as a second fingerprint in `assetlinks.json` (next to PWABuilder's own). Commit it, let Render deploy, and check the app opens without an address bar.
+
+**New personal accounts (created after 13 Nov 2023):** Play requires a closed test with at least 12 testers who stay opted in for 14 continuous days (testers should actually open the app, because Google also checks engagement) before you can apply for production access. Organization accounts are exempt. Public Quick play needs other people online: ask your testers to open the app together at set times.
+
+**Store listing text**
+- App name: `Hexlands`
+- Short description (80 characters max): `Settle islands, trade and build. Play online with anyone, or with friends and bots.`
+- Full description:
+
+> Hexlands is a fast multiplayer strategy game of trading and building on a hex island.
+>
+> Roll the dice, collect wood, brick, sheep, hay and ore, trade with other players or the bank, and race to build roads, settlements and cities. First to the points target wins.
+>
+> PLAY YOUR WAY
+> - Quick play: join an open public game with players from anywhere, or open your own.
+> - Create a private room and share the code with friends.
+> - Fill empty seats with bots at three difficulty levels.
+>
+> 19 MAPS
+> Classic Island, 15 country maps, and special maps with hidden fog tiles, a diamond vault, and the Hay Hollows map where the board changes as you settle.
+>
+> FEATURES
+> - 2 to 4 players, with a move timer so games keep moving
+> - Heist card: steal an opponent's settlement
+> - Map editor: design your own island
+> - Sound effects and music, a leaderboard and dice statistics at the end of every game
+> - Report and mute other players in public games
+>
+> Hexlands is an independent game and is not affiliated with any other board game or publisher.
+
+**Suggested Data safety answers** (verify before submitting)
+- Data collected and sent off the device: **Name** (the display name the player types), **Messages: other in-app messages** (chat, visible to the other players in the room), and **User IDs** (a random session code that lets you rejoin a game).
+- Purpose: App functionality (and Fraud prevention, security and compliance for reports and limits). Not used for advertising, analytics or personalization. **Not sold, not shared with third parties** (other players in the same room see the name and messages, which is how the game works).
+- Collection is required for the game to work; players choose their own display name.
+- Data is encrypted in transit (HTTPS). Games and chat live only in server memory and disappear when the room ends; reports are kept up to 90 days. Users can ask for deletion by email (the contact in the Privacy Policy); there are no accounts.
+- IP addresses are used in memory for rate limits (up to an hour) and are in the hosting provider's logs. If Google's form treats that as collected data, declare it too rather than leave it out.
+
+**Updates:** the app loads your live site, so a normal `git push` updates the game for everyone. Upload a new `.aab` only when you change the package itself (icon, name, colors, target level). If the Console says the target API level is too old, build a fresh package in PWABuilder, keep the same signing key, and upload it as a new version.
 
 ## Project layout
 

@@ -30,7 +30,7 @@ const S = {
   screen: 'home', name: store.get('name', ''), session: store.get('session', null),
   maps: [], mapKey: 'classic', seed: null, previewBoard: null, vpTarget: 10,
   custom: store.get('custom', null), board: null, state: null, mode: null, vb: null, base: null,
-  es: null, error: null, hot: null, modal: null, publicRoom: false, stateAt: 0, publicOn: false, shellReady: false, editor: { tool: 'forest', num: null }, joinCode: '', botLevel: store.get('botLevel', 'medium'),
+  es: null, error: null, hot: null, modal: null, publicRoom: store.get('publicRoom', true), stateAt: 0, publicOn: true, shellReady: false, editor: { tool: 'forest', num: null }, joinCode: '', botLevel: store.get('botLevel', 'medium'),
 };
 // Everyone starts with a name such as "Player 4821", so strangers always have something to call each other.
 if (!S.name) { S.name = 'Player ' + (1000 + Math.floor(Math.random() * 9000)); store.set('name', S.name); }
@@ -300,7 +300,7 @@ ${cat === 'misc' ? `<button class="map-opt" data-map="custom" aria-pressed="${S.
       </div>
     </div></div>`;
   $('#back').onclick = () => go('home');
-  $$('[data-vis]').forEach(b => b.onclick = () => { S.publicRoom = b.dataset.vis === 'true'; store.set('public', S.publicRoom); renderCreate(app); });
+  $$('[data-vis]').forEach(b => b.onclick = () => { S.publicRoom = b.dataset.vis === 'true'; store.set('publicRoom', S.publicRoom); renderCreate(app); });
   $$('[data-tab]').forEach(b => b.onclick = () => { S.mapTab = b.dataset.tab; renderCreate(app); });
   $$('#maplist .map-opt').forEach(b => b.onclick = () => {
     const k = b.dataset.map;
@@ -1830,7 +1830,7 @@ function openRooms() {
   };
   openModal('rooms', `<h3>Public rooms</h3><p class="muted">Games waiting for players. Tap Join to take a seat.</p><div class="roomlist" id="roomlist" aria-live="polite"><p class="muted">Loading…</p></div><div class="foot"><button class="btn" id="rclose">Close</button><button class="btn primary" id="rnew">Open a public room</button></div>`, () => {
     $('#rclose').onclick = closeModal;
-    $('#rnew').onclick = () => { S.publicRoom = true; store.set('public', true); closeModal(); go('create'); };
+    $('#rnew').onclick = () => { S.publicRoom = true; store.set('publicRoom', true); closeModal(); go('create'); };
     load();
   });
 }
@@ -1840,7 +1840,7 @@ setInterval(tickClock, 250);
 addEventListener('pagehide', () => { S.unloading = true; });
 addEventListener('pageshow', () => { S.unloading = false; });
 fetch('/api/maps').then(r => r.json()).then(j => { S.maps = j.maps; }).catch(() => {});
-fetch('/api/config').then(r => r.json()).then(j => { S.publicOn = !!j.publicRooms; if (S.publicOn) S.publicRoom = store.get('public', false); if (S.screen === 'home') render(); }).catch(() => {});
+fetch('/api/config').then(r => r.json()).then(j => { const on = j.publicRooms !== false; if (on !== S.publicOn) { S.publicOn = on; if (S.screen === 'home' || S.screen === 'create') render(); } }).catch(() => {});
 if (S.session && (!S.joinCode || S.joinCode === S.session.code)) startSession(S.session);
 render();
 if (needConsent()) openConsent();   // everyone agrees to the Terms of Use and Privacy Policy once, before chatting or playing

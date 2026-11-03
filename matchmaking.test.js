@@ -307,6 +307,15 @@ test('limits: the address comes from the Cloudflare header first, then x-forward
   assert.equal(clientIp(req({})), '10.0.0.1');
 });
 
+test('public play is on when PUBLIC_ROOMS is not set, and new rooms can be public', async () => {
+  delete process.env.PUBLIC_ROOMS;
+  try {
+    assert.equal((await get('/api/config')).body.publicRooms, true);
+    const c = (await post('/api/create', { name: 'Hosty', map: { preset: 'classic' }, public: true })).body; online(c.code, c.token);
+    assert.equal(rooms.get(c.code).public, true); assert.equal((await get('/api/rooms')).body.rooms.length, 1);
+  } finally { process.env.PUBLIC_ROOMS = 'on'; }
+});
+
 test('with PUBLIC_ROOMS off, public play is closed: no Quick play, empty list, rooms stay private', async () => {
   process.env.PUBLIC_ROOMS = 'off';
   try {

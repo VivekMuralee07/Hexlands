@@ -36,8 +36,8 @@ function guard(req, kind, max, windowMs, msg) {
   if (recent(key, windowMs, now).length >= max) throw tooMany(msg);
   hit(key, windowMs, now);
 }
-// Public play (Quick play, the room list, public rooms) is off until PUBLIC_ROOMS is set to "on" in the hosting settings.
-const publicOn = () => /^(1|true|on|yes)$/i.test(String(process.env.PUBLIC_ROOMS || '').trim());
+// Public play (Quick play, the room list, public rooms) is ON by default. Set PUBLIC_ROOMS to "off" in the hosting settings to close it.
+const publicOn = () => !/^(0|false|off|no)$/i.test(String(process.env.PUBLIC_ROOMS || 'on').trim());
 const MAX_ROOMS = 3000, ROOMS_PER_IP = 5;
 const COUNTDOWN_MS = 5000, FILL_AFTER_MS = 60e3, DROP_LOBBY_MS = 30e3, TAKEOVER_MS = 45e3;
 
