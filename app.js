@@ -1036,6 +1036,8 @@ function openDevPile() {
   openModal('pile', `<h3>Development card pile</h3><p><b>${st.devLeft}</b> of ${total} cards are still in the pile. <b>Unseen</b> cards have not been played and are not in your hand, so they are in the pile or in another player's hand.</p><div class="devlist">${rows}</div><div class="foot"><button class="btn primary" id="pclose">Close</button></div>`, () => { $('#pclose').onclick = closeModal; });
 }
 
+// Costs for the rules page: one chip per resource, "×2" instead of the same icon twice.
+function costChips(c) { return `<span class="costchips">${Object.entries(c).map(([k, n]) => `<span class="costchip" title="${n} ${RES_LABEL[k]}" aria-label="${n} ${RES_LABEL[k]}">${icon(k)}${n > 1 ? `<b>×${n}</b>` : ''}</span>`).join('')}</span>`; }
 function costIcons(c) { return `<span class="cost">${Object.entries(c).flatMap(([k, n]) => Array(n).fill(icon(k))).join('')}</span>`; }
 function drawActions() {
   const st = S.state, box = $('#actions'), mine = myTurn(), P = st.players[me()];
@@ -1296,7 +1298,7 @@ function pickResources(n, title, text, done) {
 }
 
 function openRules() {
-  const row = (ic, name, cost, note) => `<div class="devrow">${icon(ic)}<div class="txt"><b>${name}</b><small>${note}</small></div>${costIcons(cost)}</div>`;
+  const row = (ic, name, cost, note) => `<div class="devrow">${icon(ic)}<div class="txt"><b>${name}</b><small>${note}</small></div>${costChips(cost)}</div>`;
   const res = [['wood', 'Wood', 'Forest'], ['brick', 'Brick', 'Hills'], ['sheep', 'Sheep', 'Pasture'], ['wheat', 'Hay', 'Fields'], ['ore', 'Ore', 'Mountains']];
   openModal('rules', `<h3>How to play</h3><div class="rules">
     <section><h4>Goal</h4><p>Be the first to reach the points target on your own turn (10 by default; the host can change it). Settlements are worth 1 point, cities 2, Longest Road 2, Largest Army 2, and each hidden Victory Point card 1.</p></section>

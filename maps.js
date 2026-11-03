@@ -197,7 +197,7 @@ PRESETS.hiddenvault = {
 };
 
 // Hay Hollows: a big hexagon (the Hidden Vault's radius 4, plus two tiles in the middle of every side = 73 tiles). The centre is
-// a desert. Every other tile is Fields (hay) numbered 6, 8 or 9 in equal shares. All harbors are 2:1 ore, three on each of the
+// a desert. Every other tile is Fields (hay) numbered 6, 8 or 9 in equal shares. All harbors are 3:1 (any resource), three at random places on each of the
 // top, right, bottom and left sides. When a player builds a settlement after setup, the hay tiles it touches change (see game.js).
 function hayHollows(rng) {
   const tiles = [];
@@ -213,11 +213,11 @@ function hayHollows(rng) {
   const hay = tiles.filter(t => t.terrain === 'fields'), nums = [];
   hay.forEach((_, i) => nums.push([6, 8, 9][i % 3]));
   shuffle(nums, rng); hay.forEach((t, i) => { t.number = nums[i]; });
-  return { name: 'Hay Hollows', tiles, hayShift: true, sidePorts: { type: 'ore', perSide: 3 } };
+  return { name: 'Hay Hollows', tiles, hayShift: true, sidePorts: { type: 'any', perSide: 3 } };
 }
 PRESETS.hayhollows = {
   name: 'Hay Hollows', category: 'misc',
-  blurb: 'A big island of hay, all numbered 6, 8 or 9, with ore harbors on every side. Build a settlement after setup and the hay beside it turns into other resources.',
+  blurb: 'A big island of hay, all numbered 6, 8 or 9, with random 3:1 harbors on every side. Build a settlement after setup and the hay beside it turns into other resources.',
   generate: rng => hayHollows(rng),
 };
 

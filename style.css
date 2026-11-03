@@ -937,3 +937,22 @@ span.pcardx { cursor: default; }
 .shiftfx { fill: #fff; opacity: 0; transform-box: fill-box; transform-origin: center; animation: shiftflash 1.5s ease-out 1; }
 @keyframes shiftflash { 0% { opacity: .95; transform: scale(.9); } 35% { opacity: .75; transform: scale(1.06); } 100% { opacity: 0; transform: scale(1.18); } }
 @media (prefers-reduced-motion: reduce) { .shiftfx { animation: none; } }
+
+/* ---------- the How to play page: easier to read on a phone ---------- */
+.rules { gap: 1.3rem; }
+.rules section { padding-bottom: .2rem; }
+.rules h4 { font-size: 1.28em; margin-bottom: .4rem; padding-bottom: .25rem; border-bottom: 1px solid var(--panel-line); }
+.rules p, .rules li { font-size: 1.02em; line-height: 1.55; }
+.rules ol, .rules ul { gap: .45rem; }
+.rules .devlist { gap: .6rem; }
+.rules .devrow { flex-wrap: wrap; row-gap: .45rem; padding: .8rem .9rem; align-items: flex-start; }
+.rules .devrow > .ic { width: 44px; height: 44px; flex: none; }
+.rules .devrow .txt { flex: 1 1 9rem; }
+.rules .devrow .txt b { font-size: 1.1em; }
+.rules .devrow .txt small { display: block; font-size: .95em; line-height: 1.4; margin-top: .15rem; }
+.costchips { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: .4rem; padding-left: calc(44px + .8rem); }
+.costchip { display: inline-flex; align-items: center; gap: .2rem; padding: .12rem .55rem .12rem .3rem; border-radius: 999px; background: rgba(0, 0, 0, .28); border: 1px solid var(--panel-line); }
+.costchip .ic { width: 30px; height: 30px; }
+.costchip b { font-size: 1.05em; }
+.rgrid { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: .5rem; }
+.rgrid div { padding: .5rem .65rem; font-size: 1em; }

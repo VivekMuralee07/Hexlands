@@ -1024,15 +1024,24 @@ test('Hay Hollows: a 73 tile island, desert centre with the robber, hay numbered
   assert.deepEqual(g.boardView().tiles.map(t => t.terrain === 'fog'), T.map(() => false), 'nothing is hidden');
 });
 
-test('Hay Hollows: twelve 2:1 ore harbors, three on each of the top, right, bottom and left', () => {
+test('Hay Hollows: twelve 3:1 harbors, three on each of the top, right, bottom and left, in different places each game', () => {
   const g = hollows(), ports = g.board.ports;
-  assert.equal(ports.length, 12); assert.ok(ports.every(p => p.type === 'ore'));
-  const side = p => { const a = Math.atan2(p.y, p.x) * 180 / Math.PI; return a >= -135 && a < -45 ? 'top' : a >= -45 && a < 45 ? 'right' : a >= 45 && a < 135 ? 'bottom' : 'left'; };
+  assert.equal(ports.length, 12); assert.ok(ports.every(p => p.type === 'any'));
+  const side = p => { const mx = (p.vx[0][0] + p.vx[1][0]) / 2, my = (p.vx[0][1] + p.vx[1][1]) / 2, a = Math.atan2(my, mx) * 180 / Math.PI; return a >= -135 && a < -45 ? 'top' : a >= -45 && a < 45 ? 'right' : a >= 45 && a < 135 ? 'bottom' : 'left'; };   // by the harbor's coast edge
   const n = {}; ports.forEach(p => { n[side(p)] = (n[side(p)] || 0) + 1; });
   assert.deepEqual(n, { top: 3, right: 3, bottom: 3, left: 3 });
-  const v = g.board.vertices.find(x => x.port === 'ore').id; g.buildings[v] = { p: 0, type: 'settlement' };
-  assert.equal(g.tradeRatio(0, 'ore'), 2); assert.equal(g.tradeRatio(0, 'wood'), 4);
+  const v = g.board.vertices.find(x => x.port === 'any').id; g.buildings[v] = { p: 0, type: 'settlement' };
+  assert.equal(g.tradeRatio(0, 'ore'), 3); assert.equal(g.tradeRatio(0, 'wood'), 3);
   assert.equal(g.tradeRatio(1, 'ore'), 4);
+  const layouts = new Set();
+  for (let seed = 1; seed <= 12; seed++) {
+    const h = mk(3, seed, 'hayhollows'), n = {};
+    h.board.ports.forEach(p => { n[side(p)] = (n[side(p)] || 0) + 1; });
+    assert.deepEqual(n, { top: 3, right: 3, bottom: 3, left: 3 }, 'seed ' + seed);
+    assert.equal(h.board.vertices.filter(x => x.port).length, 24, 'harbors never share a corner');
+    layouts.add(h.board.ports.map(p => p.edge).sort((a, b) => a - b).join());
+  }
+  assert.ok(layouts.size >= 6, 'harbor places are random: ' + layouts.size + ' different layouts in 12 games');
 });
 
 function inMainGame(seed) {

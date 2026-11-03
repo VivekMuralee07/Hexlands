@@ -79,8 +79,8 @@ function placeLakePorts(geo, map) {
   return ports;
 }
 
-// Hay Hollows harbors: the same kind of harbor (2:1 ore) spread evenly over the top, right, bottom and left of the coast.
-function placeSidePorts(geo, map) {
+// Hay Hollows harbors: 3:1 harbors, perSide on each of the top, right, bottom and left of the coast, at random places along each side.
+function placeSidePorts(geo, rng, map) {
   const { tiles, vertices, edges } = geo, { type, perSide } = map.sidePorts;
   const cx = tiles.reduce((a, t) => a + t.x, 0) / tiles.length, cy = tiles.reduce((a, t) => a + t.y, 0) / tiles.length;
   const coastal = edges.filter(e => e.hexes.length === 1).map(e => {
@@ -96,7 +96,7 @@ function placeSidePorts(geo, map) {
   const ports = [], used = new Set();
   for (const list of sides) {
     for (let i = 0; i < perSide; i++) {
-      const start = Math.floor((i + 0.5) * list.length / perSide);
+      const seg = list.length / perSide, start = Math.min(list.length - 1, Math.floor(i * seg + rng() * seg));   // somewhere inside this harbor's third of the side
       for (let k = 0; k < list.length; k++) {
         const idx = start + (k % 2 ? (k + 1) / 2 : -k / 2); if (idx < 0 || idx >= list.length) continue;
         const c = list[idx]; if (c.e.v.some(v => used.has(v))) continue;
@@ -113,7 +113,7 @@ function placeSidePorts(geo, map) {
 
 function placePorts(geo, rng, map) {
   if (map && map.lake) return placeLakePorts(geo, map);
-  if (map && map.sidePorts) return placeSidePorts(geo, map);
+  if (map && map.sidePorts) return placeSidePorts(geo, rng, map);
   const { tiles, vertices, edges } = geo;
   const cx = tiles.reduce((a, t) => a + t.x, 0) / tiles.length;
   const cy = tiles.reduce((a, t) => a + t.y, 0) / tiles.length;
