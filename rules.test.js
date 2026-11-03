@@ -516,11 +516,11 @@ test('development card pile: totals, what has been played, and the view for ever
 // The fog rules without the goblets and without the fog-free start (those are tested separately).
 function plainFog(n, seed) { const g = mk(n, seed, 'flamecup'); g.board.goblets = false; g.board.fogFreeStart = false; g.act(0, { type: 'start' }); return g; }
 
-test('map categories: 15 countries and the misc maps (Classic Island, Blue Flame Cup, Hidden Vault)', () => {
+test('map categories: 15 countries and the misc maps (Classic Island, Blue Flame Cup, Hidden Vault, Hay Hollows)', () => {
   const list = maps.presetList();
   assert.ok(list.every(m => ['countries', 'misc'].includes(m.category)));
   assert.equal(list.filter(m => m.category === 'countries').length, 15);
-  assert.deepEqual(list.filter(m => m.category === 'misc').map(m => m.key).sort(), ['classic', 'flamecup', 'hiddenvault']);
+  assert.deepEqual(list.filter(m => m.category === 'misc').map(m => m.key).sort(), ['classic', 'flamecup', 'hayhollows', 'hiddenvault']);
 });
 
 test('Blue Flame Cup layout: lake island, 24 visible forest tiles, 30 fog tiles that never hide wood, six wood harbors in the lake', () => {
@@ -1008,4 +1008,116 @@ test('robber hits: every other player with a building on the new tile is counted
   g.rolled = true; g.subphase = 'robber'; g.act(mover, { type: 'robber', tile, victim: g.robberVictims(mover, tile)[0] });
   g.players.forEach((p, i) => assert.equal(p.stats.robberOn, before[i] + (owners.has(i) && i !== mover ? 1 : 0), 'player ' + i));
   assert.equal(g.view(0).players[mover].stats.robberOn, before[mover]);
+});
+
+// ---------- Hay Hollows ----------
+const hollows = (n = 3, seed = 11) => mk(n, seed, 'hayhollows');
+test('Hay Hollows: a 73 tile island, desert centre with the robber, hay numbered 6/8/9 in equal shares, no fog', () => {
+  const g = hollows(), T = g.board.tiles;
+  assert.equal(T.length, 73); assert.ok(T.length > 61, 'bigger than the Hidden Vault');
+  const centre = T.find(t => t.q === 0 && t.r === 0);
+  assert.equal(centre.terrain, 'desert'); assert.equal(g.robber, centre.id, 'the robber starts on the desert');
+  const hay = T.filter(t => t !== centre);
+  assert.ok(hay.every(t => t.terrain === 'fields' && [6, 8, 9].includes(t.number) && !t.fog));
+  for (const n of [6, 8, 9]) assert.equal(hay.filter(t => t.number === n).length, 24);
+  assert.equal(g.board.hayShift, true); assert.equal(g.board.fogFreeStart, false);
+  assert.deepEqual(g.boardView().tiles.map(t => t.terrain === 'fog'), T.map(() => false), 'nothing is hidden');
+});
+
+test('Hay Hollows: twelve 2:1 ore harbors, three on each of the top, right, bottom and left', () => {
+  const g = hollows(), ports = g.board.ports;
+  assert.equal(ports.length, 12); assert.ok(ports.every(p => p.type === 'ore'));
+  const side = p => { const a = Math.atan2(p.y, p.x) * 180 / Math.PI; return a >= -135 && a < -45 ? 'top' : a >= -45 && a < 45 ? 'right' : a >= 45 && a < 135 ? 'bottom' : 'left'; };
+  const n = {}; ports.forEach(p => { n[side(p)] = (n[side(p)] || 0) + 1; });
+  assert.deepEqual(n, { top: 3, right: 3, bottom: 3, left: 3 });
+  const v = g.board.vertices.find(x => x.port === 'ore').id; g.buildings[v] = { p: 0, type: 'settlement' };
+  assert.equal(g.tradeRatio(0, 'ore'), 2); assert.equal(g.tradeRatio(0, 'wood'), 4);
+  assert.equal(g.tradeRatio(1, 'ore'), 4);
+});
+
+function inMainGame(seed) {
+  const g = hollows(3, seed); g.act(0, { type: 'start' }); finishSetup(g);
+  g.rolled = true; const me = g.turn;
+  return { g, me };
+}
+function buildThird(g, me) {   // two roads out from one of my towns to a spot two steps away, then that spot is a legal settlement
+  g.players[me].res = { wood: 9, brick: 9, sheep: 9, wheat: 9, ore: 9 };
+  const V = g.board.vertices, edgeOf = (a, b) => g.board.edges.find(e => e.v.includes(a) && e.v.includes(b)).id;
+  for (const v of Object.keys(g.buildings).filter(k => g.buildings[k].p === me).map(Number)) for (const mid of V[v].adj) for (const w of V[mid].adj) {
+    if (w === v || V[v].adj.includes(w) || !g.canSettle(me, w, false)) continue;
+    const e1 = edgeOf(v, mid), e2 = edgeOf(mid, w);
+    if ((g.roads[e1] !== undefined && g.roads[e1] !== me) || g.roads[e2] !== undefined) continue;
+    if (g.roads[e1] === undefined) { if (!g.canRoad(me, e1)) continue; g.act(me, { type: 'road', edge: e1 }); }
+    if (!g.canRoad(me, e2)) continue;
+    g.act(me, { type: 'road', edge: e2 });
+    assert.ok(g.validSettlements(me, true).includes(w)); return w;
+  }
+  assert.fail('no spot found');
+}
+
+test('Hay Hollows: setup settlements change nothing; the third settlement turns the touching 6/8/9 hay into other resources', () => {
+  const g0 = hollows(3, 11); g0.act(0, { type: 'start' });
+  const before0 = JSON.stringify(g0.board.tiles.map(t => [t.terrain, t.number])), bv0 = g0.boardVersion;
+  finishSetup(g0);
+  assert.equal(JSON.stringify(g0.board.tiles.map(t => [t.terrain, t.number])), before0, 'two settlements each: the board is untouched');
+  assert.equal(g0.boardVersion, bv0);
+
+  const { g, me } = inMainGame(11);
+  const spot = buildThird(g, me), touching = g.board.vertices[spot].hexes;
+  const snap = g.board.tiles.map(t => [t.terrain, t.number]), hayTouching = touching.filter(h => g.board.tiles[h].terrain === 'fields'), bv = g.boardVersion;
+  g.act(me, { type: 'settle', vertex: spot });
+  assert.ok(hayTouching.length > 0);
+  for (const h of hayTouching) {
+    const t = g.board.tiles[h];
+    assert.notEqual(t.terrain, 'fields', 'no longer hay'); assert.notEqual(t.terrain, 'desert');
+    assert.ok(t.number >= 2 && t.number <= 12 && ![6, 7, 8, 9].includes(t.number), 'a number that is not 6, 7, 8 or 9: ' + t.number);
+  }
+  g.board.tiles.forEach((t, i) => { if (!touching.includes(i)) assert.deepEqual([t.terrain, t.number], snap[i], 'tile ' + i + ' far from the settlement is unchanged'); });
+  assert.equal(g.boardVersion, bv + 1, 'everyone is sent the new board');
+  const ev = g.events.filter(e => e.type === 'hayshift').pop();
+  assert.ok(ev && ev.p === me && ev.tiles.length === hayTouching.length);
+  assert.ok(g.log.some(l => /new settlement changed hay/.test(l.text)));
+});
+
+test('Hay Hollows: each changed tile picks its own resource, a city upgrade changes nothing, and other maps are never changed', () => {
+  const kinds = new Set();
+  for (let seed = 1; seed <= 25; seed++) {
+    const { g, me } = inMainGame(seed), spot = buildThird(g, me);
+    g.act(me, { type: 'settle', vertex: spot });
+    g.board.vertices[spot].hexes.forEach(h => { const t = g.board.tiles[h]; if (t.terrain !== 'desert') kinds.add(t.terrain); });
+    if (seed === 1) {
+      const snap = JSON.stringify(g.board.tiles.map(t => [t.terrain, t.number])), bv = g.boardVersion;
+      g.players[me].res = { wood: 9, brick: 9, sheep: 9, wheat: 9, ore: 9 };
+      g.act(me, { type: 'city', vertex: spot });
+      assert.equal(JSON.stringify(g.board.tiles.map(t => [t.terrain, t.number])), snap, 'upgrading to a city does not change tiles');
+      assert.equal(g.boardVersion, bv);
+    }
+  }
+  assert.ok(kinds.size >= 3 && !kinds.has('fields'), 'a mix of the other resources appears: ' + [...kinds]);
+  const c = mk(3, 5); c.act(0, { type: 'start' }); finishSetup(c); c.rolled = true;
+  const snap = JSON.stringify(c.board.tiles.map(t => [t.terrain, t.number])), bv = c.boardVersion, me = c.turn;
+  assert.equal(c.board.hayShift, false);
+  c.players[me].res = { wood: 9, brick: 9, sheep: 9, wheat: 9, ore: 9 };
+  c.act(me, { type: 'settle', vertex: buildThird(c, me) });
+  assert.equal(JSON.stringify(c.board.tiles.map(t => [t.terrain, t.number])), snap, 'Classic Island never changes'); void bv;
+});
+
+test('Hay Hollows: bots of every level finish a full game, the bank stays balanced, and the Heist card is available', () => {
+  const g0 = hollows(2, 4); g0.act(0, { type: 'start' }); finishSetup(g0);
+  assert.equal(g0.view(0).heist.need, 3); assert.ok(g0.view(0).heist.cost);
+  for (const level of ['easy', 'medium', 'hard']) {
+    const g = new Game({ code: 'HAY', map: maps.generatePreset('hayhollows', 21), rng: maps.makeRng(21) });
+    g.addPlayer('Host', 'host'); ['A', 'B', 'C'].forEach(() => g.act(0, { type: 'addBot', level })); g.players[0].bot = level;
+    g.act(0, { type: 'start' });
+    let steps = 0, shifted = 0;
+    while (g.phase !== 'ended' && steps++ < 30000) {
+      const next = bots.nextActor(g); assert.ok(next, 'stalled');
+      try { g.act(next.pi, bots.decide(g, next.pi)); } catch (e) { assert.ok(bots.rescue(g, next.pi), 'rescue failed: ' + e.message); }
+    }
+    shifted = g.events.filter(e => e.type === 'hayshift').length + g.log.filter(l => /changed hay/.test(l.text)).length;
+    assert.equal(g.phase, 'ended', level + ' bots reach a winner');
+    for (const k of ['wood', 'brick', 'sheep', 'wheat', 'ore']) assert.equal(g.bank[k] + g.players.reduce((a, p) => a + p.res[k], 0), 73, 'conservation: ' + k);
+    assert.ok(g.board.tiles.some(t => t.terrain !== 'fields' && t.terrain !== 'desert'), 'hay changed during the game');
+    void shifted;
+  }
 });

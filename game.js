@@ -79,8 +79,41 @@ function placeLakePorts(geo, map) {
   return ports;
 }
 
+// Hay Hollows harbors: the same kind of harbor (2:1 ore) spread evenly over the top, right, bottom and left of the coast.
+function placeSidePorts(geo, map) {
+  const { tiles, vertices, edges } = geo, { type, perSide } = map.sidePorts;
+  const cx = tiles.reduce((a, t) => a + t.x, 0) / tiles.length, cy = tiles.reduce((a, t) => a + t.y, 0) / tiles.length;
+  const coastal = edges.filter(e => e.hexes.length === 1).map(e => {
+    const [a, b] = e.v.map(i => vertices[i]), mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    return { e, mx, my, ang: Math.atan2(my - cy, mx - cx) * 180 / Math.PI };
+  });
+  const sides = [
+    coastal.filter(c => c.ang >= -135 && c.ang < -45).sort((p, q) => p.mx - q.mx),   // top (screen y grows downward)
+    coastal.filter(c => c.ang >= -45 && c.ang < 45).sort((p, q) => p.my - q.my),     // right
+    coastal.filter(c => c.ang >= 45 && c.ang < 135).sort((p, q) => p.mx - q.mx),     // bottom
+    coastal.filter(c => c.ang >= 135 || c.ang < -135).sort((p, q) => p.my - q.my),   // left
+  ];
+  const ports = [], used = new Set();
+  for (const list of sides) {
+    for (let i = 0; i < perSide; i++) {
+      const start = Math.floor((i + 0.5) * list.length / perSide);
+      for (let k = 0; k < list.length; k++) {
+        const idx = start + (k % 2 ? (k + 1) / 2 : -k / 2); if (idx < 0 || idx >= list.length) continue;
+        const c = list[idx]; if (c.e.v.some(v => used.has(v))) continue;
+        const t = tiles[c.e.hexes[0]], dx = c.mx - t.x, dy = c.my - t.y, len = Math.hypot(dx, dy), px = t.x + dx / len * 1.55, py = t.y + dy / len * 1.55;
+        if (tiles.some(o => o !== t && Math.hypot(o.x - px, o.y - py) < 1.25) || ports.some(p => Math.hypot(p.x - px, p.y - py) < 1.7)) continue;
+        ports.push({ edge: c.e.id, type, x: r3(px), y: r3(py), vx: c.e.v.map(v => [vertices[v].x, vertices[v].y]) });
+        c.e.v.forEach(v => { used.add(v); vertices[v].port = type; });
+        break;
+      }
+    }
+  }
+  return ports;
+}
+
 function placePorts(geo, rng, map) {
   if (map && map.lake) return placeLakePorts(geo, map);
+  if (map && map.sidePorts) return placeSidePorts(geo, map);
   const { tiles, vertices, edges } = geo;
   const cx = tiles.reduce((a, t) => a + t.x, 0) / tiles.length;
   const cy = tiles.reduce((a, t) => a + t.y, 0) / tiles.length;
@@ -137,7 +170,7 @@ class Game {
   initBoard(map) {
     const geo = buildGeometry(map.tiles);
     const dm = geo.tiles.findIndex(t => t.terrain === 'diamond');
-    this.board = { name: map.name, key: map.key, ...geo, goblets: !!map.goblets, fogFreeStart: !!map.fogFreeStart, gobletExtra: map.gobletExtra || 0, diamond: dm >= 0 ? dm : null };
+    this.board = { name: map.name, key: map.key, ...geo, goblets: !!map.goblets, hayShift: !!map.hayShift, fogFreeStart: !!map.fogFreeStart, gobletExtra: map.gobletExtra || 0, diamond: dm >= 0 ? dm : null };
     this.board.ports = placePorts(geo, this.rng, map);
     const desert = geo.tiles.findIndex(t => t.terrain === 'desert');
     this.robber = desert >= 0 ? desert : 0;
@@ -192,6 +225,25 @@ class Game {
       this.addLog(list ? `The flames burned ${this.players[pi].name}'s ${list}.` : `The flames found no wood, sheep or hay in ${this.players[pi].name}'s hand.`);
     }
     return got;
+  }
+
+  // Hay Hollows: after setup, every settlement a player builds turns the 6, 8 and 9 hay tiles it touches into other
+  // resources, each with its own random resource (never hay) and a random number that is not 6, 8 or 9.
+  shiftHay(pi, v) {
+    const KINDS = ['forest', 'hills', 'pasture', 'mountains'], NUMS = [2, 3, 3, 4, 4, 5, 5, 10, 10, 11, 11, 12];
+    const NAME = { forest: 'Forest', hills: 'Hills', pasture: 'Pasture', mountains: 'Mountains' };
+    const changed = [];
+    for (const h of this.board.vertices[v].hexes) {
+      const t = this.board.tiles[h];
+      if (t.terrain !== 'fields' || ![6, 8, 9].includes(t.number)) continue;
+      const from = t.number;
+      t.terrain = KINDS[Math.floor(this.rng() * KINDS.length)]; t.number = NUMS[Math.floor(this.rng() * NUMS.length)];
+      changed.push({ id: h, from, terrain: t.terrain, number: t.number });
+    }
+    if (!changed.length) return;
+    this.boardVersion++;
+    this.emit('hayshift', { p: pi, tiles: changed });
+    this.addLog(`${this.players[pi].name}'s new settlement changed hay ${changed.map(c => `${c.from} into ${NAME[c.terrain]} ${c.number}`).join(', ')}.`);
   }
 
   // ----- players -----
@@ -650,6 +702,7 @@ class Game {
     this.buildings[v] = { p: pi, type: 'settlement' }; this.revealTiles(this.board.vertices[v].hexes, pi);
     this.players[pi].pieces.settlement--;
     this.addLog(`${this.players[pi].name} built a settlement.`);
+    if (this.board.hayShift) this.shiftHay(pi, v);   // only here, in the main game: the two setup settlements never change the board
     this.updateLongestRoad();
   }
 

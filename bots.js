@@ -127,7 +127,7 @@ function tradeAction(g, pi, level) {
   const res = g.players[pi].res, cost = goal.cost;
   const short = RES.filter(k => (res[k] || 0) < (cost[k] || 0));
   if (!short.length) return null;
-  if (level === 'medium' && missing(cost, res) > 2) return null;
+  if (level === 'medium' && missing(cost, res) > 2 && total(res) <= 7) return null;   // far from the goal: only trade when the hand is big (a hay-only start such as Hay Hollows would otherwise freeze)
   const surplus = RES.filter(k => !short.includes(k) && res[k] - (cost[k] || 0) >= g.tradeRatio(pi, k))
     .sort((a, b) => (res[b] - (cost[b] || 0)) / g.tradeRatio(pi, b) - (res[a] - (cost[a] || 0)) / g.tradeRatio(pi, a));
   const get = short.find(k => g.bank[k] > 0);

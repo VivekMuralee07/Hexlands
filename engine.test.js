@@ -53,7 +53,7 @@ test('every country preset generates a playable board', () => {
       const portVerts = g.board.vertices.filter(v => v.port).length;
       assert.equal(portVerts, g.board.ports.length * 2, key + ' ports must not share corners');
       assert.ok(g.board.vertices.every(v => v.adj.length >= 2 && v.adj.length <= 3));
-      ['forest', 'hills', 'pasture', 'fields', 'mountains'].forEach(r => assert.ok(t.some(x => x.terrain === r), key + ' has ' + r));
+      (key === 'hayhollows' ? ['fields', 'desert'] : ['forest', 'hills', 'pasture', 'fields', 'mountains']).forEach(r => assert.ok(t.some(x => x.terrain === r), key + ' has ' + r));   // Hay Hollows starts as hay only
     }
   }
 });

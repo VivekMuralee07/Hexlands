@@ -196,6 +196,31 @@ PRESETS.hiddenvault = {
   generate: rng => chamberOfSecrets(rng),
 };
 
+// Hay Hollows: a big hexagon (the Hidden Vault's radius 4, plus two tiles in the middle of every side = 73 tiles). The centre is
+// a desert. Every other tile is Fields (hay) numbered 6, 8 or 9 in equal shares. All harbors are 2:1 ore, three on each of the
+// top, right, bottom and left sides. When a player builds a settlement after setup, the hay tiles it touches change (see game.js).
+function hayHollows(rng) {
+  const tiles = [];
+  for (let q = -5; q <= 5; q++) for (let r = -5; r <= 5; r++) {
+    const s = -q - r, d = Math.max(Math.abs(q), Math.abs(r), Math.abs(s));
+    if (d > 5) continue;
+    if (d === 5) {   // ring 5 keeps only the middle two tiles of each side; the six corners and their neighbours are left out
+      const along = Math.min(Math.abs(q), Math.abs(r), Math.abs(s)) === 0 ? 0 : Math.min(Math.abs(q), Math.abs(r), Math.abs(s));
+      if (along !== 2 && along !== 3) continue;
+    }
+    tiles.push({ q, r, terrain: d === 0 ? 'desert' : 'fields', number: null });
+  }
+  const hay = tiles.filter(t => t.terrain === 'fields'), nums = [];
+  hay.forEach((_, i) => nums.push([6, 8, 9][i % 3]));
+  shuffle(nums, rng); hay.forEach((t, i) => { t.number = nums[i]; });
+  return { name: 'Hay Hollows', tiles, hayShift: true, sidePorts: { type: 'ore', perSide: 3 } };
+}
+PRESETS.hayhollows = {
+  name: 'Hay Hollows', category: 'misc',
+  blurb: 'A big island of hay, all numbered 6, 8 or 9, with ore harbors on every side. Build a settlement after setup and the hay beside it turns into other resources.',
+  generate: rng => hayHollows(rng),
+};
+
 function generatePreset(key, seed) {
   const p = PRESETS[key] || PRESETS.classic;
   const rng = makeRng(seed || Date.now());

@@ -289,7 +289,7 @@ ${cat === 'misc' ? `<button class="map-opt" data-map="custom" aria-pressed="${S.
       <div class="stack">
         <div class="preview" id="preview"></div>
         <div class="preview-meta"><div class="terrain-counts" id="counts"></div>
-          <div class="row"><button class="btn small" id="reroll">${S.mapKey === 'custom' ? 'Reshuffle harbors' : 'Shuffle tiles'}</button><button class="btn small" id="edit"${['flamecup', 'hiddenvault'].includes(S.mapKey) ? ' disabled title="Fog maps cannot be copied"' : ''}>${S.mapKey === 'custom' ? 'Edit map' : 'Copy into editor'}</button></div></div>
+          <div class="row"><button class="btn small" id="reroll">${S.mapKey === 'custom' ? 'Reshuffle harbors' : 'Shuffle tiles'}</button><button class="btn small" id="edit"${['flamecup', 'hiddenvault', 'hayhollows'].includes(S.mapKey) ? ' disabled title="Fog maps cannot be copied"' : ''}>${S.mapKey === 'custom' ? 'Edit map' : 'Copy into editor'}</button></div></div>
         ${S.publicOn ? `<div class="panel stack"><b>Who can join?</b>
           <div class="seg two" role="group" aria-label="Who can join">${[[false, 'Private'], [true, 'Public']].map(([v, l]) => `<button data-vis="${v}" aria-pressed="${S.publicRoom === v}">${l}</button>`).join('')}</div>
           <span class="muted" style="font-size:.88em">${S.publicRoom ? 'Anyone can find this room in the public list and join. The move timer starts at 30 seconds.' : 'Only people you give the room code or link to.'}</span></div>` : ''}
@@ -579,7 +579,7 @@ function renderLobby(app) {
         ${host ? `<button class="btn ${pub ? '' : 'primary'}" id="start" ${st.players.length < 2 ? 'disabled' : ''}>Start game</button>` : ''}
       </div>
       <div class="stack lb-map"><div class="preview" id="lobby-preview" data-code="${pk}"></div>
-        <div class="row lb-maphead"><span class="grow"><b>${esc(st.mapName)}</b><br><span class="muted" style="font-size:.88em">Turn order is drawn at random when the game starts.</span></span>${host ? `<button class="btn small" id="changemap">Change map</button>${S.board && S.board.key !== 'custom' ? '<button class="btn small" id="shufflemap" title="Same map, new random tiles">Shuffle</button>' : ''}` : ''}</div></div>
+        <div class="row lb-maphead"><span class="grow"><b>${esc(st.mapName)}</b><br><span class="muted" style="font-size:.88em">${S.board && S.board.key === 'hayhollows' ? 'Hay rule: a settlement built after setup turns the 6, 8 and 9 hay beside it into other resources. ' : ''}Turn order is drawn at random when the game starts.</span></span>${host ? `<button class="btn small" id="changemap">Change map</button>${S.board && S.board.key !== 'custom' ? '<button class="btn small" id="shufflemap" title="Same map, new random tiles">Shuffle</button>' : ''}` : ''}</div></div>
     </div></div>`;
   if (keepPreview) $('#lobby-preview').innerHTML = keepPreview;
   else if (S.board) $('#lobby-preview').innerHTML = boardPreviewSvg(S.board);
@@ -620,7 +620,7 @@ function buildShell(app) {
     <section class="center"><div class="infobar" id="infobar"><div class="banner" id="banner"></div><div class="placing" id="placing" hidden></div><div class="clock" id="clock" hidden></div><div class="setupstrip" id="setupstrip" hidden></div></div><main class="board-wrap" id="wrap">
       <svg id="board" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMin meet">
         <rect x="-5000" y="-5000" width="10000" height="10000" fill="#0a68a6"/>
-        <g id="static"></g><g id="dyn"></g>
+        <g id="static"></g><g id="dyn"></g><g id="fx" pointer-events="none"></g>
       </svg>
       <div class="dice" id="dice"></div><div class="awards" id="awards"></div><div class="offer" id="offer"></div><div class="awaybar" id="awaybar" hidden></div><div class="tradewin" id="tradewin" hidden></div>
       <div class="gbtns"><button class="gbtn drawer-toggle" id="logbtn" title="Messages" aria-label="Messages">${GB_ICON.msg}</button><button class="gbtn" id="quit" title="Leave game" aria-label="Leave game">${GB_ICON.exit}</button></div>
@@ -1644,6 +1644,17 @@ function animateEvent(e) {
     showFire('The Blue Flame Cup!', list ? `${who} lost ${list}` : `${who} had nothing to burn`);
     Sound.play('fire');
     lost.forEach(([k, n]) => { for (let c = 0; c < Math.min(n, 4); c++) flyCard(anchorOf(e.p, k), $(`#players .bank .bk.${k}`) || $('#players .bank'), k, 700 + c * 180); });
+    return;
+  }
+  if (e.type === 'hayshift') {   // Hay Hollows: the hay beside a new settlement turns into other resources
+    const parts = e.tiles.map(c => `${icon('wheat')}${c.from}→${icon(TERRAIN_RES[c.terrain])}${c.number}`).join('  ');
+    toast(`${esc(S.state.players[e.p].name)}'s settlement changed ${plural(e.tiles.length, 'hay tile')}: ${parts}`, '', true);
+    Sound.play('gem');
+    if (!reducedMotion()) setTimeout(() => {   // after the redrawn board is on screen
+      const fx = $('#fx'); if (!fx || !S.board) return;
+      fx.innerHTML = e.tiles.map(c => { const t = S.board.tiles[c.id]; return t ? `<g transform="translate(${t.x * U} ${t.y * U})"><polygon class="shiftfx" points="${ART.HEX}"/></g>` : ''; }).join('');
+      setTimeout(() => { const f = $('#fx'); if (f) f.innerHTML = ''; }, 1800);
+    }, 120);
     return;
   }
   if (e.type === 'heist') return showHeist(e);

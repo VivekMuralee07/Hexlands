@@ -932,3 +932,8 @@ span.pcardx { cursor: default; }
 .chatnote { margin: .4rem 0 0; font-size: .8em; color: var(--foam-dim); }
 .chatnote[hidden] { display: none; }
 @media (max-width: 760px) { .awaybar { flex-wrap: wrap; justify-content: center; text-align: center; } .page-head { flex-wrap: wrap; } }
+
+/* Hay Hollows: a white flash over each hay tile that just changed */
+.shiftfx { fill: #fff; opacity: 0; transform-box: fill-box; transform-origin: center; animation: shiftflash 1.5s ease-out 1; }
+@keyframes shiftflash { 0% { opacity: .95; transform: scale(.9); } 35% { opacity: .75; transform: scale(1.06); } 100% { opacity: 0; transform: scale(1.18); } }
+@media (prefers-reduced-motion: reduce) { .shiftfx { animation: none; } }
