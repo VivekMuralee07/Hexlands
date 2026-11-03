@@ -39,7 +39,8 @@ function guard(req, kind, max, windowMs, msg) {
 // Public play (Quick play, the room list, public rooms) is ON by default. Set PUBLIC_ROOMS to "off" in the hosting settings to close it.
 const publicOn = () => !/^(0|false|off|no)$/i.test(String(process.env.PUBLIC_ROOMS || 'on').trim());
 const MAX_ROOMS = 3000, ROOMS_PER_IP = 5;
-const COUNTDOWN_MS = 5000, FILL_AFTER_MS = 60e3, DROP_LOBBY_MS = 30e3, TAKEOVER_MS = 45e3;
+const COUNTDOWN_MS = 5000, FILL_AFTER_MS = 60e3, DROP_LOBBY_MS = 30e3;
+const TAKEOVER_MS = 30e3, TAKEOVER_PRIVATE_MS = 60e3;   // offline this long: a bot plays the seat (friends in a private room get longer)
 
 // A basic word filter for names and for chat in public rooms. It matches whole words (so "Scunthorpe" is fine), copes with
 // simple tricks such as digits for letters, and masks the word in chat. The list is kept scrambled (rot13) so this file reads
@@ -238,8 +239,9 @@ function tick(now = Date.now()) {
       if (changed && !g.players.some(p => !p.bot)) { destroyRoom(room); continue; }
     }
     if (g.ensureHost(now)) changed = true;
-    if (room.public && (g.phase === 'setup' || g.phase === 'main')) {
-      g.players.forEach((p, i) => { if (!p.bot && !p.connected && now - (p.offlineSince || now) >= TAKEOVER_MS && g.takeOver(i, 'offline')) changed = true; });
+    if (g.phase === 'setup' || g.phase === 'main') {   // someone vanished from a running game: a bot plays until they are back
+      const grace = room.public ? TAKEOVER_MS : TAKEOVER_PRIVATE_MS;
+      g.players.forEach((p, i) => { if (!p.bot && !p.connected && now - (p.offlineSince || now) >= grace && g.takeOver(i, 'offline')) changed = true; });
     }
     if (lobbyAuto(room, now)) changed = true;
     if (changed) broadcast(room, now);
@@ -347,7 +349,7 @@ async function api(req, res, url) {
       if (pi >= 0 && room.game.phase === 'lobby') {
         room.game.removePlayer(pi);
         if (!room.game.players.some(p => !p.bot)) destroyRoom(room); else broadcast(room);
-      } else if (pi >= 0 && room.public && room.game.takeOver(pi, 'left')) broadcast(room);   // leaving a public game: a bot plays on
+      } else if (pi >= 0 && room.game.takeOver(pi, 'left')) broadcast(room);   // leaving a running game, public or private: a bot plays on
     }
     return sendJson(res, 200, { ok: true });
   }
@@ -390,7 +392,7 @@ async function api(req, res, url) {
         action = { ...action, text: maskBlocked(text) };
       }
     }
-    const result = room.game.act(pi, action);
+    const result = room.game.act(pi, action, { human: true });
     broadcast(room);
     return sendJson(res, 200, { ok: true, result: result || null });
   }

@@ -85,12 +85,12 @@ test('a bot plays for someone who left or dropped; they get the seat back, and c
   const quiet = g.turn === 0 ? 1 : 0;
   assert.equal(g.takeOver(quiet, 'offline'), true);
   assert.equal(g.players[quiet].bot, 'medium'); assert.equal(g.view(0).players[quiet].takenOver, 'offline');
-  assert.throws(() => g.act(quiet, { type: 'roll' }), /bot is playing for you/);
-  g.act(quiet, { type: 'chat', text: 'back soon' });
+  assert.throws(() => g.act(quiet, { type: 'roll' }, { human: true }), /bot is playing for you/);   // a person may not move a seat the bot holds
+  g.act(quiet, { type: 'chat', text: 'back soon' }, { human: true });
   assert.equal(g.takeOver(quiet, 'left'), false, 'already covered');
-  g.act(quiet, { type: 'reclaim' });
+  g.act(quiet, { type: 'reclaim' }, { human: true });
   assert.equal(g.players[quiet].bot, null); assert.equal(g.players[quiet].takenOver, null);
-  assert.throws(() => g.act(quiet, { type: 'reclaim' }), /not playing/);
+  assert.throws(() => g.act(quiet, { type: 'reclaim' }, { human: true }), /not playing/);
   const lobbyGame = startedGame(2); assert.equal(lobbyGame.takeOver(0, 'left'), false, 'only in a running game');
 });
 
@@ -221,11 +221,11 @@ async function startedPublic() {
   assert.equal((await act(h.code, h.token, { type: 'start' })).status, 200);
   return { h, b, room, g: room.game };
 }
-test('in a public game a bot plays for someone offline for 45 seconds, and they get the seat back when they return', async () => {
+test('in a public game a bot plays for someone offline for 30 seconds, and they get the seat back when they return', async () => {
   const { h, b, room, g } = await startedPublic();
   online(h.code, b.token, false);
-  tick(later(30e3)); assert.equal(g.players[g.indexOf(b.token)].bot, null);
-  tick(later(50e3));
+  tick(later(20e3)); assert.equal(g.players[g.indexOf(b.token)].bot, null);
+  tick(later(35e3));
   const seat = g.players[g.indexOf(b.token)];
   assert.equal(seat.bot, 'medium'); assert.equal(seat.takenOver, 'offline');
   const live = listen(h.code, b.token); await wait(150);
@@ -242,13 +242,59 @@ test('a bot also takes over from a player who leaves a public game on purpose, w
   assert.equal(seat.takenOver, 'left', 'a deliberate leave is not undone by reconnecting'); live.close();
 });
 
-test('private games are never taken over by bots when someone is offline', async () => {
+test('private games too: a bot plays for a friend who left, or who stays offline for a minute, and the friend can come back', async () => {
   const c = (await post('/api/create', { name: 'Hosty', map: { preset: 'classic' } })).body, j = (await post('/api/join', { code: c.code, name: 'Bea' })).body;
   online(c.code, c.token); online(c.code, j.token);
-  await act(c.code, c.token, { type: 'start' }); online(c.code, j.token, false);
-  tick(later(120e3));
-  assert.ok(rooms.get(c.code).game.players.every(p => !p.bot));
+  const room = rooms.get(c.code), g = room.game;
+  assert.equal(room.public, false);
+  await act(c.code, c.token, { type: 'start' });
+  online(c.code, j.token, false);
+  tick(later(40e3)); assert.equal(g.players[g.indexOf(j.token)].bot, null, 'friends get a longer grace in a private room');
+  tick(later(70e3)); assert.equal(g.players[g.indexOf(j.token)].takenOver, 'offline');
+  const live = listen(c.code, j.token); await wait(150);
+  assert.equal(g.players[g.indexOf(j.token)].takenOver, null, 'back in control after a drop'); live.close();
+  await post('/api/leave', { code: c.code, token: j.token });   // leaving on purpose
+  const seat = g.players[g.indexOf(j.token)];
+  assert.equal(seat.takenOver, 'left'); assert.equal(seat.bot, 'medium');
+  assert.equal((await act(c.code, j.token, { type: 'reclaim' })).status, 200, 'they can take the seat back with the button');
+  assert.equal(seat.bot, null);
 });
+
+// A bot that stands in must really play. Everyone else is driven by bots too, so a whole game runs without a person; the seat
+// of the leaver is human-driven until the moment they leave, then the stand-in has to carry it to the end.
+const { decide, nextActor, rescue } = require('./bots');
+function humanNeeds(g, b) {
+  if (g.phase !== 'setup' && g.phase !== 'main') return false;
+  if (g.subphase === 'discard') return !!g.pendingDiscards[b];
+  if (g.subphase === 'diamond') return !!g.pendingDiamond[b];
+  if (g.trade && g.phase === 'main' && g.turn !== b) { const t = g.trade; if (t.from !== b && !t.accepted.includes(b) && !t.declined.includes(b)) return true; }
+  return g.turn === b;
+}
+for (const reason of ['left', 'offline', 'idle']) {
+  test('a taken-over seat is played by its bot all the way to the end of the game (' + reason + ')', () => {
+    for (const seed of [1, 2, 3]) for (const leaveAt of [0, 6, 40, 120, 260]) {
+      const g = new Game({ code: 'SWP', map: maps.generatePreset('classic', seed), rng: maps.makeRng(seed) });
+      g.addPlayer('Human', 'h'); g.addPlayer('Leaver', 'l'); g.act(0, { type: 'addBot', level: 'medium' }); g.act(0, { type: 'addBot', level: 'hard' });
+      g.players.forEach(p => { p.connected = true; p.offlineSince = null; });
+      g.act(0, { type: 'start' });
+      const me = g.players.findIndex(p => p.token === 'h'), b = g.players.findIndex(p => p.token === 'l');
+      g.players[me].bot = 'medium';   // the other "person" is simulated by a bot, so no one has to click
+      let steps = 0, left = false, leaverMoves = 0, afterMoves = 0;
+      while (g.phase !== 'ended' && steps++ < 30000) {
+        if (!left && steps > leaveAt) { assert.ok(g.takeOver(b, reason), 'takeover accepted'); left = true; }
+        const next = nextActor(g);
+        const mover = next ? next.pi : (humanNeeds(g, b) ? b : -1);
+        assert.ok(mover >= 0, 'nobody can move: stalled at step ' + steps + ' (' + g.phase + '/' + g.subphase + ')');
+        try { g.act(mover, decide(g, mover, mover === b && !left ? 'medium' : undefined)); }
+        catch (e) { assert.fail('move rejected for seat ' + mover + (g.players[mover].takenOver ? ' (taken over)' : '') + ': ' + e.message); }
+        if (mover === b) { if (left) afterMoves++; else leaverMoves++; }
+      }
+      assert.equal(g.phase, 'ended', `seed ${seed}, leave at ${leaveAt}: the game finishes`);
+      if (leaveAt <= 40) assert.ok(afterMoves > 0, 'the stand-in made moves for the seat');
+      void leaverMoves;
+    }
+  });
+}
 
 test('in a running game the host role also moves to a connected human when the host stays offline', async () => {
   const { h, b, g } = await startedPublic();

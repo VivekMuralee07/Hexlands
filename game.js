@@ -628,13 +628,15 @@ class Game {
   }
 
   // ----- actions -----
-  act(pi, a) {
+  // opts.human is set by the server for actions that come from a person. A seat a bot is playing for refuses those (the person
+  // must tap Take back control first), but the bot's own moves go through without the flag.
+  act(pi, a, opts = {}) {
     if (!a || typeof a.type !== 'string') fail('Unknown action.');
     if (pi < 0 || !this.players[pi]) fail('You are not in this game.');
     if (this.phase === 'ended' && a.type !== 'chat') fail('The game is over.');
     const fn = this['do_' + a.type];
     if (!fn) fail('Unknown action.');
-    if (this.players[pi].takenOver && !['reclaim', 'chat'].includes(a.type)) fail('A bot is playing for you. Tap Take back control to play again.');
+    if (opts.human && this.players[pi].takenOver && !['reclaim', 'chat'].includes(a.type)) fail('A bot is playing for you. Tap Take back control to play again.');
     if (a.type !== 'chat' && a.type !== 'ready') this.players[pi].idle = 0;
     const sigBefore = this.clockSig();
     const out = fn.call(this, pi, a);

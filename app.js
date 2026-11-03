@@ -640,10 +640,12 @@ function buildShell(app) {
   $('#logbtn').onclick = () => $('#side').classList.toggle('open');
   bindSoundButtons();
   $('#quit').onclick = async () => {
-    const pub = !!(S.state.net && S.state.net.public) && S.state.phase !== 'ended';
-    if (!confirm(pub ? 'Leave this game? A bot will play your seat for the others.' : 'Leave this game? You can rejoin with the room code while it is running.')) return;
-    if (pub) { try { await post('/api/leave', S.session); } catch {} leaveToHome(); return; }
-    if (S.es) S.es.close(); S.es = null; S.state = null; history.replaceState(null, '', '/'); go('home');
+    const pub = !!(S.state.net && S.state.net.public), running = S.state.phase !== 'ended';
+    const msg = !running ? 'Leave this game?' : pub ? 'Leave this game? A bot will play your seat for the others.' : 'Leave this game? A bot will play your seat. Come back with the room code to take it back.';
+    if (!confirm(msg)) return;
+    if (running) { try { await post('/api/leave', S.session); } catch {} }   // the server hands your seat to a bot
+    if (pub || !running) { leaveToHome(); return; }
+    if (S.es) S.es.close(); S.es = null; S.state = null; history.replaceState(null, '', '/'); go('home');   // private: keep the way back in
   };
   $('#chat').onsubmit = e => { e.preventDefault(); const v = $('#chatin').value.trim(); if (v) { act({ type: 'chat', text: v }); $('#chatin').value = ''; } };
   if (S.state.dice) drawDice(S.state.dice, false);
