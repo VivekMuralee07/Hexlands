@@ -3,6 +3,6 @@
       "target": {
         "namespace": "android_app",
         "package_name": "com.vivek.hexlands_r2fs.twa",
-        "sha256_cert_fingerprints": ["64:6F:54:B8:7E:40:7D:99:BB:65:4C:A5:80:E0:EF:05:51:A5:89:82:82:9B:4D:D1:F9:7D:4B:46:ED:F4:CB:7F"]
+        "sha256_cert_fingerprints": ["64:6F:54:B8:7E:40:7D:99:BB:65:4C:A5:80:E0:EF:05:51:A5:89:82:82:9B:4D:D1:F9:7D:4B:46:ED:F4:CB:7F","A0:11:7F:C4:6E:80:B2:6F:DD:1F:57:6B:65:AA:E2:4A:3A:62:9E:96:9F:56:ED:9C:62:2C:3E:EE:93:14:2D:77"]
       }
     }]
