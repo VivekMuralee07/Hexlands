@@ -333,7 +333,7 @@ class Game {
     const p = this.players[i];
     if (!p || p.bot || (this.phase !== 'setup' && this.phase !== 'main')) return false;
     p.bot = 'medium'; p.takenOver = reason; p.idle = 0; p.ready = false;
-    this.addLog(reason === 'left' ? `${p.name} left. A bot plays on for them.` : `${p.name} is away. A bot plays for them until they return.`);
+    this.addLog(reason === 'left' ? `${p.name} left. A bot plays on for them.` : reason === 'gone' ? `${p.name} did not come back within a minute. A bot plays on for them.` : `${p.name} is away. A bot plays for them until they return.`);
     this.version++; return true;
   }
   giveBack(i) {
@@ -345,6 +345,7 @@ class Game {
   }
   do_reclaim(pi) {
     if (!this.players[pi].takenOver) fail('A bot is not playing for you.');
+    if (['left', 'gone'].includes(this.players[pi].takenOver)) fail('You left this game, so the bot keeps your seat.');   // only someone who was idle can take back control
     this.giveBack(pi);
   }
   // The host leaving (or staying offline) passes the host role to the next human who is connected.
@@ -636,6 +637,10 @@ class Game {
     if (this.phase === 'ended' && a.type !== 'chat') fail('The game is over.');
     const fn = this['do_' + a.type];
     if (!fn) fail('Unknown action.');
+    if (opts.human && a.type === 'start' && this.isHost(pi)) {   // with two or more people, everyone (the host too) must be ready; one person with bots may start at once
+      const humans = this.players.filter(p => !p.bot);
+      if (humans.length >= 2 && humans.some(p => !p.ready)) fail('Everyone needs to tap "I\'m ready" before the game can start.');
+    }
     if (opts.human && this.players[pi].takenOver && !['reclaim', 'chat'].includes(a.type)) fail('A bot is playing for you. Tap Take back control to play again.');
     if (a.type !== 'chat' && a.type !== 'ready') this.players[pi].idle = 0;
     const sigBefore = this.clockSig();

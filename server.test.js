@@ -88,6 +88,9 @@ test('full room lifecycle over HTTP with live updates', async () => {
 
   const notHost = await post('/api/action', { code, token: j1.body.token, action: { type: 'start' } });
   assert.equal(notHost.status, 400); assert.match(notHost.body.error, /host/);
+  const early = await post('/api/action', { code, token: c.body.token, action: { type: 'start' } });   // two or more people: everyone must be ready first
+  assert.equal(early.status, 400); assert.match(early.body.error, /ready/);
+  for (const t of [c.body.token, j1.body.token, j3.body.token]) await post('/api/action', { code, token: t, action: { type: 'ready', value: true } });
   assert.equal((await post('/api/action', { code, token: c.body.token, action: { type: 'start' } })).status, 200);
   await host.waitFor(s => s.phase === 'setup');
 
@@ -219,6 +222,8 @@ test('host sets options in the waiting room; the move timer plays for an idle hu
   const guest = await post('/api/join', { code, name: 'Guest' });
   const denied = await post('/api/action', { code, token: guest.body.token, action: { type: 'setOptions', opts: { timer: 15 } } });
   assert.equal(denied.status, 400); assert.match(denied.body.error, /host/);
+  await send({ type: 'ready', value: true }); await post('/api/action', { code, token: guest.body.token, action: { type: 'ready', value: true } });
+  const gl = listen(code, guest.body.token); await gl.waitFor(s => s.players.length === 3);   // connected but not moving: that is what "idle" means
   await send({ type: 'start' });
   const g = rooms.get(code).game;
   for (let i = 0; i < 300 && !(g.phase === 'setup' && !g.isBot(g.turn)); i++) await new Promise(r => setTimeout(r, 10));
@@ -231,7 +236,7 @@ test('host sets options in the waiting room; the move timer plays for an idle hu
   for (let i = 0; i < 100 && Object.keys(g.buildings).length <= before; i++) await new Promise(r => setTimeout(r, 20));
   assert.ok(Object.keys(g.buildings).length > before, 'the server placed a settlement for the idle player');
   assert.ok(g.log.some(l => /placed automatically/.test(l.text)));
-  h.close();
+  h.close(); gl.close();
 });
 
 test('PWA: manifest, service worker, icons, screenshots and the Android verification route', async () => {
@@ -301,6 +306,7 @@ test('the host picks another map in the waiting room; fog is hidden over the wir
       assert.ok(fog.every(t => t.number === null)); assert.equal(b.ports.length, 6);
     }
     rooms.get(code).game.board.goblets = false; rooms.get(code).game.board.fogFreeStart = false;   // plain fog, so a setup settlement may touch it
+    for (const t of [host, guest]) await post('/api/action', { code, token: t, action: { type: 'ready', value: true } });
     assert.equal((await post('/api/action', { code, token: host, action: { type: 'start' } })).status, 200);
     await L.waitFor(s => s.phase === 'setup'); await G.waitFor(s => s.phase === 'setup');
     const g = rooms.get(code).game, spot = g.validSettlements(g.turn, false).find(v => g.board.vertices[v].hexes.some(h => g.board.tiles[h].fog));

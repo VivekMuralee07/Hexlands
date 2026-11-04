@@ -218,19 +218,31 @@ test('leaving the waiting room hands the host role to the next person at once', 
 // ---------- games with strangers ----------
 async function startedPublic() {
   const h = await publicRoom('Hosty'), b = await joinPublic(h.code, 'Bea'), room = rooms.get(h.code);
+  for (const t of [h.token, b.token]) await act(h.code, t, { type: 'ready', value: true });
   assert.equal((await act(h.code, h.token, { type: 'start' })).status, 200);
   return { h, b, room, g: room.game };
 }
-test('in a public game a bot plays for someone offline for 30 seconds, and they get the seat back when they return', async () => {
+test('a dropped player can rejoin within 60 seconds; after that a bot keeps the seat and Reconnect is no longer offered', async () => {
   const { h, b, room, g } = await startedPublic();
+  const sess = async t => (await get(`/api/session?code=${h.code}&token=${t}`)).body.ok;
   online(h.code, b.token, false);
-  tick(later(20e3)); assert.equal(g.players[g.indexOf(b.token)].bot, null);
-  tick(later(35e3));
+  tick(later(45e3)); assert.equal(g.players[g.indexOf(b.token)].bot, null, 'still inside the 60 second window');
+  assert.equal(await sess(b.token), true, 'Reconnect is offered inside the window');
+  assert.equal((await post('/api/join', { code: h.code, token: b.token, name: 'Bea' })).status, 200, 'rejoining inside the window works');
+  const back = listen(h.code, b.token); await wait(150);
+  assert.equal(g.players[g.indexOf(b.token)].connected, true); back.close(); await wait(100);
+  online(h.code, b.token, false);
+  tick(later(65e3));
   const seat = g.players[g.indexOf(b.token)];
-  assert.equal(seat.bot, 'medium'); assert.equal(seat.takenOver, 'offline');
-  const live = listen(h.code, b.token); await wait(150);
-  assert.equal(seat.bot, null, 'reconnecting returns control'); assert.equal(seat.takenOver, null);
-  live.close(); void room;
+  assert.equal(seat.bot, 'medium'); assert.equal(seat.takenOver, 'gone');
+  assert.ok(g.log.some(l => /did not come back within a minute/.test(l.text)));
+  assert.equal(await sess(b.token), false, 'no Reconnect after the minute');
+  const late = await post('/api/join', { code: h.code, token: b.token, name: 'Bea' });
+  assert.equal(late.status, 400); assert.match(late.body.error, /more than a minute/);
+  const r = await fetch(`${base}/api/events?code=${h.code}&token=${b.token}`); assert.equal(r.status, 410, 'the live stream is refused too'); await r.text();
+  assert.equal(seat.takenOver, 'gone', 'reconnecting does not undo it');
+  assert.equal((await act(h.code, b.token, { type: 'reclaim' })).status, 400, 'and the seat cannot be taken back');
+  void room;
 });
 
 test('a bot also takes over from a player who leaves a public game on purpose, who does not get automatic control back', async () => {
@@ -242,22 +254,26 @@ test('a bot also takes over from a player who leaves a public game on purpose, w
   assert.equal(seat.takenOver, 'left', 'a deliberate leave is not undone by reconnecting'); live.close();
 });
 
-test('private games too: a bot plays for a friend who left, or who stays offline for a minute, and the friend can come back', async () => {
+test('private games too: the same minute to rejoin, and leaving on purpose is final', async () => {
   const c = (await post('/api/create', { name: 'Hosty', map: { preset: 'classic' } })).body, j = (await post('/api/join', { code: c.code, name: 'Bea' })).body;
   online(c.code, c.token); online(c.code, j.token);
   const room = rooms.get(c.code), g = room.game;
   assert.equal(room.public, false);
+  for (const t of [c.token, j.token]) await act(c.code, t, { type: 'ready', value: true });
   await act(c.code, c.token, { type: 'start' });
   online(c.code, j.token, false);
-  tick(later(40e3)); assert.equal(g.players[g.indexOf(j.token)].bot, null, 'friends get a longer grace in a private room');
-  tick(later(70e3)); assert.equal(g.players[g.indexOf(j.token)].takenOver, 'offline');
-  const live = listen(c.code, j.token); await wait(150);
-  assert.equal(g.players[g.indexOf(j.token)].takenOver, null, 'back in control after a drop'); live.close();
+  tick(later(45e3)); assert.equal(g.players[g.indexOf(j.token)].bot, null, 'the same 60 second window in a private room');
+  assert.equal((await get(`/api/session?code=${c.code}&token=${j.token}`)).body.ok, true);
+  const live = listen(c.code, j.token); await wait(150);   // back at 45 seconds: still in time
+  assert.equal(g.players[g.indexOf(j.token)].connected, true); assert.equal(g.players[g.indexOf(j.token)].bot, null);
+  live.close(); await wait(100);
   await post('/api/leave', { code: c.code, token: j.token });   // leaving on purpose
   const seat = g.players[g.indexOf(j.token)];
   assert.equal(seat.takenOver, 'left'); assert.equal(seat.bot, 'medium');
-  assert.equal((await act(c.code, j.token, { type: 'reclaim' })).status, 200, 'they can take the seat back with the button');
-  assert.equal(seat.bot, null);
+  assert.equal((await get(`/api/session?code=${c.code}&token=${j.token}`)).body.ok, false, 'no Reconnect after leaving');
+  assert.equal((await post('/api/join', { code: c.code, token: j.token, name: 'Bea' })).status, 400);
+  assert.equal((await act(c.code, j.token, { type: 'reclaim' })).status, 400, 'leaving is final');
+  assert.equal(seat.bot, 'medium');
 });
 
 // A bot that stands in must really play. Everyone else is driven by bots too, so a whole game runs without a person; the seat
@@ -270,7 +286,7 @@ function humanNeeds(g, b) {
   if (g.trade && g.phase === 'main' && g.turn !== b) { const t = g.trade; if (t.from !== b && !t.accepted.includes(b) && !t.declined.includes(b)) return true; }
   return g.turn === b;
 }
-for (const reason of ['left', 'offline', 'idle']) {
+for (const reason of ['left', 'gone', 'offline', 'idle']) {
   test('a taken-over seat is played by its bot all the way to the end of the game (' + reason + ')', () => {
     for (const seed of [1, 2, 3]) for (const leaveAt of [0, 6, 40, 120, 260]) {
       const g = new Game({ code: 'SWP', map: maps.generatePreset('classic', seed), rng: maps.makeRng(seed) });
@@ -380,4 +396,66 @@ test('with PUBLIC_ROOMS off, public play is closed: no Quick play, empty list, r
 test('the terms and privacy policy describe public rooms, bots standing in, and address use', () => {
   const legal = require('./legal'), t = legal.terms(), p = legal.privacy();
   assert.match(t, /public room/i); assert.match(t, /bot/i); assert.match(p, /IP address/); assert.match(p, /public room/i);
+});
+
+// ---------- ready before start, the rejoin window, and the session check ----------
+test('start: with two or more people everyone must be ready; one person with bots starts at once; non-hosts hear "only the host"', () => {
+  const g = mk(); g.addPlayer('Host', 'h'); g.addPlayer('Bea', 'b');
+  const H = { human: true };
+  assert.throws(() => g.act(1, { type: 'start' }, H), /host/, 'a guest is told only the host can start, not about ready');
+  assert.throws(() => g.act(0, { type: 'start' }, H), /ready/);
+  g.act(0, { type: 'ready', value: true }); assert.throws(() => g.act(0, { type: 'start' }, H), /ready/, 'the host alone is not enough');
+  g.act(1, { type: 'ready', value: true });
+  g.setMap(maps.generatePreset('japan', 1)); assert.throws(() => g.act(0, { type: 'start' }, H), /ready/, 'a new map clears the ticks');
+  g.act(0, { type: 'ready', value: true }); g.act(1, { type: 'ready', value: true });
+  g.act(0, { type: 'start' }, H); assert.equal(g.phase, 'setup');
+  const solo = mk(); solo.addPlayer('Solo', 's'); solo.act(0, { type: 'addBot', level: 'easy' });
+  solo.act(0, { type: 'start' }, H); assert.equal(solo.phase, 'setup', 'one person with a bot needs no ready');
+  const three = mk(); three.addPlayer('A', 'a'); three.addPlayer('B', 'b'); three.act(0, { type: 'addBot', level: 'easy' });
+  assert.throws(() => three.act(0, { type: 'start' }, H), /ready/, 'two people and a bot still need ready');
+});
+
+test('start over HTTP: refused until every person is ready, in private rooms too', async () => {
+  const c = (await post('/api/create', { name: 'Hosty', map: { preset: 'classic' } })).body, j = (await post('/api/join', { code: c.code, name: 'Bea' })).body;
+  const r1 = await act(c.code, c.token, { type: 'start' }); assert.equal(r1.status, 400); assert.match(r1.body.error, /ready/);
+  await act(c.code, c.token, { type: 'ready', value: true });
+  assert.equal((await act(c.code, c.token, { type: 'start' })).status, 400, 'Bea is not ready yet');
+  await act(c.code, j.token, { type: 'ready', value: true });
+  assert.equal((await act(c.code, c.token, { type: 'start' })).status, 200);
+});
+
+test('dropped players: everyone is told who, and for how long they can rejoin (60 seconds); then a bot plays', async () => {
+  const { h, b, room, g } = await startedPublic();
+  const sent = []; room.clients.set(h.token, new Set([{ write: m => sent.push(m), end() {} }]));
+  const last = () => JSON.parse(/event: state\ndata: (.*)\n/.exec(sent[sent.length - 1])[1]).net;
+  const bi = g.indexOf(b.token); online(h.code, b.token, false);
+  await act(h.code, h.token, { type: 'chat', text: 'where did Bea go?' });   // a real disconnect broadcasts too
+  let net = last();
+  assert.equal(net.rejoinMs, 60000); assert.equal(net.drops.length, 1); assert.equal(net.drops[0].i, bi);
+  assert.ok(net.drops[0].ms > 55000 && net.drops[0].ms <= 60000, 'about a minute left: ' + net.drops[0].ms);
+  tick(later(65e3)); net = last();
+  assert.equal(g.players[bi].takenOver, 'gone'); assert.deepEqual(net.drops, [], 'after the window a bot has the seat, nobody is "dropped"');
+});
+
+test('the move clock waits for a player who dropped, and starts fresh when they are back', async () => {
+  const { h, b, room, g } = await startedPublic();
+  const turnToken = g.players[g.turn].token, other = turnToken === h.token ? b.token : h.token;
+  online(h.code, turnToken, false);
+  await act(h.code, other, { type: 'chat', text: 'waiting' });   // any broadcast re-arms the timers
+  assert.equal(room.clockTimer, null, 'no auto-move while the player on turn is in the rejoin window');
+  g.clockAt = Date.now() - 120e3;                                  // their clock would long have run out
+  const live = listen(h.code, turnToken); await wait(200);
+  assert.ok(Date.now() - g.clockAt < 3000, 'a fresh clock on return'); assert.ok(room.clockTimer, 'the clock runs again');
+  assert.equal(g.log.some(l => /placed automatically/.test(l.text)), false, 'nothing was played for them meanwhile');
+  live.close();
+});
+
+test('session check: a saved seat is rejoinable only while it exists and the game is not over', async () => {
+  const { h, b, g } = await startedPublic();
+  assert.deepEqual((await get(`/api/session?code=${h.code}&token=${b.token}`)).body, { ok: true, phase: 'setup', takenOver: null, running: true });
+  assert.equal((await get(`/api/session?code=${h.code}&token=nope`)).body.ok, false);
+  assert.equal((await get('/api/session?code=ZZZZZ&token=x')).body.ok, false);
+  await post('/api/leave', { code: h.code, token: b.token });
+  assert.equal((await get(`/api/session?code=${h.code}&token=${b.token}`)).body.takenOver, 'left');
+  g.phase = 'ended'; assert.equal((await get(`/api/session?code=${h.code}&token=${h.token}`)).body.ok, false, 'a finished game has nothing to reconnect to');
 });

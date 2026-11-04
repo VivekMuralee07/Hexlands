@@ -209,7 +209,19 @@ function render() {
   if (S.screen === 'game') return renderGame(app);
 }
 
+// Is the saved seat still there? The home screen offers Reconnect only when it is (the room may have closed or been cleared).
+async function checkSession() {
+  const sess = S.session; if (!sess) return;
+  S.sessionAt = Date.now();
+  try {
+    const r = await fetch(`/api/session?code=${encodeURIComponent(sess.code)}&token=${encodeURIComponent(sess.token)}`), j = await r.json();
+    if (S.session !== sess) return;
+    if (j.ok) S.sessionOk = sess.code; else { S.sessionOk = null; store.set('session', null); S.session = null; }
+  } catch { S.sessionOk = null; }
+  if (S.screen === 'home') render();
+}
 function renderHome(app) {
+  if (S.session && Date.now() - (S.sessionAt || 0) > 5000) checkSession();
   app.innerHTML = `<button class="info-btn" id="info" aria-label="How to play" title="How to play">i</button><div class="home">
     <div class="hero-board" id="hero"></div>
     <div>
@@ -222,7 +234,7 @@ function renderHome(app) {
         <div class="row"><button class="btn grow" id="browse">Public rooms</button><button class="btn grow" id="go-create">Create a room</button></div>` : '<button class="btn primary" id="go-create">Create a room</button>'}
         <div class="divider">or join a friend</div>
         <div class="row"><input id="code" class="code-input grow" maxlength="5" placeholder="CODE" autocomplete="off" value="${esc(S.joinCode)}" aria-label="Room code"><button class="btn" id="go-join">Join room</button></div>
-        ${S.session ? `<button class="btn" id="resume">Return to room ${esc(S.session.code)}</button>` : ''}
+        ${S.session && S.sessionOk === S.session.code ? `<button class="btn primary" id="resume">Reconnect to your game (${esc(S.session.code)})</button>` : ''}
         <p class="legalfoot"><button class="linkbtn" data-legal="terms">Terms of Use</button><span>·</span><button class="linkbtn" data-legal="privacy">Privacy Policy</button></p>
       </div>
     </div>
@@ -451,11 +463,11 @@ function renderEditor(app) {
 }
 
 // ---------- session / networking ----------
-function startSession(sess) {
+function startSession(sess, soft = false) {   // soft: reconnect without clearing the screen
   S.session = sess; store.set('session', sess);
   history.replaceState(null, '', '/room/' + sess.code);
   if (S.es) S.es.close();
-  S.board = null; S.state = null; S.shellReady = false; S.mode = null; S.boardFor = null; S.evSeq = null; S.logAt = null; S.tw = null;
+  if (!soft) { S.board = null; S.state = null; S.shellReady = false; S.mode = null; S.boardFor = null; S.evSeq = null; S.logAt = null; S.tw = null; S.link = 'ok'; S.lostAt = 0; }
   const es = new EventSource(`/api/events?code=${encodeURIComponent(sess.code)}&token=${encodeURIComponent(sess.token)}`);
   S.es = es;
   let opened = false;
@@ -466,15 +478,48 @@ function startSession(sess) {
   });
   es.addEventListener('state', e => { opened = true; onState(JSON.parse(e.data)); });
   es.onerror = () => {
-    if (es.readyState !== EventSource.CLOSED || S.unloading) return;
+    if (S.unloading) return;
+    if (es.readyState !== EventSource.CLOSED) {   // the connection dropped: the browser keeps retrying, and the player gets a Reconnect button
+      if (S.link !== 'lost') { S.link = 'lost'; S.lostAt = S.lostAt || Date.now(); drawLink(); }
+      return;
+    }
     es.close(); if (S.es === es) S.es = null;
     // The stream was refused. Check whether our seat still exists before giving up.
     setTimeout(async () => {
       if (S.unloading || S.session !== sess) return;
       try { await post('/api/join', { code: sess.code, token: sess.token, name: S.name }); startSession(sess); }
-      catch { leaveToHome(opened ? 'This room has closed. Rooms are cleared when the server restarts or sits idle.' : 'That room could not be found.'); }
+      catch (e) { leaveToHome(/seat/.test(e.message || '') ? e.message : opened ? 'This room has closed. Rooms are cleared when the server restarts or sits idle.' : 'That room could not be found.'); }
     }, 1500);
   };
+}
+const mss = secs => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+function reconnectNow() { if (!S.session) return; if (S.es) { S.es.close(); S.es = null; } startSession(S.session, true); }
+// The player's own connection dropped during a game: show how long their seat is held, with a Reconnect button. Only then.
+function drawLink() {
+  const box = $('#reconnect'); if (!box) return;
+  const st = S.state, running = st && (st.phase === 'setup' || st.phase === 'main');
+  if (S.link !== 'lost' || !running) { box.hidden = true; return; }
+  box.hidden = false;
+  if (!box.dataset.built) {
+    box.dataset.built = '1';
+    box.innerHTML = '<div class="rc-card" role="alertdialog" aria-live="assertive"><b>Connection lost</b><p id="rc-msg"></p><div class="row"><button class="btn primary" id="rc-btn">Reconnect</button><button class="btn" id="rc-leave">Leave game</button></div></div>';
+    $('#rc-btn').onclick = reconnectNow; $('#rc-leave').onclick = () => { const q = $('#quit'); if (q) q.click(); };
+  }
+  updateLinkMsg();
+}
+function updateLinkMsg() {
+  const m = $('#rc-msg'); if (!m || S.link !== 'lost' || !S.state) return;
+  const win = (S.state.net && S.state.net.rejoinMs) || 60000, left = Math.ceil((S.lostAt + win - Date.now()) / 1000);
+  m.textContent = left > 0 ? `Your seat is held for ${mss(left)}. Tap Reconnect to rejoin now.` : 'You were away for more than a minute, so a bot has taken your seat for the rest of this game.';
+  const b = $('#rc-btn'); if (b && left <= 0 && b.dataset.mode !== 'home') { b.dataset.mode = 'home'; b.textContent = 'Back to home'; b.onclick = () => leaveToHome(); }
+}
+// The others see who dropped and how long they can still rejoin.
+function drawDrops() {
+  const bar = $('#dropbar'); if (!bar) return;
+  const st = S.state, drops = ((st && st.net && st.net.drops) || []).filter(d => d.i !== st.you && st.players[d.i]);
+  if (!drops.length) { bar.hidden = true; bar.innerHTML = ''; return; }
+  bar.hidden = false;
+  bar.innerHTML = drops.map(d => `<div><b>${esc(st.players[d.i].name)}</b> lost connection. They can rejoin for <b class="dropt" data-end="${S.stateAt + d.ms}">${mss(Math.ceil(d.ms / 1000))}</b>, then a bot plays for them.</div>`).join('');
 }
 function leaveToHome(msg) {
   if (S.es) { S.es.close(); S.es = null; }
@@ -484,7 +529,7 @@ function leaveToHome(msg) {
 }
 
 function onState(st) {
-  const prev = S.state; S.state = st; S.stateAt = Date.now();
+  const prev = S.state; S.state = st; S.stateAt = Date.now(); S.link = 'ok'; S.lostAt = 0;
   if (prev && prev.players[prev.you] && st.players[st.you]) {   // host hand-over, and bots standing in
     if (!prev.players[prev.you].host && st.players[st.you].host) toast('You are now the host');
     st.players.forEach((p, i) => { const q = prev.players[i]; if (!q || q.name !== p.name || i === st.you) return;
@@ -553,6 +598,7 @@ function renderLobby(app) {
   const st = S.state; if (!st) return;
   const me = st.you, host = st.players[me] && st.players[me].host;
   const net = st.net || {}, pub = !!net.public, imReady = !!(st.players[me] && st.players[me].ready);
+  const humans = st.players.filter(p => !p.bot), needReady = humans.length >= 2, readyCount = humans.filter(p => p.ready).length, allReady = !needReady || readyCount === humans.length;
   const link = `${location.origin}/room/${st.code}`;
   const prevBox = $('#lobby-preview');
   const pk = `${st.code}:${S.boardRev || 0}`, keepPreview = prevBox && prevBox.dataset.code === pk && prevBox.innerHTML;
@@ -564,7 +610,7 @@ function renderLobby(app) {
         <div><div class="muted">Room code</div><div class="room-code">${st.code}</div></div>
         ${host ? `<div class="row"><button class="btn small" id="togpub">${pub ? 'Make private' : 'Make public'}</button><span class="muted grow" style="font-size:.88em">${pub ? 'Anyone can find this room in the public list.' : 'Only people with the code can join.'}</span></div>` : ''}
         <div class="row"><button class="btn" id="copy">Copy invite link</button>${navigator.share ? '<button class="btn" id="share">Share</button>' : ''}</div>
-        <ul class="plist">${st.players.map((p, i) => `<li>${swatch(p, i, me, host)}${p.bot ? icon('bot', 'boticon') : ''}<b class="grow">${esc(p.name)}${i === me ? ' (you)' : ''}</b>${p.host ? '<span class="badge">Host</span>' : ''}${pub && !p.bot ? `<span class="badge rdy${p.ready ? ' on' : ''}">${p.ready ? 'Ready' : 'Not ready'}</span>` : ''}
+        <ul class="plist">${st.players.map((p, i) => `<li>${swatch(p, i, me, host)}${p.bot ? icon('bot', 'boticon') : ''}<b class="grow">${esc(p.name)}${i === me ? ' (you)' : ''}</b>${p.host ? '<span class="badge">Host</span>' : ''}${needReady && !p.bot ? `<span class="badge rdy${p.ready ? ' on' : ''}">${p.ready ? 'Ready' : 'Not ready'}</span>` : ''}
           ${p.bot ? (host ? `<select class="lvlsel" data-seat="${i}" aria-label="Difficulty for ${esc(p.name)}">${['easy', 'medium', 'hard'].map(l => `<option value="${l}" ${p.bot === l ? 'selected' : ''}>${LEVEL_LABEL[l]}</option>`).join('')}</select><button class="btn small icon-only" data-rmbot="${i}" aria-label="Remove ${esc(p.name)}">✕</button>` : botTag(p)) : `<span class="dot ${p.connected ? '' : 'off'}" title="${p.connected ? 'Connected' : 'Offline'}"></span>`}</li>`).join('')}</ul>
         ${host && st.players.length < 4 ? `<div class="botadd"><b>Add a bot</b>
           <div class="seg" role="group" aria-label="Bot difficulty">${['easy', 'medium', 'hard'].map(l => `<button data-lvl="${l}" aria-pressed="${S.botLevel === l}">${LEVEL_LABEL[l]}</button>`).join('')}</div>
@@ -573,10 +619,11 @@ function renderLobby(app) {
         ${pub ? `<div class="lbstatus" id="lbstatus">${net.countdown != null ? `<b>Everyone is ready. Starting in <span id="cdown">${Math.ceil(net.countdown / 1000)}</span>…</b>` : st.players.length < 4 ? '<b>Waiting for more players…</b>' : '<b>The table is full.</b> Tap Ready when the options suit you.'}
           ${net.fillIn === 0 ? (host ? `<div class="fillbox"><span>Nobody else yet? Fill the empty seats with bots and play now.</span><button class="btn primary" id="fillbots">${icon('bot')} Play with bots</button></div>` : '<div class="muted">The host can fill the empty seats with bots.</div>') : ''}
           <div class="muted" style="font-size:.88em;margin-top:.3rem">Chat opens when the game starts. If you wait a minute and nobody joins, you can play with bots.</div></div>` : ''}
-        <p class="muted">${st.players.length} of 4 seats taken. ${host ? (st.players.length < 2 ? 'Add a bot or share the code; you need at least one more player.' : 'Check the options, then start when everyone is in.') : 'The host starts the game.'}</p>
+        <p class="muted">${st.players.length} of 4 seats taken. ${host ? (st.players.length < 2 ? 'Add a bot or share the code; you need at least one more player.' : needReady ? 'Check the options. The game can start when everyone has tapped "I\'m ready".' : 'Check the options, then start.') : 'The host starts the game once everyone is ready.'}</p>
         <div class="row">${soundButtons()}<span class="muted" style="font-size:.88em">Sound effects and music</span></div>
-        ${pub && st.players[me] && !st.players[me].bot ? `<button class="btn ${imReady ? '' : 'primary'}" id="ready" aria-pressed="${imReady}">${imReady ? 'Not ready' : "I'm ready"}</button>` : ''}
-        ${host ? `<button class="btn ${pub ? '' : 'primary'}" id="start" ${st.players.length < 2 ? 'disabled' : ''}>Start game</button>` : ''}
+        ${needReady && st.players[me] && !st.players[me].bot ? `<button class="btn ${imReady ? '' : 'primary'}" id="ready" aria-pressed="${imReady}">${imReady ? 'Not ready' : "I'm ready"}</button>` : ''}
+        ${host ? `<button class="btn ${allReady && !(pub && needReady && !imReady) ? 'primary' : ''}" id="start" ${st.players.length < 2 || !allReady ? 'disabled' : ''}>Start game</button>` : ''}
+        ${needReady && !allReady ? `<p class="muted waitready" id="waitready">Waiting for everyone to tap "I'm ready" (${readyCount} of ${humans.length}). Changing the map or the options clears the ticks.</p>` : ''}
       </div>
       <div class="stack lb-map"><div class="preview" id="lobby-preview" data-code="${pk}"></div>
         <div class="row lb-maphead"><span class="grow"><b>${esc(st.mapName)}</b><br><span class="muted" style="font-size:.88em">${S.board && S.board.key === 'hayhollows' ? 'Hay rule: a settlement built after setup turns the 6, 8 and 9 hay beside it into other resources. ' : ''}Turn order is drawn at random when the game starts.</span></span>${host ? `<button class="btn small" id="changemap">Change map</button>${S.board && S.board.key !== 'custom' ? '<button class="btn small" id="shufflemap" title="Same map, new random tiles">Shuffle</button>' : ''}` : ''}</div></div>
@@ -622,7 +669,7 @@ function buildShell(app) {
         <rect x="-5000" y="-5000" width="10000" height="10000" fill="#0a68a6"/>
         <g id="static"></g><g id="dyn"></g><g id="fx" pointer-events="none"></g>
       </svg>
-      <div class="dice" id="dice"></div><div class="awards" id="awards"></div><div class="offer" id="offer"></div><div class="awaybar" id="awaybar" hidden></div><div class="tradewin" id="tradewin" hidden></div>
+      <div class="dice" id="dice"></div><div class="awards" id="awards"></div><div class="offer" id="offer"></div><div class="awaybar" id="awaybar" hidden></div><div class="dropbar" id="dropbar" hidden></div><div class="reconnect" id="reconnect" hidden></div><div class="tradewin" id="tradewin" hidden></div>
       <div class="gbtns"><button class="gbtn drawer-toggle" id="logbtn" title="Messages" aria-label="Messages">${GB_ICON.msg}</button><button class="gbtn" id="quit" title="Leave game" aria-label="Leave game">${GB_ICON.exit}</button></div>
       <div class="zoom"><button class="btn" id="zin" aria-label="Zoom in">+</button><button class="btn" id="zout" aria-label="Zoom out">−</button><button class="btn" id="zfit" aria-label="Fit board">⤢</button></div>
     </main></section>
@@ -640,12 +687,10 @@ function buildShell(app) {
   $('#logbtn').onclick = () => $('#side').classList.toggle('open');
   bindSoundButtons();
   $('#quit').onclick = async () => {
-    const pub = !!(S.state.net && S.state.net.public), running = S.state.phase !== 'ended';
-    const msg = !running ? 'Leave this game?' : pub ? 'Leave this game? A bot will play your seat for the others.' : 'Leave this game? A bot will play your seat. Come back with the room code to take it back.';
-    if (!confirm(msg)) return;
+    const running = S.state.phase !== 'ended';
+    if (!confirm(running ? 'Leave this game? A bot will take your seat for the rest of the game, and you will not be able to come back.' : 'Leave this game?')) return;
     if (running) { try { await post('/api/leave', S.session); } catch {} }   // the server hands your seat to a bot
-    if (pub || !running) { leaveToHome(); return; }
-    if (S.es) S.es.close(); S.es = null; S.state = null; history.replaceState(null, '', '/'); go('home');   // private: keep the way back in
+    leaveToHome();   // leaving on purpose: no Reconnect afterwards (that is only for dropped connections)
   };
   $('#chat').onsubmit = e => { e.preventDefault(); const v = $('#chatin').value.trim(); if (v) { act({ type: 'chat', text: v }); $('#chatin').value = ''; } };
   if (S.state.dice) drawDice(S.state.dice, false);
@@ -654,7 +699,7 @@ function buildShell(app) {
 function updateGame() {
   validatePick();
   const st = S.state;
-  drawAway(); { const n = $('#chatnote'); if (n) n.hidden = !(st.net && st.net.public); } drawDyn(); drawPlayers(); drawBanner(); drawHand(); drawActions(); drawLog(); drawOffer(); drawClock(); drawSetupStrip(); drawPlacing(); drawTrade(); drawDiamond();
+  drawAway(); drawDrops(); drawLink(); { const n = $('#chatnote'); if (n) n.hidden = !(st.net && st.net.public); } drawDyn(); drawPlayers(); drawBanner(); drawHand(); drawActions(); drawLog(); drawOffer(); drawClock(); drawSetupStrip(); drawPlacing(); drawTrade(); drawDiamond();
   syncModals();
 }
 
@@ -929,7 +974,7 @@ function drawPlayers() {
   $('#players').innerHTML = bank + st.players.map((p, i) => {
     const turn = st.turn === i && st.phase !== 'ended';
     const crown = p.vp === leader && leader >= 3 ? `<span class="crown">${icon('monopoly')}</span>` : '';
-    const skippable = st.players[me()].host && i !== me() && !p.connected && (st.turn === i || (st.subphase === 'discard' && st.pendingDiscards[i]) || (st.subphase === 'diamond' && st.pendingDiamond[i]));
+    const skippable = st.players[me()].host && i !== me() && !p.bot && !p.connected && (st.turn === i || (st.subphase === 'discard' && st.pendingDiscards[i]) || (st.subphase === 'diamond' && st.pendingDiamond[i])) && !((st.net && st.net.drops) || []).some(d => d.i === i);   // no skipping while a dropped player's seat is held for them
     const piece = (k, n, label) => `<span class="pp" title="${label} left to build" style="color:${p.color}">${icon(k)}<b>${n}</b></span>`;
     const badges = [];
     if (st.longestRoad && st.longestRoad.p === i) badges.push(`<span class="badge">${icon('road')} Longest Road</span>`);
@@ -1021,8 +1066,13 @@ function openInfo(tab = 'costs') {
     : tab === 'points'
       ? `<div class="devlist">${row('settlement', 'Settlement', 'Each one you keep.', pts(1))}${row('city', 'City', 'Replaces a settlement and pays double.', pts(2))}${row('road', 'Longest Road', `5 or more roads in a row, and you must beat the holder. ${lr ? `Held by ${name(lr.p)} (${lr.len} roads).` : 'Nobody has it yet.'}`, pts(2))}${row('knight', 'Largest Army', `3 or more Knights played, and you must beat the holder. ${la ? `Held by ${name(la.p)} (${la.size} Knights).` : 'Nobody has it yet.'}`, pts(2))}${row('vp', 'Victory Point card', 'Hidden until the game ends.', pts(1))}</div>`
       : `<div class="setlist">${set('Points to win', 'The first player to reach this on their own turn wins.', `${st.vpTarget} points`)}${set('Discard limit', 'On a 7, anyone holding more cards than this must discard.', `${o.discardLimit} cards`)}${set('Cards discarded', 'How many they must give up.', o.discardMode === 'four' ? '4 cards' : 'Half the hand, rounded down')}${set('Move timer', 'Time for each step of a turn.', o.timer ? `${o.timer} seconds` : 'Off')}${set('Friendly robber', 'The robber stays off players with 2 points or fewer.', o.friendlyRobber ? 'On' : 'Off')}${set('Balanced dice', 'Dice come from a shuffled deck of 36 rolls.', o.balancedDice ? 'On' : 'Off')}</div>`;
-  openModal('info', `<div class="infowin"><h3>Game info</h3><div class="maptabs" role="tablist">${tabs.map(([k, l]) => `<button class="maptab" role="tab" data-itab="${k}" aria-selected="${tab === k}">${l}</button>`).join('')}</div>${body}<div class="foot"><button class="btn primary" id="iclose">Close</button></div></div>`, layer => {
+  const code = st.code || (S.session && S.session.code) || '', pubRoom = !!(st.net && st.net.public), invite = `${location.origin}/room/${code}`;
+  const roomStrip = `<div class="roomstrip"><div><small>Room code</small><b class="rcode" id="rcode">${esc(code)}</b></div><span class="vischip${pubRoom ? ' pub' : ''}">${pubRoom ? 'Public' : 'Private'}</span><div class="rbtns"><button class="btn small" id="icopy">Copy code</button><button class="btn small" id="ilink">Copy invite link</button></div></div>`;
+  openModal('info', `<div class="infowin"><h3>Game info</h3>${roomStrip}<div class="maptabs" role="tablist">${tabs.map(([k, l]) => `<button class="maptab" role="tab" data-itab="${k}" aria-selected="${tab === k}">${l}</button>`).join('')}</div>${body}<div class="foot"><button class="btn primary" id="iclose">Close</button></div></div>`, layer => {
     $('#iclose').onclick = closeModal;
+    const copy = async (text, done) => { try { await navigator.clipboard.writeText(text); toast(done); } catch { prompt('Copy this', text); } };
+    $('#icopy').onclick = () => copy(code, 'Room code copied');
+    $('#ilink').onclick = () => copy(invite, 'Invite link copied');
     layer.querySelectorAll('[data-itab]').forEach(b => b.onclick = () => openInfo(b.dataset.itab));
   });
 }
@@ -1434,6 +1484,8 @@ function drawClock() {
   el.hidden = false; tickClock();
 }
 function tickClock() {
+  $$('.dropt').forEach(el => { el.textContent = mss(Math.max(0, Math.ceil((Number(el.dataset.end) - Date.now()) / 1000))); });
+  updateLinkMsg();
   const cd = $('#cdown'), s0 = S.state;
   if (cd && s0 && s0.net && s0.net.countdown != null) cd.textContent = Math.max(0, Math.ceil((S.stateAt + s0.net.countdown - Date.now()) / 1000));
   const el = $('#clock'), st = S.state;
@@ -1841,6 +1893,9 @@ function openRooms() {
 setInterval(tickClock, 250);
 addEventListener('pagehide', () => { S.unloading = true; });
 addEventListener('pageshow', () => { S.unloading = false; });
+let lastTry = 0;   // coming back to the app, or the network returning: try to rejoin at once
+const tryBack = () => { if (S.link === 'lost' && S.session && Date.now() - lastTry > 3000) { lastTry = Date.now(); reconnectNow(); } };
+addEventListener('online', tryBack); document.addEventListener('visibilitychange', () => { if (!document.hidden) tryBack(); });
 fetch('/api/maps').then(r => r.json()).then(j => { S.maps = j.maps; }).catch(() => {});
 fetch('/api/config').then(r => r.json()).then(j => { const on = j.publicRooms !== false; if (on !== S.publicOn) { S.publicOn = on; if (S.screen === 'home' || S.screen === 'create') render(); } }).catch(() => {});
 if (S.session && (!S.joinCode || S.joinCode === S.session.code)) startSession(S.session);

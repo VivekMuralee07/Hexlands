@@ -40,7 +40,7 @@ function guard(req, kind, max, windowMs, msg) {
 const publicOn = () => !/^(0|false|off|no)$/i.test(String(process.env.PUBLIC_ROOMS || 'on').trim());
 const MAX_ROOMS = 3000, ROOMS_PER_IP = 5;
 const COUNTDOWN_MS = 5000, FILL_AFTER_MS = 60e3, DROP_LOBBY_MS = 30e3;
-const TAKEOVER_MS = 30e3, TAKEOVER_PRIVATE_MS = 60e3;   // offline this long: a bot plays the seat (friends in a private room get longer)
+const TAKEOVER_MS = 60e3;   // after this long offline a bot plays the seat; until then the player can rejoin and the move clock waits for them
 
 // A basic word filter for names and for chat in public rooms. It matches whole words (so "Scunthorpe" is fine), copes with
 // simple tricks such as digits for letters, and masks the word in chat. The list is kept scrambled (rot13) so this file reads
@@ -114,8 +114,9 @@ function roomCard(r) {
   return { code: g.code, host: h ? h.name : '', map: g.board.name, vp: g.vpTarget, timer: g.opts.timer, players: g.players.length, max: MAX_PLAYERS, bots: g.players.filter(p => p.bot).length };
 }
 function netInfo(room, now = Date.now()) {   // what the waiting room needs besides the game itself
-  const g = room.game, lobby = g.phase === 'lobby';
-  return { public: room.public, countdown: room.countdownAt ? Math.max(0, room.countdownAt - now) : null,
+  const g = room.game, lobby = g.phase === 'lobby', running = g.phase === 'setup' || g.phase === 'main';
+  const drops = running ? g.players.map((p, i) => (!p.bot && !p.connected ? { i, ms: Math.max(0, TAKEOVER_MS - (now - (p.offlineSince || now))) } : null)).filter(Boolean) : [];
+  return { public: room.public, drops, rejoinMs: TAKEOVER_MS, countdown: room.countdownAt ? Math.max(0, room.countdownAt - now) : null,
     fillIn: room.public && lobby && g.players.length < MAX_PLAYERS ? Math.max(0, room.lastJoinAt + FILL_AFTER_MS - now) : null };
 }
 
@@ -172,6 +173,8 @@ function scheduleClock(room) {
   const g = room.game;
   const lim = g.clockLimit();
   if (!lim || !rooms.has(g.code) || !g.players.some(p => !p.bot && p.connected)) return;
+  const waitingOn = g.subphase === 'discard' ? Object.keys(g.pendingDiscards).map(Number) : g.subphase === 'diamond' ? Object.keys(g.pendingDiamond).map(Number) : [g.turn];
+  if (waitingOn.length && waitingOn.every(i => g.players[i] && !g.players[i].bot && !g.players[i].connected)) return;   // they dropped: no auto-moves for them; a bot takes over after the rejoin window
   const ms = Math.max(0, g.clockAt + lim * 1000 - Date.now()) + 40;
   room.clockTimer = setTimeout(() => {
     room.clockTimer = null;
@@ -240,8 +243,7 @@ function tick(now = Date.now()) {
     }
     if (g.ensureHost(now)) changed = true;
     if (g.phase === 'setup' || g.phase === 'main') {   // someone vanished from a running game: a bot plays until they are back
-      const grace = room.public ? TAKEOVER_MS : TAKEOVER_PRIVATE_MS;
-      g.players.forEach((p, i) => { if (!p.bot && !p.connected && now - (p.offlineSince || now) >= grace && g.takeOver(i, 'offline')) changed = true; });
+      g.players.forEach((p, i) => { if (!p.bot && !p.connected && now - (p.offlineSince || now) >= TAKEOVER_MS && g.takeOver(i, 'gone')) changed = true; });   // the minute is up: the seat is the bot's for the rest of the game
     }
     if (lobbyAuto(room, now)) changed = true;
     if (changed) broadcast(room, now);
@@ -280,6 +282,14 @@ async function api(req, res, url) {
     const ok = key && given.length === key.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(key));
     if (!ok) return sendJson(res, 404, { error: 'Not found' });
     return sendJson(res, 200, { reports });
+  }
+  if (req.method === 'GET' && route === '/api/session') {   // can this saved seat still be rejoined? (the app shows Reconnect only when it can)
+    guard(req, 'list', 60, 60e3, 'Too many requests. Please wait a moment.');
+    const room = rooms.get(String(url.searchParams.get('code') || '').toUpperCase()), pi = room ? room.game.indexOf(url.searchParams.get('token')) : -1;
+    if (!room || pi < 0) return sendJson(res, 200, { ok: false });
+    const g = room.game, p = g.players[pi], running = g.phase === 'setup' || g.phase === 'main';
+    const held = g.phase === 'lobby' || (running && !['left', 'gone'].includes(p.takenOver));   // Reconnect is offered only while the seat is still yours
+    return sendJson(res, 200, { ok: held, phase: g.phase, takenOver: p.takenOver || null, running });
   }
   if (req.method === 'GET' && route === '/api/config') return sendJson(res, 200, { publicRooms: publicOn() });
   if (req.method === 'GET' && route === '/api/rooms') {   // the public rooms anyone may join
@@ -335,7 +345,12 @@ async function api(req, res, url) {
     if (limits.enabled && recent(badKey, 600e3).length >= 10) throw tooMany('Too many wrong room codes. Please wait a few minutes.');
     const room = rooms.get(code);
     if (!room) { hit(badKey, 600e3); throw new GameError('No room with that code. Check the code and try again.'); }
-    if (body.token && room.game.indexOf(body.token) >= 0) return sendJson(res, 200, { code, token: body.token });
+    if (body.token && room.game.indexOf(body.token) >= 0) {   // rejoining a seat: only while it is still held for you
+      const seat = room.game.players[room.game.indexOf(body.token)];
+      if (seat.takenOver === 'gone') throw new GameError('You were away for more than a minute, so a bot has taken your seat in that game.');
+      if (seat.takenOver === 'left') throw new GameError('You left that game, so a bot has taken your seat.');
+      return sendJson(res, 200, { code, token: body.token });
+    }
     const token = newToken(), name = cleanName(body.name);
     room.game.addPlayer(room.public ? uniqueName(room.game, name) : name, token);
     broadcast(room);
@@ -400,13 +415,16 @@ async function api(req, res, url) {
     const room = rooms.get(String(url.searchParams.get('code') || '').toUpperCase());
     const token = url.searchParams.get('token');
     if (!room || room.game.indexOf(token) < 0) return sendJson(res, 404, { error: 'Room not found.' });
+    if (['left', 'gone'].includes(room.game.players[room.game.indexOf(token)].takenOver)) return sendJson(res, 410, { error: 'A bot has taken this seat.' });
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
     res.write('retry: 2000\n\n');
     res.write(`event: board\ndata: ${JSON.stringify(room.game.boardView())}\n\n`);
     if (!room.clients.has(token)) room.clients.set(token, new Set());
     room.clients.get(token).add(res);
     setConnected(room, token);
-    { const pi = room.game.indexOf(token); if (room.game.players[pi].takenOver === 'offline') room.game.giveBack(pi); }   // back after a drop: take the seat back from the bot
+    { const pi = room.game.indexOf(token), g = room.game;
+      if (g.players[pi].takenOver === 'offline') g.giveBack(pi);
+      if (g.turn === pi && (g.phase === 'setup' || g.phase === 'main')) g.clockAt = Date.now(); }   // back within the window: a fresh move clock   // back after a drop: take the seat back from the bot
     broadcast(room);
     const ping = setInterval(() => res.write(': ping\n\n'), 20000);
     req.on('close', () => {

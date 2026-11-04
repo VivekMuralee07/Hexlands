@@ -42,7 +42,7 @@ Requires Node.js 18 or newer.
 
 ```bash
 npm start            # http://localhost:3000
-npm test             # 122 tests, including full simulated games and matchmaking
+npm test             # 128 tests, including full simulated games and matchmaking
 ```
 
 Open two browser windows (or a phone on the same network at `http://<your-ip>:3000`) to play against yourself.
@@ -90,7 +90,10 @@ Anyone in the world can open your Render address. Public play is **on by default
 - **Create a room** has a Private / Public switch. The host can flip it in the waiting room. Public rooms start with the move timer on.
 - **Waiting room, public rooms:** everyone taps *I'm ready*; when all four seats are taken and every human is ready, a 5 second countdown starts the game. After a minute with no new player the host sees *Play with bots*. People who disappear from a public waiting room lose their seat after 30 seconds; an empty room closes.
 - **Host hand-over:** if the host leaves or stays offline for 20 seconds, the next connected human becomes host.
-- **Bots standing in (every running game):** a bot (medium) plays the seat of anyone who leaves on purpose (the Leave button tells the server), stays offline (30 seconds in a public game, 60 seconds in a private one), or lets the move timer run out twice in a row. Someone who dropped gets control back when they reconnect; someone who was idle, or who left and came back with the room code, taps *Take back control*. People can never move a seat a bot holds, but the bot's own moves are allowed (an earlier version blocked those too, so the bot never played).
+- **Ready before start:** with two or more people in the room, the host can start only when every person (the host too) has tapped *I'm ready*. One person with bots can start at once. Changing the map or options clears the ticks.
+- **Dropped connections (every running game):** a player who loses the connection has **60 seconds** to rejoin. Everyone sees who dropped and the time left, the move clock waits for them, and they see a *Connection lost* card with a countdown and *Reconnect*. Reopening the app tries at once. After the minute a bot (medium) plays the seat for the rest of the game and the seat can no longer be rejoined. The home screen offers *Reconnect to your game* only while a seat is still held.
+- **Leaving and idling:** tapping Leave in a running game hands the seat to a bot at once, for good (no Reconnect). A player who lets the move timer run out twice in a row gets a bot too, but can tap *Take back control*.
+- **In-game info button:** shows the room code, Public or Private, and buttons to copy the code or the invite link.
 - **Chat in public rooms** is free text, with a basic filter: links are refused, bad words are starred out, six messages per ten seconds. Report and mute work as before.
 
 Protection against abuse (all in server memory, nothing stored): per internet address, 20 new rooms an hour, 5 rooms open at a time, 40 joins a minute, and a lock-out after 10 wrong room codes in 10 minutes. The address is read from `cf-connecting-ip` (Cloudflare, which Render uses), falling back to `x-forwarded-for`. Names are cleaned on the server (no hidden characters, 16 characters, "Player 4821" when empty, staff-like names refused). The word list is short; add your own words with the `BLOCKED_WORDS` setting (comma separated). Limits and numbers are constants near the top of `server.js`.
