@@ -333,7 +333,7 @@ class Game {
     const p = this.players[i];
     if (!p || p.bot || (this.phase !== 'setup' && this.phase !== 'main')) return false;
     p.bot = 'medium'; p.takenOver = reason; p.idle = 0; p.ready = false;
-    this.addLog(reason === 'left' ? `${p.name} left. A bot plays on for them.` : reason === 'gone' ? `${p.name} did not come back within a minute. A bot plays on for them.` : `${p.name} is away. A bot plays for them until they return.`);
+    this.addLog(reason === 'left' ? `${p.name} left. A bot plays on for them.` : `${p.name} is away. A bot plays for them until they return.`);
     this.version++; return true;
   }
   giveBack(i) {
@@ -345,7 +345,7 @@ class Game {
   }
   do_reclaim(pi) {
     if (!this.players[pi].takenOver) fail('A bot is not playing for you.');
-    if (['left', 'gone'].includes(this.players[pi].takenOver)) fail('You left this game, so the bot keeps your seat.');   // only someone who was idle can take back control
+    if (this.players[pi].takenOver === 'left') fail('You left this game, so the bot keeps your seat.');   // only someone who was idle can take back control
     this.giveBack(pi);
   }
   // The host leaving (or staying offline) passes the host role to the next human who is connected.

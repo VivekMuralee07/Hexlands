@@ -964,9 +964,6 @@ span.pcardx { cursor: default; }
 .rcode { font-size: 1.8em; letter-spacing: .22em; line-height: 1.1; color: var(--brass-lit); user-select: all; }
 .rbtns { display: flex; gap: .4rem; flex-wrap: wrap; margin-left: auto; }
 .waitready { margin: .2rem 0 0; font-size: .9em; }
-.dropbar { position: absolute; left: 50%; top: 3.4rem; transform: translateX(-50%); z-index: 6; display: grid; gap: .3rem; width: max-content; max-width: calc(100% - 1.6rem); padding: .45rem .7rem; border-radius: 12px; background: rgba(60, 34, 6, .94); border: 2px solid #e0a43a; box-shadow: 0 6px 20px rgba(0, 0, 0, .4); font-weight: 600; font-size: .92em; text-align: center; }
-.dropbar[hidden] { display: none; }
-.dropt { color: #ffd37a; font-variant-numeric: tabular-nums; }
 .reconnect { position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; padding: 1rem; background: rgba(4, 16, 38, .82); backdrop-filter: blur(2px); }
 .reconnect[hidden] { display: none; }
 .rc-card { max-width: 24rem; padding: 1rem 1.1rem; border-radius: 16px; background: linear-gradient(#17407f, #0c2a5a); border: 2px solid var(--brass); box-shadow: 0 10px 34px rgba(0, 0, 0, .55); text-align: center; display: grid; gap: .6rem; }

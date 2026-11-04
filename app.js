@@ -492,9 +492,8 @@ function startSession(sess, soft = false) {   // soft: reconnect without clearin
     }, 1500);
   };
 }
-const mss = secs => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
 function reconnectNow() { if (!S.session) return; if (S.es) { S.es.close(); S.es = null; } startSession(S.session, true); }
-// The player's own connection dropped during a game: show how long their seat is held, with a Reconnect button. Only then.
+// The player's own connection dropped during a game: a bot already plays their seat, and they can take it back with Reconnect.
 function drawLink() {
   const box = $('#reconnect'); if (!box) return;
   const st = S.state, running = st && (st.phase === 'setup' || st.phase === 'main');
@@ -502,24 +501,9 @@ function drawLink() {
   box.hidden = false;
   if (!box.dataset.built) {
     box.dataset.built = '1';
-    box.innerHTML = '<div class="rc-card" role="alertdialog" aria-live="assertive"><b>Connection lost</b><p id="rc-msg"></p><div class="row"><button class="btn primary" id="rc-btn">Reconnect</button><button class="btn" id="rc-leave">Leave game</button></div></div>';
+    box.innerHTML = '<div class="rc-card" role="alertdialog" aria-live="assertive"><b>Connection lost</b><p>A bot is playing your seat. Tap Reconnect to take it back.</p><div class="row"><button class="btn primary" id="rc-btn">Reconnect</button><button class="btn" id="rc-leave">Leave game</button></div></div>';
     $('#rc-btn').onclick = reconnectNow; $('#rc-leave').onclick = () => { const q = $('#quit'); if (q) q.click(); };
   }
-  updateLinkMsg();
-}
-function updateLinkMsg() {
-  const m = $('#rc-msg'); if (!m || S.link !== 'lost' || !S.state) return;
-  const win = (S.state.net && S.state.net.rejoinMs) || 60000, left = Math.ceil((S.lostAt + win - Date.now()) / 1000);
-  m.textContent = left > 0 ? `Your seat is held for ${mss(left)}. Tap Reconnect to rejoin now.` : 'You were away for more than a minute, so a bot has taken your seat for the rest of this game.';
-  const b = $('#rc-btn'); if (b && left <= 0 && b.dataset.mode !== 'home') { b.dataset.mode = 'home'; b.textContent = 'Back to home'; b.onclick = () => leaveToHome(); }
-}
-// The others see who dropped and how long they can still rejoin.
-function drawDrops() {
-  const bar = $('#dropbar'); if (!bar) return;
-  const st = S.state, drops = ((st && st.net && st.net.drops) || []).filter(d => d.i !== st.you && st.players[d.i]);
-  if (!drops.length) { bar.hidden = true; bar.innerHTML = ''; return; }
-  bar.hidden = false;
-  bar.innerHTML = drops.map(d => `<div><b>${esc(st.players[d.i].name)}</b> lost connection. They can rejoin for <b class="dropt" data-end="${S.stateAt + d.ms}">${mss(Math.ceil(d.ms / 1000))}</b>, then a bot plays for them.</div>`).join('');
 }
 function leaveToHome(msg) {
   if (S.es) { S.es.close(); S.es = null; }
@@ -669,7 +653,7 @@ function buildShell(app) {
         <rect x="-5000" y="-5000" width="10000" height="10000" fill="#0a68a6"/>
         <g id="static"></g><g id="dyn"></g><g id="fx" pointer-events="none"></g>
       </svg>
-      <div class="dice" id="dice"></div><div class="awards" id="awards"></div><div class="offer" id="offer"></div><div class="awaybar" id="awaybar" hidden></div><div class="dropbar" id="dropbar" hidden></div><div class="reconnect" id="reconnect" hidden></div><div class="tradewin" id="tradewin" hidden></div>
+      <div class="dice" id="dice"></div><div class="awards" id="awards"></div><div class="offer" id="offer"></div><div class="awaybar" id="awaybar" hidden></div><div class="reconnect" id="reconnect" hidden></div><div class="tradewin" id="tradewin" hidden></div>
       <div class="gbtns"><button class="gbtn drawer-toggle" id="logbtn" title="Messages" aria-label="Messages">${GB_ICON.msg}</button><button class="gbtn" id="quit" title="Leave game" aria-label="Leave game">${GB_ICON.exit}</button></div>
       <div class="zoom"><button class="btn" id="zin" aria-label="Zoom in">+</button><button class="btn" id="zout" aria-label="Zoom out">−</button><button class="btn" id="zfit" aria-label="Fit board">⤢</button></div>
     </main></section>
@@ -699,7 +683,7 @@ function buildShell(app) {
 function updateGame() {
   validatePick();
   const st = S.state;
-  drawAway(); drawDrops(); drawLink(); { const n = $('#chatnote'); if (n) n.hidden = !(st.net && st.net.public); } drawDyn(); drawPlayers(); drawBanner(); drawHand(); drawActions(); drawLog(); drawOffer(); drawClock(); drawSetupStrip(); drawPlacing(); drawTrade(); drawDiamond();
+  drawAway(); drawLink(); { const n = $('#chatnote'); if (n) n.hidden = !(st.net && st.net.public); } drawDyn(); drawPlayers(); drawBanner(); drawHand(); drawActions(); drawLog(); drawOffer(); drawClock(); drawSetupStrip(); drawPlacing(); drawTrade(); drawDiamond();
   syncModals();
 }
 
@@ -974,7 +958,7 @@ function drawPlayers() {
   $('#players').innerHTML = bank + st.players.map((p, i) => {
     const turn = st.turn === i && st.phase !== 'ended';
     const crown = p.vp === leader && leader >= 3 ? `<span class="crown">${icon('monopoly')}</span>` : '';
-    const skippable = st.players[me()].host && i !== me() && !p.bot && !p.connected && (st.turn === i || (st.subphase === 'discard' && st.pendingDiscards[i]) || (st.subphase === 'diamond' && st.pendingDiamond[i])) && !((st.net && st.net.drops) || []).some(d => d.i === i);   // no skipping while a dropped player's seat is held for them
+    const skippable = st.players[me()].host && i !== me() && !p.bot && !p.connected && (st.turn === i || (st.subphase === 'discard' && st.pendingDiscards[i]) || (st.subphase === 'diamond' && st.pendingDiamond[i]));
     const piece = (k, n, label) => `<span class="pp" title="${label} left to build" style="color:${p.color}">${icon(k)}<b>${n}</b></span>`;
     const badges = [];
     if (st.longestRoad && st.longestRoad.p === i) badges.push(`<span class="badge">${icon('road')} Longest Road</span>`);
@@ -1484,8 +1468,6 @@ function drawClock() {
   el.hidden = false; tickClock();
 }
 function tickClock() {
-  $$('.dropt').forEach(el => { el.textContent = mss(Math.max(0, Math.ceil((Number(el.dataset.end) - Date.now()) / 1000))); });
-  updateLinkMsg();
   const cd = $('#cdown'), s0 = S.state;
   if (cd && s0 && s0.net && s0.net.countdown != null) cd.textContent = Math.max(0, Math.ceil((S.stateAt + s0.net.countdown - Date.now()) / 1000));
   const el = $('#clock'), st = S.state;
