@@ -1130,3 +1130,32 @@ test('Hay Hollows: bots of every level finish a full game, the bank stays balanc
     void shifted;
   }
 });
+
+// ---------- country maps: size and shape follow the real countries ----------
+test('country maps: bigger countries get more tiles, and the shapes have the right proportions', () => {
+  const area = { uk: 0.244, newzealand: 0.268, italy: 0.301, germany: 0.357, japan: 0.378, spain: 0.506, france: 0.55, mexico: 1.96, argentina: 2.78, india: 3.29, australia: 7.69, usa: 8.08, brazil: 8.52, china: 9.6, canada: 9.98 };
+  const shape = {};
+  const keys = Object.keys(area).sort((a, b) => area[a] - area[b]);
+  let last = 0;
+  for (const k of keys) {
+    const t = maps.generatePreset(k, 1).tiles, xs = t.map(a => a.q + a.r / 2), ys = t.map(a => a.r * 0.866);
+    shape[k] = (Math.max(...xs) - Math.min(...xs) + 1) / (Math.max(...ys) - Math.min(...ys) + 0.866);
+    assert.ok(t.length >= last, `${k} (${t.length} tiles) is not smaller than the previous, smaller country (${last})`); last = t.length;
+    assert.ok(t.length >= 22 && t.length <= 70, k + ' stays playable: ' + t.length);
+  }
+  const n = k => maps.generatePreset(k, 1).tiles.length;
+  assert.ok(n('canada') > 2.4 * n('uk') && n('australia') > 2 * n('france'), 'big countries are clearly bigger than small ones');
+  assert.ok(shape.argentina < 0.6, 'Argentina is tall and thin: ' + shape.argentina.toFixed(2));
+  assert.ok(shape.usa > 1.4 && shape.canada > 1.1 && shape.mexico > 1.2, 'the USA, Canada and Mexico are wider than tall');
+  assert.ok(shape.uk < 0.95 && shape.italy < 0.95 && shape.newzealand < 0.95, 'Britain, Italy and New Zealand are taller than wide');
+});
+
+test('country maps: islands are kept (Sicily, Sardinia, Corsica, Tasmania, Sri Lanka, the Balearics, Newfoundland)', () => {
+  const comps = k => { const t = maps.generatePreset(k, 1).tiles, seen = new Set(), at = new Map(t.map(x => [x.q + ',' + x.r, x])); let c = 0;
+    for (const x of t) { const key = x.q + ',' + x.r; if (seen.has(key)) continue; c++; const st = [x]; seen.add(key);
+      while (st.length) { const y = st.pop(); for (const [dq, dr] of [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]]) { const k2 = (y.q + dq) + ',' + (y.r + dr); if (at.has(k2) && !seen.has(k2)) { seen.add(k2); st.push(at.get(k2)); } } } }
+    return c; };
+  assert.ok(comps('italy') >= 3, 'Italy: the boot, Sicily and Sardinia');
+  for (const k of ['france', 'spain', 'australia', 'india', 'canada', 'japan']) assert.ok(comps(k) >= 2, k + ' has its islands');
+  assert.equal(comps('germany'), 1); assert.equal(comps('brazil'), 1);
+});

@@ -7,6 +7,8 @@ const PRODUCES = { forest: 'wood', hills: 'brick', pasture: 'sheep', fields: 'wh
 const STANDARD_NUMBERS = [2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12];
 
 // Masks use "odd-r" offset rows: odd rows sit half a hex to the right.
+// Country maps are traced from simplified real outlines (equal-area projection, then hexes). The tile count grows with the country's real
+// area, softened so small countries stay playable: about 24 tiles for the UK, 46 for India, 61 for Australia, 66 for Canada.
 const PRESETS = {
   classic: {
     name: 'Classic Island', blurb: 'The balanced 19-tile island.',
@@ -15,77 +17,77 @@ const PRESETS = {
   },
   india: {
     name: 'India', blurb: 'Grain-rich plains running down to Sri Lanka.',
-    mask: ['..XXX....', '.XXXX....', 'XXXXXXXX.', 'XXXXXX.XX', '.XXXXX...', '..XXXX...', '..XXX....', '...XX....', '...X.....', '....X....'],
-    weights: { forest: 4, hills: 4, pasture: 3, fields: 6, mountains: 4 }, deserts: 2,
+    mask: ['............', '..XX........', '...XX.......', '..XX........', '..XXX.....X.', '.XXXXXXXXX..', '.XXXXXXX....', 'XXXXXXXX....', '..XXXXX.....', '..XXXX......', '..XXX.......', '..XX........', '...XX.......', '...X........', '............', '....X.......'],
+    weights: { forest: 4, hills: 4, pasture: 3, fields: 6, mountains: 4 }, deserts: 3,
   },
   usa: {
     name: 'United States', blurb: 'Wide wheat belts from coast to coast.',
-    mask: ['XXXXXXXXXX..', 'XXXXXXXXXXXX', 'XXXXXXXXXXX.', '.XXXXXXXXXX.', '..XXX..XXX..', '...X....X...'],
+    mask: ['.XXXX.......', 'XXXXXXXX..X.', 'XXXXXXXXXXX.', 'XXXXXXXXXX..', '.XXXXXXXXXX.', '.XXXXXXXXX..', '....XXXXXX..', '.....X...X..'],
     weights: { forest: 5, hills: 4, pasture: 4, fields: 6, mountains: 4 }, deserts: 2,
   },
   uk: {
     name: 'United Kingdom', blurb: 'Two islands of sheep and stone.',
-    mask: ['....XX..', '...XXX..', '...XX...', '.X.XXX..', 'XX..XXX.', 'XX.XXXXX', '....XXXX', '..XXXXX.'],
+    mask: ['.XX....', '.XX....', '.XX....', 'XXX....', 'X..X...', '..XX...', '..XXXX.', '.XXXX..', '..XXX..'],
     weights: { forest: 3, hills: 4, pasture: 6, fields: 3, mountains: 3 }, deserts: 0,
   },
   australia: {
-    name: 'Australia', blurb: 'Four deserts; plenty of wool and ore.',
-    mask: ['....X.X...', '..XXXXXX..', '.XXXXXXXX.', 'XXXXXXXXXX', 'XXXXXXXXX.', '.X...XXX..', '..........', '......X...'],
-    weights: { forest: 3, hills: 4, pasture: 5, fields: 4, mountains: 5 }, deserts: 4,
+    name: 'Australia', blurb: 'Six deserts; plenty of wool and ore.',
+    mask: ['............', '....XX......', '...XXXX.X...', '..XXXXXXX...', '.XXXXXXXXX..', 'XXXXXXXXXX..', '.XXXXXXXXXX.', '.XXXXXXXXX..', '.XX...XXXX..', '.......XX...', '............', '........X...'],
+    weights: { forest: 3, hills: 4, pasture: 5, fields: 4, mountains: 5 }, deserts: 6,
   },
   japan: {
     name: 'Japan', blurb: 'A mountain archipelago strung across the sea.',
-    mask: ['.......XX', '......XXX', '......XX.', '.....XX..', '....XXX..', '..XXXX...', '.XXX.....', 'XX.......', 'X.X......'],
+    mask: ['...........', '.......X...', '........XX.', '.......XX..', '...........', '.......X...', '.......X...', '......XX...', '.....XXX...', '....XXX....', '..XXXXX....', '.XXX.......', 'X.X........', 'X..........'],
     weights: { forest: 5, hills: 3, pasture: 2, fields: 4, mountains: 6 }, deserts: 0,
   },
   italy: {
     name: 'Italy', blurb: 'The boot, with Sicily and Sardinia offshore.',
-    mask: ['XXXXX....', '.XXXX....', '..XXX....', 'X..XXX...', 'X...XXX..', '.....XXX.', '......XX.', '.....X..X', '...XXX...'],
+    mask: ['........', '..XX....', 'XXXX....', 'XXX.....', '..XX....', '..XXX...', '....XX..', 'X...XXX.', '.X....X.', '........', '....XX..', '....X...'],
     weights: { forest: 3, hills: 4, pasture: 4, fields: 5, mountains: 4 }, deserts: 0,
   },
   brazil: {
     name: 'Brazil', blurb: 'Timber everywhere, with wide pastures.',
-    mask: ['..XXXXX...', '.XXXXXXXX.', 'XXXXXXXXXX', 'XXXXXXXXX.', '.XXXXXXX..', '..XXXXX...', '...XXX....', '...XX.....'],
+    mask: ['...X.......', '.XXXXX.....', '.XXXXXXX...', 'XXXXXXXXXX.', 'XXXXXXXXXX.', '..XXXXXXX..', '....XXXXX..', '....XXXXX..', '....XXXXX..', '.....XX....', '.....XX....', '....XX.....'],
     weights: { forest: 7, hills: 4, pasture: 5, fields: 4, mountains: 3 }, deserts: 1,
   },
   france: {
     name: 'France', blurb: 'Wheat and pasture, with Corsica offshore.',
-    mask: ['..XXXX...', '.XXXXXX..', 'XXXXXXXX.', '.XXXXXXX.', '.XXXXXXX.', '..XXXXXX.', '..XXXXX.X', '...XXXX..'],
+    mask: ['...XX...', 'XXXXXX..', '.XXXXX..', '.XXXX...', '.XXXXX..', '.XXXXX..', '..XX....', '......X.'],
     weights: { forest: 4, hills: 3, pasture: 5, fields: 6, mountains: 3 }, deserts: 0,
   },
   spain: {
     name: 'Spain', blurb: 'Dry hills and mountains, with the Balearic Islands.',
-    mask: ['.XXXXXXX..', 'XXXXXXXXX.', '.XXXXXXXXX', '.XXXXXXXX.', '..XXXXXXX.', '..XXXXXX..', '...XXXX..X'],
-    weights: { forest: 3, hills: 5, pasture: 3, fields: 4, mountains: 4 }, deserts: 2,
+    mask: ['.........', 'XXXXX....', '..XXXXX..', '.XXXXX...', '.XXXXX.X.', '.XXXX....', '.XXXX....', '.X.......'],
+    weights: { forest: 3, hills: 5, pasture: 3, fields: 4, mountains: 4 }, deserts: 1,
   },
   germany: {
     name: 'Germany', blurb: 'Forests and farmland from the coast to the Alps.',
-    mask: ['..XXX...', '.XXXXX..', 'XXXXXXX.', '.XXXXXXX', '..XXXXXX', '..XXXXXX', '...XXXXX', '...XXXX.'],
+    mask: ['......', '.XXX..', '.XXXX.', 'XXXXX.', 'XXXXX.', 'XXX...', '.XXX..', '.XXX..'],
     weights: { forest: 6, hills: 3, pasture: 4, fields: 5, mountains: 3 }, deserts: 0,
   },
   china: {
     name: 'China', blurb: 'A huge land of mountains and rice, with Hainan in the south.',
-    mask: ['.....XXX...', '..XXXXXXX..', '.XXXXXXXXX.', '..XXXXXXXX.', '...XXXXXXX.', '....XXXXXX.', '....XXXXX..', '......XXX..', '.........X.'],
-    weights: { forest: 4, hills: 4, pasture: 3, fields: 6, mountains: 5 }, deserts: 2,
+    mask: ['.........X..', '........XXX.', '..XX....XXX.', 'XXXX..XXXX..', 'XXXXXXXXX...', 'XXXXXXXXX...', '.XXXXXXXXX..', '.XXXXXXXXX..', '.....XXXXX..', '....XXXXX...', '.......X....'],
+    weights: { forest: 4, hills: 4, pasture: 3, fields: 6, mountains: 5 }, deserts: 3,
   },
   canada: {
     name: 'Canada', blurb: 'Endless forest and rock, with Arctic islands and Newfoundland.',
-    mask: ['..XX..XXX...', '.XXXXXXXXX..', '.XXXXXXXXXX.', '..XXXXXXXXX.', '..XXXXXXXX.X', '...XXXXXXX..'],
+    mask: ['......X.......', '..............', '...X..........', '.XX...XX......', '.XXXX..XX.....', 'XXXXXXX.X.....', '.XXXXX..XX....', 'XXXXXX..XXX...', '.XXXXXX.XXXXX.', 'XXXXXXXXXXX...', '.....XXXXXXX..', '........X.....'],
     weights: { forest: 9, hills: 2, pasture: 3, fields: 4, mountains: 5 }, deserts: 1,
   },
   mexico: {
     name: 'Mexico', blurb: 'Deserts and sierras, with Baja and the Yucat\u00e1n.',
-    mask: ['X..XXXXXXX..', 'XX.XXXXXXX..', '.X..XXXXXXX.', '...XXXXXXX..', '....XXXXXX.X', '....XXXXX.XX', '.....XXXX...', '......XXX...'],
-    weights: { forest: 3, hills: 4, pasture: 3, fields: 4, mountains: 4 }, deserts: 3,
+    mask: ['..............', 'X.............', '.XXXX.........', '..XXXXX.......', '...XXXXX......', '...XXXXX......', '....XXXX......', '....XXXX...X..', '.....XXXX..XX.', '......XXXXX...', '..........X...'],
+    weights: { forest: 3, hills: 4, pasture: 3, fields: 4, mountains: 4 }, deserts: 2,
   },
   argentina: {
     name: 'Argentina', blurb: 'Pampas, the Andes and windswept Patagonia, down to Tierra del Fuego.',
-    mask: ['..XXXXXX.', '.XXXXXXX.', '..XXXXXX.', '..XXXXXX.', '...XXXXX.', '...XXXX..', '...XXXX..', '....XXX..', '....XXX..', '.....XX..', '....XX...'],
+    mask: ['.XXX...', '.XXX...', '.XXXXX.', 'XXXXX..', 'XXXXX..', 'XXXX...', 'XXXXX..', 'XXXX...', 'XXX....', 'XX.....', 'XX.....', 'X......', 'XX.....', 'X......', '.......', '.X.....'],
     weights: { forest: 3, hills: 3, pasture: 7, fields: 6, mountains: 6 }, deserts: 2,
   },
   newzealand: {
     name: 'New Zealand', blurb: 'Sheep country across two islands.',
-    mask: ['.....XX...', '....XXXX..', '....XXXXX.', '.....XXX..', '..XX.XX...', '.XXXX.....', 'XXXXX.....', 'XXXXX.....', '.XXXX.....', '..XXX.....', '...XX.....'],
+    mask: ['......X..', '.....XXX.', '.....XXX.', '.....XX..', '....X.X..', '...XX....', '...XX....', '.XXX.....', '.XX......', 'XXX......', '.X.......'],
     weights: { forest: 4, hills: 2, pasture: 8, fields: 3, mountains: 5 }, deserts: 0,
   },
 };
