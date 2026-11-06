@@ -479,7 +479,7 @@ function startSession(sess, soft = false) {   // soft: reconnect without clearin
   es.addEventListener('board', e => {
     const fresh = S.boardFor !== sess.code;
     S.board = JSON.parse(e.data); S.boardFor = sess.code; S.boardRev = (S.boardRev || 0) + 1; S.shellReady = false;
-    if (fresh || !S.vb || S.shownKey !== S.board.key) { S.shownKey = S.board.key; S.base = bounds(S.board, VIEW_PAD); S.base.y -= TOP_EXTRA(); S.base.h += TOP_EXTRA(); S.vb = { ...S.base }; S.shellReady = false; }
+    if (fresh || !S.vb || S.shownKey !== S.board.key) { S.shownKey = S.board.key; S.base = bounds(S.board, VIEW_PAD); S.base.y -= TOP_EXTRA(); S.base.h += TOP_EXTRA(); S.vb = { ...S.base }; S.needFit = true; S.shellReady = false; }
   });
   es.addEventListener('state', e => { opened = true; onState(JSON.parse(e.data)); });
   es.onerror = () => {
@@ -920,12 +920,33 @@ function applyVB() {
 function svgPoint(svg, cx, cy) { const p = svg.createSVGPoint(); p.x = cx; p.y = cy; return p.matrixTransform(svg.getScreenCTM().inverse()); }
 function zoomAt(svg, cx, cy, f) {
   const p = svgPoint(svg, cx, cy), v = S.vb;
-  const w = Math.max(S.base.w * 0.3, Math.min(S.base.w * 1.25, v.w / f)); const k = v.w / w;
+  const w = Math.max(S.base.w * 0.3, Math.min(Math.max(S.base.w * 1.25, (S.fitW || 0) * 1.15), v.w / f)); const k = v.w / w;
   S.vb = { x: p.x - (p.x - v.x) / k, y: p.y - (p.y - v.y) / k, w, h: v.h / k };
   applyVB();
 }
 function zoomCenter(f) { const svg = $('#board'), r = svg.getBoundingClientRect(); zoomAt(svg, r.left + r.width / 2, r.top + r.height / 2, f); }
+// The view keeps the same scale on screen. When the board area changes height (a longer hint, a bar appearing), the map does not
+// shrink or grow: a little more or less sea shows at the bottom instead. Only pinch, the wheel, or a double tap change the zoom.
+function fitVB(W, H) {
+  const B = S.base, s = Math.min(W / B.w, H / B.h), w = W / s, h = H / s;
+  S.fitW = w;
+  return { x: B.x - (w - B.w) / 2, y: B.y, w, h };   // centred across, top aligned
+}
+function boardPx(svg) { const r = svg.getBoundingClientRect(); return [r.width, r.height, r.top]; }
 function setupPanZoom(svg) {
+  if (window.ResizeObserver) new ResizeObserver(() => {
+    if (!svg.isConnected || !S.base) return;
+    const [W, H, T] = boardPx(svg); if (!W || !H) return;
+    if (S.needFit || !S.vb || !S.boardPx) { S.vb = fitVB(W, H); S.needFit = false; }
+    else {
+      const [w0, h0, t0] = S.boardPx;
+      if (w0 !== W || h0 !== H || t0 !== T) {   // same scale, more or less map shown; the tiles stay where they were on screen
+        const v = S.vb, unit = v.w / w0, nw = v.w * W / w0, nh = v.h * H / h0;
+        v.x += (v.w - nw) / 2; v.y += (T - t0) * unit; v.w = nw; v.h = nh;
+      }
+    }
+    S.boardPx = [W, H, T]; applyVB();
+  }).observe(svg);
   const pts = new Map(); let downTarget = null, moved = 0, pinchD = 0, lastTap = null;   // pinch or the mouse wheel to zoom, double tap to fit
   svg.addEventListener('pointerdown', e => {
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -954,7 +975,7 @@ function setupPanZoom(svg) {
     pts.delete(e.pointerId); svg.classList.remove('dragging');
     if (e.type === 'pointerup' && pts.size === 0 && moved <= 8) {
       const now = Date.now(), plain = !(downTarget && downTarget.closest && downTarget.closest('[data-v],[data-e],[data-t],[data-confirm],[data-keep]'));
-      if (plain && lastTap && now - lastTap.t < 330 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 30) { lastTap = null; S.vb = { ...S.base }; applyVB(); return; }
+      if (plain && lastTap && now - lastTap.t < 330 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 30) { lastTap = null; const [W, H, T] = boardPx(svg); S.vb = W && H ? fitVB(W, H) : { ...S.base }; S.boardPx = [W, H, T]; applyVB(); return; }
       lastTap = plain ? { t: now, x: e.clientX, y: e.clientY } : null;
       onBoardTap(downTarget);
     }
