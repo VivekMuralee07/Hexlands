@@ -970,3 +970,22 @@ span.pcardx { cursor: default; }
 .rc-card b { font-size: 1.3em; color: var(--brass-lit); }
 .rc-card p { margin: 0; line-height: 1.45; }
 .rc-card .row { justify-content: center; }
+
+/* the green square that confirms a placement */
+.okbtn { cursor: pointer; }
+.okbtn .okin { transform-box: fill-box; transform-origin: center; }
+@media (prefers-reduced-motion: no-preference) { .okbtn .okin { animation: okpop .2s ease-out 1, okpulse 1s ease-in-out .2s infinite alternate; } }
+@keyframes okpop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes okpulse { from { transform: scale(1); } to { transform: scale(1.1); } }
+.okbtn:hover .okin rect { fill: #27b552; }
+
+/* a slimmer bottom dock on phones, so the map gets more room */
+@media (max-width: 760px) {
+  .dock { padding: .2rem .4rem; padding-bottom: max(.2rem, env(safe-area-inset-bottom)); gap: .2rem; }
+  .hand { padding-top: 5px; gap: .28rem; }
+  .card { width: 38px; height: 44px; border-radius: 7px; } .card .ic { width: 20px; height: 20px; padding: 2px; }
+  .card .lbl { font-size: .5em; bottom: 2px; }
+  .card .n { min-width: 18px; height: 18px; font-size: .72em; top: -6px; right: -6px; }
+  .actions .act { min-height: 32px; padding-top: .1em; padding-bottom: .1em; }
+  .actions .act .ic { width: 18px; height: 18px; }
+}

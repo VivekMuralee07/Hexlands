@@ -105,7 +105,7 @@ function bounds(b, pad = 70) {
   (b.ports || []).forEach(p => { add(p.x * U, p.y * U, 34); add(p.x * U, p.y * U - 44, 5); });   // the ship and its pennants   // plate, plus the boat above it
   return { x: x0 - pad, y: y0 - pad, w: x1 - x0 + 2 * pad, h: y1 - y0 + 2 * pad };
 }
-const SIDE = { diamond: '#0c1534', goblet: '#0d141c', forest: '#0e6527', hills: '#9a431d', pasture: '#637a07', fields: '#a57e18', mountains: '#6f7370', desert: '#89845a' };
+const SIDE = { diamond: '#0c1534', goblet: '#0d141c', forest: '#0a7a2c', hills: '#a83f0e', pasture: '#5e9a08', fields: '#b38a05', mountains: '#5f78a8', desert: '#b49a52' };   // the side of each tile, a darker shade of its colour
 function shade(hex, f) {
   const n = parseInt(hex.slice(1), 16);
   const ch = [n >> 16, (n >> 8) & 255, n & 255].map(c => Math.max(0, Math.min(255, Math.round(f < 0 ? c * (1 + f) : c + (255 - c) * f))));
@@ -114,9 +114,13 @@ function shade(hex, f) {
 function tileSvg(t, attrs = '') {
   if (t.terrain === 'fog') return '';   // fog is drawn as a cloud by fogLayer
   return `<g transform="translate(${t.x * U} ${t.y * U})" ${attrs}><g transform="scale(.955)">`
-    + `<polygon points="${ART.HEX}" transform="translate(0 9)" fill="#7a4a10" opacity=".35"/>`
-    + `<polygon points="${ART.HEX}" transform="translate(0 5)" fill="${SIDE[t.terrain] || '#444'}"/>`
+    + `<polygon points="${ART.HEX}" transform="translate(0 15)" fill="#3a2508" opacity=".3"/>`                       // contact shadow
+    + `<polygon points="${ART.HEX}" transform="translate(0 10)" fill="${shade(SIDE[t.terrain] || '#444444', -.35)}"/>`   // the slab: lower side
+    + `<polygon points="${ART.HEX}" transform="translate(0 5)" fill="${SIDE[t.terrain] || '#444'}"/>`                    // upper side
     + `<g clip-path="url(#c-hex)"><use href="#t-${t.terrain}" x="-60" y="-60" width="120" height="120"/></g>`
+    + `<polygon points="${ART.HEX}" fill="url(#g-bevel)"/>`                                                              // light from above
+    + `<polyline points="-52,30 -52,-30 0,-60 52,-30" transform="scale(.93)" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="3" stroke-linejoin="round"/>`
+    + `<polyline points="52,-30 52,30 0,60 -52,30" transform="scale(.93)" fill="none" stroke="#000" stroke-opacity=".22" stroke-width="3" stroke-linejoin="round"/>`
     + `<polygon points="${ART.HEX}" fill="none" stroke="#fff8e0" stroke-width="3.6" stroke-linejoin="round"/>`
     + `<polygon points="${ART.HEX}" transform="scale(.94)" fill="none" stroke="#fff" stroke-opacity=".25" stroke-width="1.5"/></g></g>`;
 }
@@ -174,14 +178,15 @@ function fogLayer(b) {
 }
 function staticLayer(b) {
   const v = bounds(b, 140);
-  const poly = (sc, fill, op = 1) => b.tiles.filter(t => t.terrain !== 'fog').map(t => `<polygon points="${ART.HEX}" transform="translate(${t.x * U} ${t.y * U}) scale(${sc})" fill="${fill}" opacity="${op}"/>`).join('');
+  const poly = (sc, fill, op = 1, dy = 0) => b.tiles.filter(t => t.terrain !== 'fog').map(t => `<polygon points="${ART.HEX}" transform="translate(${t.x * U} ${t.y * U + dy}) scale(${sc})" fill="${fill}" opacity="${op}"/>`).join('');
+  const islandShadow = [[1.42, 30, .09], [1.36, 22, .12], [1.32, 14, .14]].map(([sc, dy, op]) => `<g>${poly(sc, '#021b3d', op, dy)}</g>`).join('');
   let seed = 12345; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const sparkles = Array.from({ length: 30 }, () => {
     const x = v.x + rnd() * v.w, y = v.y + rnd() * v.h, sc = .6 + rnd() * .9, dur = 2.4 + rnd() * 2.6, begin = rnd() * 4;
     return `<path d="M0,-6 L1.6,-1.6 L6,0 L1.6,1.6 L0,6 L-1.6,1.6 L-6,0 L-1.6,-1.6Z" transform="translate(${x.toFixed(0)} ${y.toFixed(0)}) scale(${sc.toFixed(2)})" fill="#fff" opacity="0"><animate attributeName="opacity" values="0;.85;0" dur="${dur.toFixed(1)}s" begin="${begin.toFixed(1)}s" repeatCount="indefinite"/></path>`;
   }).join('');
   const sorted = b.tiles.slice().sort((p, q) => p.y - q.y || p.x - q.x);
-  return [[1.31, '#4f9fcb'], [1.27, '#7bd0f9'], [1.2, '#dfeadd'], [1.17, '#f0d9a2'], [1.09, '#dfb86d']].map(([sc, col]) => `<g>${poly(sc, col)}</g>`).join('')
+  return islandShadow + [[1.31, '#4f9fcb'], [1.27, '#7bd0f9'], [1.2, '#dfeadd'], [1.17, '#f0d9a2'], [1.09, '#dfb86d']].map(([sc, col]) => `<g>${poly(sc, col)}</g>`).join('')
     + fogLayer(b)
     + (b.ports || []).map(portSvg).join('')
     + sorted.map(t => tileSvg(t)).join('')
@@ -799,14 +804,14 @@ function highlights() {
   const kinds = Object.values(sets).filter(a => a.length).length, big = kinds === 1, mixed = kinds > 1;
   const road = e => {
     const [a, c] = S.board.edges[e].v.map(i => V[i]), mx = (a.x + c.x) / 2 * U, my = (a.y + c.y) / 2 * U, ang = Math.atan2(c.y - a.y, c.x - a.x) * 180 / Math.PI;
-    const r = big ? 25 : 14, xy = `x1="${a.x * U}" y1="${a.y * U}" x2="${c.x * U}" y2="${c.y * U}"`;
+    const r = big ? 20 : 12, xy = `x1="${a.x * U}" y1="${a.y * U}" x2="${c.x * U}" y2="${c.y * U}"`;
     return `<line class="ehit" ${xy} data-e="${e}"/><g class="hs" data-e="${e}" transform="translate(${mx} ${my})"><circle class="hc" r="${r}"/><circle r="${big ? 25 : 21}" fill="transparent"/>`
       + (mixed ? `<g class="hg" transform="rotate(${ang}) scale(${r / 27})"><rect x="-17" y="-6" width="34" height="12" rx="6" fill="${col}" stroke="#1b1b1b" stroke-width="2.5"/></g>` : '') + `</g>`;
   };
   const heistSpot = v => `<g class="hs heist" data-v="${v}" data-k="heist" transform="translate(${V[v].x * U} ${V[v].y * U})"><circle class="hc heist" r="${big ? 38 : 32}"/><circle r="${big ? 38 : 32}" fill="transparent"/></g>`;
   const spot = (v, kind) => {
-    const city = kind === 'city', r = city ? (big ? 32 : 20) : (big ? 27 : 17), k = city ? r / 30 : r / 22;
-    return `<g class="hs" data-v="${v}" data-k="${kind}" transform="translate(${V[v].x * U} ${V[v].y * U})"><circle class="hc ${city ? 'city' : ''}" r="${r}"/><circle r="${big ? r : 23}" fill="transparent"/>`
+    const city = kind === 'city', r = city ? (big ? 26 : 17) : (big ? 22 : 14), hit = city ? (big ? 32 : 23) : (big ? 27 : 23), k = city ? r / 30 : r / 22;
+    return `<g class="hs" data-v="${v}" data-k="${kind}" transform="translate(${V[v].x * U} ${V[v].y * U})"><circle class="hc ${city ? 'city' : ''}" r="${r}"/><circle r="${hit}" fill="transparent"/>`
       + (mixed ? `<g class="hg" transform="scale(${k}) translate(0 ${city ? 6 : 2})">${pieceGlyph(city ? 'city' : 'settle', col)}</g>` : '') + `</g>`;
   };
   const P = S.pick, not = (type, id) => !(P && P.type === type && P.id === id);
@@ -814,18 +819,32 @@ function highlights() {
   if (P && P.type === 'road') {
     const [a, c] = S.board.edges[P.id].v.map(i => V[i]), ax = a.x * U, ay = a.y * U, cx = c.x * U, cy = c.y * U, k = .14;
     const x1 = ax + (cx - ax) * k, y1 = ay + (cy - ay) * k, x2 = cx - (cx - ax) * k, y2 = cy - (cy - ay) * k, ln = (w, stroke, extra = '') => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${stroke}" stroke-width="${w}" stroke-linecap="round" ${extra}/>`;
-    preview = `<g class="pv" data-confirm="1" role="button" aria-label="Tap to build this road">${ln(52, 'transparent')}${ln(27, '#fff', 'stroke-opacity=".9"')}${ln(22.5, '#1b1b1b')}${ln(16.5, col)}${ln(4, '#fff', 'stroke-opacity=".4" transform="translate(0 -3.5)"')}</g>`;
+    preview = `<g class="pv" data-keep="1">${ln(52, 'transparent')}${ln(27, '#fff', 'stroke-opacity=".9"')}${ln(22.5, '#1b1b1b')}${ln(16.5, col)}${ln(4, '#fff', 'stroke-opacity=".4" transform="translate(0 -3.5)"')}</g>`;
   } else if (P) {
     const city = P.type === 'city', x = V[P.id].x * U, y = V[P.id].y * U, r = city ? 48 : 40;
-    preview = `<g class="pv" data-confirm="1" role="button" aria-label="Tap to build"><g transform="translate(${x} ${y})"><circle class="pvring" r="${r}"/><g transform="scale(${city ? 1.3 : 1.72})" filter="url(#f-shadow)">${city ? cityHouseSvg(col, true) : houseSvg(col, true)}</g></g></g>`;
+    preview = `<g class="pv" data-keep="1"><g transform="translate(${x} ${y})"><circle class="pvring" r="${r}"/><g transform="scale(${city ? 1.3 : 1.72})" filter="url(#f-shadow)">${city ? cityHouseSvg(col, true) : houseSvg(col, true)}</g></g></g>`;
   }
   if (P && P.type === 'heist') preview = heistRoads(P.id).map(e => roadGhost(e, col)).join('') + preview;   // the roads you take along
+  if (P) preview += okButton(P);
   return sets.road.filter(e => not('road', e)).map(road).join('') + sets.settle.filter(v => not('settle', v)).map(v => spot(v, 'settle')).join('') + sets.city.filter(v => not('city', v)).map(v => spot(v, 'city')).join('') + sets.heist.filter(v => not('heist', v)).map(heistSpot).join('') + preview;
 }
 
+// The small green square that appears above the chosen spot. Only tapping it builds; the preview itself does nothing.
+function okButton(P) {
+  const V = S.board.vertices, b = bounds(S.board, 0);
+  let x, y, gap;
+  if (P.type === 'road') { const [a, c] = S.board.edges[P.id].v.map(i => V[i]); x = (a.x + c.x) / 2 * U; y = (a.y + c.y) / 2 * U; gap = 52; }
+  else { x = V[P.id].x * U; y = V[P.id].y * U; gap = P.type === 'city' ? 76 : 70; }
+  const by = y - gap < b.y + 26 ? y + gap : y - gap;   // below the spot when there is no room above it
+  const label = P.type === 'heist' ? 'Steal it' : 'Place it';
+  return `<g class="okbtn" data-confirm="1" role="button" aria-label="${label}" transform="translate(${x} ${by})"><rect x="-34" y="-34" width="68" height="68" fill="transparent"/>`
+    + `<g class="okin"><rect x="-21" y="-21" width="42" height="42" rx="9" fill="#1f9d45" stroke="#fff" stroke-width="4" filter="url(#f-shadow)"/>`
+    + `<path d="M-10,1 L-3,8 L11,-7" stroke="#fff" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g></g>`;
+}
 async function onBoardTap(el) {
   const mode = currentMode(); if (!mode || !el) return;
-  if (mode !== 'robber' && S.pick && el.closest('[data-confirm]')) return confirmPick();   // second tap: the piece itself
+  if (mode !== 'robber' && S.pick && el.closest('[data-confirm]')) return confirmPick();   // second tap: the green square
+  if (S.pick && el.closest('[data-keep]')) return;                                         // tapping the preview again: nothing
   const t = el.closest('[data-v],[data-e],[data-t]');
   if (!t) { if (S.pick) { S.pick = null; updateGame(); } return; }                          // tapping the sea or a tile cancels the preview
   if (t.dataset.v != null) { S.pick = { type: t.dataset.k === 'city' ? 'city' : t.dataset.k === 'heist' ? 'heist' : 'settle', id: +t.dataset.v }; updateGame(); }
@@ -836,7 +855,7 @@ async function onBoardTap(el) {
     act({ type: 'robber', tile, victim: victims[0] });
   }
 }
-// The tapped spot shows the piece in your color with a green tick. Tapping that piece builds it.
+// The tapped spot shows the piece in your colour, with a green square above it. Tapping the square builds it.
 async function confirmPick() {
   const p = S.pick; if (!p || S.placing) return;
   S.placing = true;
@@ -862,7 +881,7 @@ function roadGhost(e, color) {
   const x1 = ax + (cx - ax) * k, y1 = ay + (cy - ay) * k, x2 = cx - (cx - ax) * k, y2 = cy - (cy - ay) * k, ln = (w, stroke) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${stroke}" stroke-width="${w}" stroke-linecap="round"/>`;
   return `<g class="pvroad" pointer-events="none">${ln(27, '#fff')}${ln(22.5, '#1b1b1b')}${ln(16.5, color)}</g>`;
 }
-function pickText() { const k = S.pick.type; return k === 'heist' ? `Tap the settlement again to steal it${heistRoads(S.pick.id).length ? ' and its 2 roads' : ''}, or tap another one` : `Tap the ${k === 'road' ? 'road' : k === 'city' ? 'city' : 'settlement'} to place it, or tap another spot`; }
+function pickText() { const k = S.pick.type; return k === 'heist' ? `Tap the green \u2713 to steal it${heistRoads(S.pick.id).length ? ' and its 2 roads' : ''}, or tap another settlement` : `Tap the green \u2713 to place the ${k === 'road' ? 'road' : k === 'city' ? 'city' : 'settlement'}, or tap another spot`; }
 function modeSets(mode) {
   const sets = { road: [], settle: [], city: [], heist: [] }, st = S.state;
   if (mode === 'setupSettle') sets.settle = validSettle(false);
