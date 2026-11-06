@@ -989,3 +989,24 @@ span.pcardx { cursor: default; }
   .actions .act { min-height: 32px; padding-top: .1em; padding-bottom: .1em; }
   .actions .act .ic { width: 18px; height: 18px; }
 }
+
+/* the dice button at the bottom right of the map (rolling) */
+.zoom .rollbtn { min-width: 60px; min-height: 60px; padding: 4px 4px 3px; display: grid; place-items: center; gap: 0; border-radius: 14px;
+  background: linear-gradient(#ffe48a, #ffbf2b 60%, #f08c12); color: #2a1a00; border: 2px solid #7a5512; box-shadow: 0 6px 16px rgba(0, 0, 0, .45); justify-self: end; }
+.zoom .rollbtn[hidden] { display: none; }
+.zoom .rollbtn svg { width: 44px; height: 36px; }
+.zoom .rollbtn span { font-weight: 900; font-size: .72rem; line-height: 1; margin-top: -1px; letter-spacing: .02em; }
+.zoom .rollbtn:disabled { opacity: .6; }
+@media (prefers-reduced-motion: no-preference) { .zoom .rollbtn:not([hidden]):not(:disabled) { animation: rollnudge 1.2s ease-in-out infinite; } }
+@keyframes rollnudge { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-3px) rotate(-3deg); } }
+
+/* buying the Dev card or the Heist, inside the trade window */
+.tw-buys { display: flex; gap: .35rem; flex-wrap: wrap; justify-content: flex-start; padding: .3rem 0 0; }
+.tw-buy { display: inline-flex; align-items: center; gap: .35rem; padding: .35rem .65rem; border-radius: 10px; border: 2px solid #7a5512; cursor: pointer;
+  background: linear-gradient(#ffe48a, #ffbf2b 60%, #f08c12); color: #2a1a00; font-weight: 800; font-size: .8rem; font-family: inherit; white-space: nowrap; }
+.tw-buy > .ic { width: 20px; height: 20px; }
+.tw-buy .cost { display: inline-flex; gap: 1px; } .tw-buy .cost .ic { width: 14px; height: 14px; }
+.tw-buy.heist { background: linear-gradient(#efe6ff, #c3adf6 60%, #9a7ae0); border-color: #4a2f8a; }
+
+/* the player bar sits a little higher on phones */
+@media (max-width: 760px) { .players { row-gap: .7rem; } }

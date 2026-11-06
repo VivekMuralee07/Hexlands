@@ -660,7 +660,7 @@ function buildShell(app) {
       </svg>
       <div class="dice" id="dice"></div><div class="awards" id="awards"></div><div class="offer" id="offer"></div><div class="awaybar" id="awaybar" hidden></div><div class="reconnect" id="reconnect" hidden></div><div class="tradewin" id="tradewin" hidden></div>
       <div class="gbtns"><button class="gbtn drawer-toggle" id="logbtn" title="Messages" aria-label="Messages">${GB_ICON.msg}</button><button class="gbtn" id="quit" title="Leave game" aria-label="Leave game">${GB_ICON.exit}</button></div>
-      <div class="zoom"><button class="btn" id="zin" aria-label="Zoom in">+</button><button class="btn" id="zout" aria-label="Zoom out">−</button><button class="btn" id="zfit" aria-label="Fit board">⤢</button></div>
+      <div class="zoom"><button class="btn" id="zin" aria-label="Zoom in">+</button><button class="btn" id="zout" aria-label="Zoom out">−</button><button class="btn" id="zfit" aria-label="Fit board">⤢</button><button class="btn rollbtn" id="rollbtn" hidden aria-label="Roll the dice">${twoDice()}<span>Roll</span></button></div>
     </main></section>
     <aside class="side" id="side"><div class="panel"><h3>Ship's log</h3><div class="mutebar" id="mutebar" hidden></div><div class="log" id="log"></div>
       <form class="chatform" id="chat"><input id="chatin" maxlength="200" placeholder="Message the table" autocomplete="off" aria-label="Chat message"><button class="btn small">Send</button></form><p class="chatnote" id="chatnote" hidden>Public room: be kind and no links. Tap ⋯ on a message to report or mute.</p></div></aside>
@@ -688,7 +688,7 @@ function buildShell(app) {
 function updateGame() {
   validatePick();
   const st = S.state;
-  drawAway(); drawLink(); { const n = $('#chatnote'); if (n) n.hidden = !(st.net && st.net.public); } drawDyn(); drawPlayers(); drawBanner(); drawHand(); drawActions(); drawLog(); drawOffer(); drawClock(); drawSetupStrip(); drawPlacing(); drawTrade(); drawDiamond();
+  drawAway(); drawLink(); drawRollBtn(); { const n = $('#chatnote'); if (n) n.hidden = !(st.net && st.net.public); } drawDyn(); drawPlayers(); drawBanner(); drawHand(); drawActions(); drawLog(); drawOffer(); drawClock(); drawSetupStrip(); drawPlacing(); drawTrade(); drawDiamond();
   syncModals();
 }
 
@@ -1023,7 +1023,7 @@ function drawBanner() {
   else if (st.subphase === 'roadBuilding') t = mine ? `Place ${plural(st.freeRoads, 'free road')}` : `${p.name} is placing free roads`;
   else if (mine) {
     const m = currentMode();
-    t = !st.rolled ? 'Your turn: roll the dice' : m === 'road' ? 'Tap a glowing edge to build a road' : m === 'settle' ? 'Tap a glowing corner to settle' : m === 'city' ? 'Tap one of your settlements to upgrade it' : m === 'auto' && autoCount() ? 'Tap a glowing spot to build, tap your cards to trade, or end your turn' : 'Build, trade, or end your turn';
+    t = !st.rolled ? 'Your turn: tap the dice to roll' : m === 'road' ? 'Tap a glowing edge to build a road' : m === 'settle' ? 'Tap a glowing corner to settle' : m === 'city' ? 'Tap one of your settlements to upgrade it' : m === 'auto' && autoCount() ? 'Tap a glowing spot to build, tap your cards to trade, or end your turn' : 'Build, trade, or end your turn';
   } else t = p.bot ? `${p.name} is thinking…` : `${p.name}'s turn`;
   if (currentMode() === 'heist' && !S.pick) t = 'Heist! Tap the settlement you want to steal';
   if (S.pick && mine) t = pickText();
@@ -1106,23 +1106,26 @@ function drawActions() {
   }
   const m = S.mode;
   const btn = (id, label, ic, cost, enabled, pressed) => `<button class="act" id="${id}" ${enabled ? '' : 'disabled'} aria-pressed="${!!pressed}">${icon(ic)}${label}${cost ? costIcons(cost) : ''}</button>`;
-  if (!st.rolled) {
+  if (!st.rolled) {   // rolling is the dice button on the map; a Knight can still be played first
     const knight = st.me.dev.some(d => d.type === 'knight' && !d.fresh) && !st.devPlayed;
-    box.innerHTML = `<button class="act go" id="roll">${diceIcon()}Roll dice</button>` + (knight ? btn('kn', 'Knight', 'knight', null, true) : '');
-    $('#roll').onclick = async e => { e.currentTarget.disabled = true; const r = await act({ type: 'roll' }); if (!r.ok && $('#roll')) $('#roll').disabled = false; };
+    box.innerHTML = knight ? btn('kn', 'Play a Knight first', 'knight', null, true) : '';
     if ($('#kn')) $('#kn').onclick = () => act({ type: 'playDev', card: 'knight' });
     return;
   }
-  // No build or trade buttons: every legal spot glows on the map once you can afford it, and tapping your cards opens trading.
-  // The Heist card: 3 cities (4 in games above 10 points), 1 wood, 1 brick, 1 hay, 2 sheep and 1 ore, once per game.
-  const cities = 4 - P.pieces.city, why = cities < st.heist.need ? `Needs ${st.heist.need} cities first (you have ${cities})` : !canAfford(COST.heist) ? 'Needs 1 wood, 1 brick, 1 hay, 2 sheep and 1 ore' : '';
-  const heistBtn = st.me.heistBought ? '' : `<button class="act ${why ? 'dim' : ''}" id="b-heist" title="${why || 'Buy the Heist card'}" aria-disabled="${!!why}">${icon('heist')}Heist${costIcons(COST.heist)}</button>`;
-  box.innerHTML = btn('b-dev', 'Dev card', 'dev', COST.dev, canAfford(COST.dev) && st.devLeft > 0)
-    + heistBtn + `<button class="act go" id="b-end">${icon('vp')}End turn</button>`;
-  $$('#actions .act .ic').forEach(i => { i.style.color = P.color; });
-  $('#b-dev').onclick = async () => { const r = await act({ type: 'buyDev' }); if (r.ok && r.result) toast(`${icon(r.result.card)} You drew ${DEV[r.result.card].name}`, 'gain', true); };
-  if ($('#b-heist')) $('#b-heist').onclick = async () => { if (why) return toast(why, 'err'); const r = await act({ type: 'buyHeist' }); if (r.ok) toast(`${icon('heist')} You bought the Heist card. Play it next turn.`, 'gain', true); };
+  // Only End turn here: building spots glow on the map, and the Dev card and the Heist are bought in the trade window when you can afford them.
+  box.innerHTML = `<button class="act go" id="b-end">${icon('vp')}End turn</button>`;
   $('#b-end').onclick = () => { S.mode = null; act({ type: 'endTurn' }); };
+}
+function twoDice() { return `<svg viewBox="0 0 48 40" aria-hidden="true"><g transform="rotate(-12 14 22)"><rect x="3" y="9" width="22" height="22" rx="5" fill="#fffdf6" stroke="#182730" stroke-width="2"/><circle cx="9" cy="15" r="2.3" fill="#182730"/><circle cx="14" cy="20" r="2.3" fill="#182730"/><circle cx="19" cy="25" r="2.3" fill="#182730"/></g><g transform="rotate(10 34 18)"><rect x="23" y="5" width="22" height="22" rx="5" fill="#e8302a" stroke="#182730" stroke-width="2"/><circle cx="29" cy="11" r="2.3" fill="#fff"/><circle cx="39" cy="11" r="2.3" fill="#fff"/><circle cx="29" cy="21" r="2.3" fill="#fff"/><circle cx="39" cy="21" r="2.3" fill="#fff"/></g></svg>`; }
+// The dice button at the bottom right of the map: shown only when it is your turn to roll.
+function drawRollBtn() {
+  const btn = $('#rollbtn'); if (!btn) return;
+  const st = S.state, mine = st.players[me()], show = myTurn() && st.phase === 'main' && !st.rolled && !st.subphase && !(mine && mine.takenOver);
+  btn.hidden = !show;
+  if (show && !btn.dataset.bound) {
+    btn.dataset.bound = '1';
+    btn.onclick = async () => { if (btn.disabled) return; btn.disabled = true; try { await act({ type: 'roll' }); } finally { btn.disabled = false; } };
+  }
 }
 function diceIcon() { return `<svg class="ic" viewBox="0 0 32 32"><rect x="4" y="4" width="24" height="24" rx="5" fill="#fffdf6" stroke="#182730" stroke-width="2"/><circle cx="11" cy="11" r="2.4" fill="#182730"/><circle cx="16" cy="16" r="2.4" fill="#182730"/><circle cx="21" cy="21" r="2.4" fill="#182730"/></svg>`; }
 
@@ -1267,6 +1270,13 @@ const TW_ICON = {
   down: '<svg class="arr" viewBox="0 0 24 28"><path d="M8,2 H16 V13 H21 L12,25 L3,13 H8Z" fill="#36c24f" stroke="#0e5d20" stroke-width="1.6" stroke-linejoin="round"/></svg>',
   up: '<svg class="arr" viewBox="0 0 24 28"><path d="M8,26 H16 V15 H21 L12,3 L3,15 H8Z" fill="#e33a33" stroke="#7a1511" stroke-width="1.6" stroke-linejoin="round"/></svg>',
 };
+// Shown in the trade window only when you can afford them (and, for the Heist, have the cities it needs).
+function buyRow() {
+  const st = S.state, P = st.players[me()], cities = 4 - P.pieces.city, out = [];
+  if (canAfford(COST.dev) && st.devLeft > 0) out.push(`<button class="tw-buy" id="tw-dev">${icon('dev')}<span>Buy a Dev card</span>${costIcons(COST.dev)}</button>`);
+  if (!st.me.heistBought && cities >= st.heist.need && canAfford(COST.heist)) out.push(`<button class="tw-buy heist" id="tw-heist">${icon('heist')}<span>Buy the Heist</span>${costIcons(COST.heist)}</button>`);
+  return out.length ? `<div class="tw-buys">${out.join('')}</div>` : '';
+}
 function drawTrade() {
   const el = $('#tradewin'); if (!el) return;
   const st = S.state, ok = S.tw && myTurn() && st.phase === 'main' && st.rolled && !st.subphase;
@@ -1296,6 +1306,7 @@ function drawTrade() {
         <p class="tw-hint" id="tw-hint">${esc(hint)}</p>
       </div>
       <div class="tw-panel tw-hand">${handRow}</div>
+      ${buyRow()}
     </div>
     <div class="tw-btns">
       <button class="tw-btn" id="tw-bank" ${bank ? '' : 'disabled'} title="Trade with the bank" aria-label="Trade with the bank">${TW_ICON.bank}<span class="tick">${TW_ICON.check}</span></button>
@@ -1313,6 +1324,8 @@ function drawTrade() {
     for (let i = 0; i < bank.m; i++) { const r = await act({ type: 'bankTrade', give: bank.g, get: bank.w }); if (!r.ok) break; }
     if (S.tw) { S.tw.give = {}; S.tw.get = {}; drawTrade(); }
   };
+  if ($('#tw-dev')) $('#tw-dev').onclick = async () => { const r = await act({ type: 'buyDev' }); if (r.ok && r.result) toast(`${icon(r.result.card)} You drew ${DEV[r.result.card].name}`, 'gain', true); drawTrade(); };
+  if ($('#tw-heist')) $('#tw-heist').onclick = async () => { const r = await act({ type: 'buyHeist' }); if (r.ok) toast(`${icon('heist')} You bought the Heist card. Play it next turn.`, 'gain', true); drawTrade(); };
   if (player) $('#tw-players').onclick = async () => {
     const clean = o => Object.fromEntries(Object.entries(o).filter(([, n]) => n));
     const r = await act({ type: 'offer', give: clean(T.give), get: clean(T.get) });
