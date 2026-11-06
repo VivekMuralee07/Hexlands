@@ -1010,3 +1010,13 @@ span.pcardx { cursor: default; }
 
 /* the player bar sits a little higher on phones */
 @media (max-width: 760px) { .players { row-gap: .7rem; } }
+
+/* the End button: the same corner as the dice button, once you have rolled */
+.zoom .endbtn { min-width: 60px; min-height: 60px; padding: 4px 4px 3px; display: grid; place-items: center; gap: 0; border-radius: 14px;
+  background: linear-gradient(#5fe0a6, #22b874 60%, #128a55); color: #062b1c; border: 2px solid #0b5a39; box-shadow: 0 6px 16px rgba(0, 0, 0, .45); justify-self: end; }
+.zoom .endbtn[hidden] { display: none; }
+.zoom .endbtn svg { width: 36px; height: 36px; }
+.zoom .endbtn span { font-weight: 900; font-size: .72rem; line-height: 1; margin-top: 1px; letter-spacing: .02em; }
+.zoom .endbtn:disabled { opacity: .6; }
+/* the bottom bar keeps only what is needed: an empty action row takes no space */
+.actions:empty { display: none; }

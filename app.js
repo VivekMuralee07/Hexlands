@@ -660,7 +660,7 @@ function buildShell(app) {
       </svg>
       <div class="dice" id="dice"></div><div class="awards" id="awards"></div><div class="offer" id="offer"></div><div class="awaybar" id="awaybar" hidden></div><div class="reconnect" id="reconnect" hidden></div><div class="tradewin" id="tradewin" hidden></div>
       <div class="gbtns"><button class="gbtn drawer-toggle" id="logbtn" title="Messages" aria-label="Messages">${GB_ICON.msg}</button><button class="gbtn" id="quit" title="Leave game" aria-label="Leave game">${GB_ICON.exit}</button></div>
-      <div class="zoom"><button class="btn" id="zin" aria-label="Zoom in">+</button><button class="btn" id="zout" aria-label="Zoom out">−</button><button class="btn" id="zfit" aria-label="Fit board">⤢</button><button class="btn rollbtn" id="rollbtn" hidden aria-label="Roll the dice">${twoDice()}<span>Roll</span></button></div>
+      <div class="zoom"><button class="btn rollbtn" id="rollbtn" hidden aria-label="Roll the dice">${twoDice()}<span>Roll</span></button><button class="btn endbtn" id="endbtn" hidden aria-label="End your turn">${endIcon()}<span>End</span></button></div>
     </main></section>
     <aside class="side" id="side"><div class="panel"><h3>Ship's log</h3><div class="mutebar" id="mutebar" hidden></div><div class="log" id="log"></div>
       <form class="chatform" id="chat"><input id="chatin" maxlength="200" placeholder="Message the table" autocomplete="off" aria-label="Chat message"><button class="btn small">Send</button></form><p class="chatnote" id="chatnote" hidden>Public room: be kind and no links. Tap ⋯ on a message to report or mute.</p></div></aside>
@@ -670,9 +670,6 @@ function buildShell(app) {
   $('#static').innerHTML = staticLayer(S.board);
   applyVB();
   setupPanZoom($('#board'));
-  $('#zin').onclick = () => zoomCenter(1.25);
-  $('#zout').onclick = () => zoomCenter(1 / 1.25);
-  $('#zfit').onclick = () => { S.vb = { ...S.base }; applyVB(); };
   $('#logbtn').onclick = () => $('#side').classList.toggle('open');
   bindSoundButtons();
   $('#quit').onclick = async () => {
@@ -929,7 +926,7 @@ function zoomAt(svg, cx, cy, f) {
 }
 function zoomCenter(f) { const svg = $('#board'), r = svg.getBoundingClientRect(); zoomAt(svg, r.left + r.width / 2, r.top + r.height / 2, f); }
 function setupPanZoom(svg) {
-  const pts = new Map(); let downTarget = null, moved = 0, pinchD = 0;
+  const pts = new Map(); let downTarget = null, moved = 0, pinchD = 0, lastTap = null;   // pinch or the mouse wheel to zoom, double tap to fit
   svg.addEventListener('pointerdown', e => {
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pts.size === 1) { downTarget = e.target; moved = 0; }
@@ -955,7 +952,12 @@ function setupPanZoom(svg) {
   const end = e => {
     if (!pts.has(e.pointerId)) return;
     pts.delete(e.pointerId); svg.classList.remove('dragging');
-    if (e.type === 'pointerup' && pts.size === 0 && moved <= 8) onBoardTap(downTarget);
+    if (e.type === 'pointerup' && pts.size === 0 && moved <= 8) {
+      const now = Date.now(), plain = !(downTarget && downTarget.closest && downTarget.closest('[data-v],[data-e],[data-t],[data-confirm],[data-keep]'));
+      if (plain && lastTap && now - lastTap.t < 330 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 30) { lastTap = null; S.vb = { ...S.base }; applyVB(); return; }
+      lastTap = plain ? { t: now, x: e.clientX, y: e.clientY } : null;
+      onBoardTap(downTarget);
+    }
     if (pts.size < 2) pinchD = 0;
   };
   svg.addEventListener('pointerup', end); svg.addEventListener('pointercancel', end);
@@ -1023,7 +1025,7 @@ function drawBanner() {
   else if (st.subphase === 'roadBuilding') t = mine ? `Place ${plural(st.freeRoads, 'free road')}` : `${p.name} is placing free roads`;
   else if (mine) {
     const m = currentMode();
-    t = !st.rolled ? 'Your turn: tap the dice to roll' : m === 'road' ? 'Tap a glowing edge to build a road' : m === 'settle' ? 'Tap a glowing corner to settle' : m === 'city' ? 'Tap one of your settlements to upgrade it' : m === 'auto' && autoCount() ? 'Tap a glowing spot to build, tap your cards to trade, or end your turn' : 'Build, trade, or end your turn';
+    t = !st.rolled ? 'Your turn: tap the dice to roll' : m === 'road' ? 'Tap a glowing edge to build a road' : m === 'settle' ? 'Tap a glowing corner to settle' : m === 'city' ? 'Tap one of your settlements to upgrade it' : m === 'auto' && autoCount() ? 'Build, trade, or tap End' : 'Build, trade, or tap End';
   } else t = p.bot ? `${p.name} is thinking…` : `${p.name}'s turn`;
   if (currentMode() === 'heist' && !S.pick) t = 'Heist! Tap the settlement you want to steal';
   if (S.pick && mine) t = pickText();
@@ -1106,21 +1108,21 @@ function drawActions() {
   }
   const m = S.mode;
   const btn = (id, label, ic, cost, enabled, pressed) => `<button class="act" id="${id}" ${enabled ? '' : 'disabled'} aria-pressed="${!!pressed}">${icon(ic)}${label}${cost ? costIcons(cost) : ''}</button>`;
-  if (!st.rolled) {   // rolling is the dice button on the map; a Knight can still be played first
-    const knight = st.me.dev.some(d => d.type === 'knight' && !d.fresh) && !st.devPlayed;
-    box.innerHTML = knight ? btn('kn', 'Play a Knight first', 'knight', null, true) : '';
-    if ($('#kn')) $('#kn').onclick = () => act({ type: 'playDev', card: 'knight' });
-    return;
-  }
-  // Only End turn here: building spots glow on the map, and the Dev card and the Heist are bought in the trade window when you can afford them.
-  box.innerHTML = `<button class="act go" id="b-end">${icon('vp')}End turn</button>`;
-  $('#b-end').onclick = () => { S.mode = null; act({ type: 'endTurn' }); };
+  // Rolling and ending the turn are the round buttons at the bottom right of the map; a Knight is played from the card in your hand.
+  box.innerHTML = ''; void btn; void m;
 }
+function endIcon() { return `<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="16" fill="#fff" stroke="#0b3f2c" stroke-width="2.5"/><path d="M13,12 L22,20 L13,28Z M21,12 L30,20 L21,28Z" fill="#14895a"/><rect x="29" y="12" width="3.5" height="16" rx="1.5" fill="#14895a"/></svg>`; }
 function twoDice() { return `<svg viewBox="0 0 48 40" aria-hidden="true"><g transform="rotate(-12 14 22)"><rect x="3" y="9" width="22" height="22" rx="5" fill="#fffdf6" stroke="#182730" stroke-width="2"/><circle cx="9" cy="15" r="2.3" fill="#182730"/><circle cx="14" cy="20" r="2.3" fill="#182730"/><circle cx="19" cy="25" r="2.3" fill="#182730"/></g><g transform="rotate(10 34 18)"><rect x="23" y="5" width="22" height="22" rx="5" fill="#e8302a" stroke="#182730" stroke-width="2"/><circle cx="29" cy="11" r="2.3" fill="#fff"/><circle cx="39" cy="11" r="2.3" fill="#fff"/><circle cx="29" cy="21" r="2.3" fill="#fff"/><circle cx="39" cy="21" r="2.3" fill="#fff"/></g></svg>`; }
 // The dice button at the bottom right of the map: shown only when it is your turn to roll.
 function drawRollBtn() {
   const btn = $('#rollbtn'); if (!btn) return;
   const st = S.state, mine = st.players[me()], show = myTurn() && st.phase === 'main' && !st.rolled && !st.subphase && !(mine && mine.takenOver);
+  const end = $('#endbtn');
+  if (end) {
+    const showEnd = myTurn() && st.phase === 'main' && st.rolled && !st.subphase && !(mine && mine.takenOver) && currentMode() !== 'heist';
+    end.hidden = !showEnd;
+    if (showEnd && !end.dataset.bound) { end.dataset.bound = '1'; end.onclick = async () => { if (end.disabled) return; end.disabled = true; S.mode = null; try { await act({ type: 'endTurn' }); } finally { end.disabled = false; } }; }
+  }
   btn.hidden = !show;
   if (show && !btn.dataset.bound) {
     btn.dataset.bound = '1';
