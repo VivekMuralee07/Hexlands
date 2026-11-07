@@ -909,13 +909,17 @@ function modePossible(kind) {
 function afterBuild() {}
 
 // Pan, pinch and wheel zoom; a short tap passes through to the board element under the finger.
+// The board always draws the WHOLE map (its viewBox never changes). The view is just where that picture sits in the board area and how
+// big it is: sliding only moves it, zooming resizes it. So nothing is generated while you slide, and the map is there all the time.
 function applyVB() {
-  const v = S.vb, B = S.base;
-  if (B) {   // keep the framed board in view: the centre of the screen can't leave the board area
-    const cx = Math.max(B.x, Math.min(B.x + B.w, v.x + v.w / 2)), cy = Math.max(B.y, Math.min(B.y + B.h, v.y + v.h / 2));
-    v.x = cx - v.w / 2; v.y = cy - v.h / 2;
-  }
-  $('#board').setAttribute('viewBox', `${v.x} ${v.y} ${v.w} ${v.h}`);
+  const svg = $('#board'), v = S.vb, B = S.base; if (!svg || !v || !B) return;
+  const cx = Math.max(B.x, Math.min(B.x + B.w, v.x + v.w / 2)), cy = Math.max(B.y, Math.min(B.y + B.h, v.y + v.h / 2));   // the centre of the screen can't leave the board area
+  v.x = cx - v.w / 2; v.y = cy - v.h / 2;
+  const [W] = boardPx(svg); if (!W) return;
+  const key = `${B.x} ${B.y} ${B.w} ${B.h}`; if (svg.dataset.full !== key) { svg.dataset.full = key; svg.setAttribute('viewBox', key); }
+  const s0 = W / v.w, w = B.w * s0, h = B.h * s0;
+  if (svg.dataset.px !== w.toFixed(1)) { svg.dataset.px = w.toFixed(1); svg.style.width = w + 'px'; svg.style.height = h + 'px'; }
+  svg.style.transform = `translate(${(B.x - v.x) * s0}px, ${(B.y - v.y) * s0}px)`;
 }
 function svgPoint(svg, cx, cy) { const p = svg.createSVGPoint(); p.x = cx; p.y = cy; return p.matrixTransform(svg.getScreenCTM().inverse()); }
 function zoomAt(svg, cx, cy, f) {
@@ -946,26 +950,37 @@ function setupPanZoom(svg) {
       }
     }
     S.boardPx = [W, H, T]; applyVB();
-  }).observe(svg);
+  }).observe(svg.parentElement);
   const pts = new Map(); let downTarget = null, moved = 0, lastTap = null;   // pinch or the mouse wheel to zoom, double tap to fit
   // While a finger is down the drawn map is moved and scaled as one picture (cheap for the phone); the real view changes once,
   // when the finger lifts. Redrawing thousands of shapes on every finger movement was what made sliding slow.
   let gest = null, frame = 0;
   const local = p => { const r = (svg.parentElement || svg).getBoundingClientRect(); return { x: p.x - r.left, y: p.y - r.top }; };
   const startGesture = () => {
-    const P = [...pts.values()].map(local);
-    gest = P.length >= 2 ? { mode: 'pinch', o: { x: (P[0].x + P[1].x) / 2, y: (P[0].y + P[1].y) / 2 }, d0: Math.hypot(P[0].x - P[1].x, P[0].y - P[1].y), dx: 0, dy: 0, k: 1 }
-      : { mode: 'drag', o: P[0], dx: 0, dy: 0, k: 1 };
+    const P = [...pts.values()].map(local), v = S.vb, B = S.base, s0 = (boardPx(svg)[0] || 1) / v.w;
+    const at = { tx: (B.x - v.x) * s0, ty: (B.y - v.y) * s0 };   // where the whole-map picture sits now
+    gest = P.length >= 2 ? { mode: 'pinch', o: { x: (P[0].x + P[1].x) / 2, y: (P[0].y + P[1].y) / 2 }, d0: Math.hypot(P[0].x - P[1].x, P[0].y - P[1].y), dx: 0, dy: 0, k: 1, ...at }
+      : { mode: 'drag', o: P[0], dx: 0, dy: 0, k: 1, ...at };
   };
-  const showGesture = () => { frame = 0; if (gest) svg.style.transform = `translate(${gest.dx + gest.o.x - gest.k * gest.o.x}px, ${gest.dy + gest.o.y - gest.k * gest.o.y}px) scale(${gest.k})`; };
+  const showGesture = () => {   // only a transform changes: the picture is moved (and, when pinching, scaled) as it is
+    frame = 0; if (!gest) return;
+    svg.style.transform = `translate(${gest.o.x + gest.k * (gest.tx - gest.o.x) + gest.dx}px, ${gest.o.y + gest.k * (gest.ty - gest.o.y) + gest.dy}px) scale(${gest.k})`;
+  };
   const commitGesture = () => {
     if (!gest) return;
     const g = gest; gest = null; if (frame) { cancelAnimationFrame(frame); frame = 0; }
-    svg.style.transform = ''; svg.style.willChange = '';
-    if (g.k === 1 && !g.dx && !g.dy) return;
-    const v = S.vb, W = boardPx(svg)[0] || 1, s0 = W / v.w, k = g.k;
-    S.vb = { x: v.x + (g.o.x * (k - 1) - g.dx) / (k * s0), y: v.y + (g.o.y * (k - 1) - g.dy) / (k * s0), w: v.w / k, h: v.h / k };
-    applyVB();
+    if (g.k !== 1 || g.dx || g.dy) {
+      const v = S.vb, s0 = (boardPx(svg)[0] || 1) / v.w, k = g.k;
+      S.vb = { x: v.x + (g.o.x * (k - 1) - g.dx) / (k * s0), y: v.y + (g.o.y * (k - 1) - g.dy) / (k * s0), w: v.w / k, h: v.h / k };
+    }
+    applyVB();   // zooming changes the size of the picture, which makes it sharp again
+  };
+  // The centre of the screen may not leave the map area. The same limit applies while the finger is moving, so the map never jumps back when it lifts.
+  const clampGest = g => {
+    const v = S.vb, B = S.base, s0 = (boardPx(svg)[0] || 1) / v.w, k = g.k;
+    const nx = v.x + (g.o.x * (k - 1) - g.dx) / (k * s0), ny = v.y + (g.o.y * (k - 1) - g.dy) / (k * s0), w = v.w / k, h = v.h / k;
+    const cx = Math.max(B.x, Math.min(B.x + B.w, nx + w / 2)), cy = Math.max(B.y, Math.min(B.y + B.h, ny + h / 2));
+    g.dx -= (cx - (nx + w / 2)) * k * s0; g.dy -= (cy - (ny + h / 2)) * k * s0;
   };
   const zoomLimits = () => { const v = S.vb; return [v.w / Math.max(S.base.w * 1.25, (S.fitW || 0) * 1.15), v.w / (S.base.w * 0.3)]; };   // allowed range of k
   svg.addEventListener('pointerdown', e => {
@@ -980,13 +995,14 @@ function setupPanZoom(svg) {
     const cur = { x: e.clientX, y: e.clientY }; pts.set(e.pointerId, cur);
     if (pts.size === 1) moved += Math.abs(cur.x - prev.x) + Math.abs(cur.y - prev.y);
     if (pts.size === 1 && moved <= 8) return;
-    if (!gest || (gest.mode === 'drag') !== (pts.size === 1)) { commitGesture(); startGesture(); svg.style.willChange = 'transform'; svg.classList.add('dragging'); }
+    if (!gest || (gest.mode === 'drag') !== (pts.size === 1)) { commitGesture(); startGesture(); svg.classList.add('dragging'); }
     const P = [...pts.values()].map(local);
     if (gest.mode === 'drag') { gest.dx = P[0].x - gest.o.x; gest.dy = P[0].y - gest.o.y; }
     else {
       const m = { x: (P[0].x + P[1].x) / 2, y: (P[0].y + P[1].y) / 2 }, d = Math.hypot(P[0].x - P[1].x, P[0].y - P[1].y), [lo, hi] = zoomLimits();
       gest.k = Math.max(lo, Math.min(hi, d / (gest.d0 || 1))); gest.dx = m.x - gest.o.x; gest.dy = m.y - gest.o.y;
     }
+    clampGest(gest);
     if (!frame) frame = requestAnimationFrame(showGesture);
   });
   const end = e => {
@@ -1113,7 +1129,7 @@ function openInfo(tab = 'costs') {
     ? `<div class="devlist">${crow('road', 'Road', 'Extends your network.', COST.road)}${crow('settlement', 'Settlement', 'Needs your own road beside it. 1 point.', COST.settlement)}${crow('city', 'City', 'Replaces a settlement. 2 points.', COST.city)}${crow('dev', 'Development card', 'Drawn from the pile.', COST.dev)}${crow('heist', 'Heist card', `Once per player, after ${st.heist.need} cities.`, COST.heist)}</div>`
     : tab === 'points'
       ? `<div class="devlist">${row('settlement', 'Settlement', 'Each one you keep.', pts(1))}${row('city', 'City', 'Replaces a settlement and pays double.', pts(2))}${row('road', 'Longest Road', `5 or more roads in a row, and you must beat the holder. ${lr ? `Held by ${name(lr.p)} (${lr.len} roads).` : 'Nobody has it yet.'}`, pts(2))}${row('knight', 'Largest Army', `3 or more Knights played, and you must beat the holder. ${la ? `Held by ${name(la.p)} (${la.size} Knights).` : 'Nobody has it yet.'}`, pts(2))}${row('vp', 'Victory Point card', 'Hidden until the game ends.', pts(1))}</div>`
-      : `<div class="setlist">${set('Points to win', 'The first player to reach this on their own turn wins.', `${st.vpTarget} points`)}${set('Discard limit', 'On a 7, anyone holding more cards than this must discard.', `${o.discardLimit} cards`)}${set('Cards discarded', 'How many they must give up.', o.discardMode === 'four' ? '4 cards' : 'Half the hand, rounded down')}${set('Move timer', 'Time for each step of a turn.', o.timer ? `${o.timer} seconds` : 'Off')}${set('Friendly robber', 'The robber stays off players with 2 points or fewer.', o.friendlyRobber ? 'On' : 'Off')}${set('Balanced dice', 'Dice come from a shuffled deck of 36 rolls.', o.balancedDice ? 'On' : 'Off')}</div>`;
+      : `<div class="setlist">${set('Points to win', 'The first player to reach this on their own turn wins.', `${st.vpTarget} points`)}${set('Discard limit', 'On a 7, anyone holding more cards than this must discard.', `${o.discardLimit} cards`)}${set('Cards discarded', 'How many they must give up.', o.discardMode === 'four' ? '4 cards' : 'Half the hand, rounded down')}${set('Move timer', 'Time for each step of a turn.', o.timer ? `${o.timer} seconds` : 'Off')}${set('Friendly robber', 'The robber stays off players with 2 points or fewer.', o.friendlyRobber ? 'On' : 'Off')}${set('Balanced dice', 'Dice come from a shuffled deck of 36 rolls.', o.balancedDice ? 'On' : 'Off')}${set('Fair 7s', 'Every player rolls the 7 equally often: nobody is ever more than one 7 ahead.', 'Always on')}</div>`;
   const code = st.code || (S.session && S.session.code) || '', pubRoom = !!(st.net && st.net.public), invite = `${location.origin}/room/${code}`;
   const roomStrip = `<div class="roomstrip"><div><small>Room code</small><b class="rcode" id="rcode">${esc(code)}</b></div><span class="vischip${pubRoom ? ' pub' : ''}">${pubRoom ? 'Public' : 'Private'}</span><div class="rbtns"><button class="btn small" id="icopy">Copy code</button><button class="btn small" id="ilink">Copy invite link</button></div></div>`;
   openModal('info', `<div class="infowin"><h3>Game info</h3>${roomStrip}<div class="maptabs" role="tablist">${tabs.map(([k, l]) => `<button class="maptab" role="tab" data-itab="${k}" aria-selected="${tab === k}">${l}</button>`).join('')}</div>${body}<div class="foot"><button class="btn primary" id="iclose">Close</button></div></div>`, layer => {

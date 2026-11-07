@@ -1190,3 +1190,30 @@ test('US 2.0: bots of every level finish a game on it, and the bank stays balanc
     for (const k of ['wood', 'brick', 'sheep', 'wheat', 'ore']) assert.equal(g.bank[k] + g.players.reduce((a, p) => a + p.res[k], 0), 144, k);
   }
 });
+
+// ---------- fair 7s ----------
+test('fair 7s: every player rolls the same number of 7s (never more than one apart), and 7s are about as common as with ordinary dice', () => {
+  for (const players of [2, 3, 4]) for (const balanced of [false, true]) {
+    let sevens = 0, rolls = 0, gap = 0; const counts = {};
+    for (let seed = 1; seed <= 12; seed++) {
+      const g = mk(players, seed); g.opts.balancedDice = balanced; const seen = Array(players).fill(0);
+      for (let round = 0; round < 200; round++) for (let pi = 0; pi < players; pi++) {
+        const d = g.rollDice(pi), sum = d[0] + d[1]; rolls++; counts[sum] = (counts[sum] || 0) + 1;
+        if (sum === 7) { seen[pi]++; g.players[pi].stats.sevens++; sevens++; }
+        gap = Math.max(gap, Math.max(...seen) - Math.min(...seen));
+      }
+    }
+    assert.ok(gap <= 1, `${players} players${balanced ? ' (balanced dice)' : ''}: the biggest lead in 7s was ${gap}`);
+    const rate = sevens / rolls; assert.ok(rate > 0.145 && rate < 0.185, `${players} players: 7s on ${(rate * 100).toFixed(1)}% of rolls (ordinary dice: 16.7%)`);
+    for (let n = 2; n <= 12; n++) assert.ok(counts[n] > 0, 'every total still occurs: ' + n);
+    assert.ok(counts[6] + counts[8] > counts[2] + counts[12] + counts[3] + counts[11], 'the usual shape of the dice is kept');
+  }
+});
+
+test('fair 7s: planned dice never break the rules of the game: a real game with bots has an equal number of 7s per player', () => {
+  const g = mk(0, 5); ['A', 'B', 'C'].forEach((n, i) => g.addPlayer(n, 't' + i)); g.players.forEach(p => { p.bot = 'medium'; p.connected = true; }); g.addPlayer('D', 't3'); g.players[3].bot = 'medium';
+  g.act(0, { type: 'start' });
+  let steps = 0; while (g.phase !== 'ended' && steps++ < 20000) { const n = bots.nextActor(g); if (!n) break; try { g.act(n.pi, bots.decide(g, n.pi)); } catch (e) { bots.rescue(g, n.pi); } }
+  const s = g.players.map(p => p.stats.sevens); assert.ok(Math.max(...s) - Math.min(...s) <= 1, 'sevens per player: ' + s.join(','));
+  assert.equal(g.diceCounts[7], s.reduce((a, b) => a + b, 0));
+});

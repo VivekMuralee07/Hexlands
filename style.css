@@ -1024,3 +1024,7 @@ span.pcardx { cursor: default; }
 
 /* the map is moved as one picture while a finger is down */
 #board { transform-origin: 0 0; }
+
+/* the whole map is always drawn; it is moved and sized by script, and the part outside the board area is simply clipped */
+#board { overflow: visible; max-width: none; will-change: transform; touch-action: none; }
+.center .board-wrap #board { inset: auto; left: 0; top: 0; }
