@@ -1028,3 +1028,68 @@ span.pcardx { cursor: default; }
 /* the whole map is always drawn; it is moved and sized by script, and the part outside the board area is simply clipped */
 #board { overflow: visible; max-width: none; will-change: transform; touch-action: none; }
 .center .board-wrap #board { inset: auto; left: 0; top: 0; }
+
+/* ---------- the animated tutorial ---------- */
+.tutbtn { width: 100%; display: grid; gap: .1rem; margin: .2rem 0 .8rem; padding: .6rem .8rem; }
+.tutbtn small { font-weight: 700; opacity: .8; font-size: .8em; }
+.tutlink { width: 100%; }
+#tut { position: fixed; inset: 0; z-index: 90; display: grid; grid-template-rows: auto 1fr auto; background: #07234f; color: #fff; }
+#tut .thead { display: flex; align-items: center; justify-content: space-between; padding: .45rem .8rem; padding-top: max(.45rem, env(safe-area-inset-top)); background: rgba(4, 18, 40, .96); font-size: 1.1rem; }
+#tut .thead b { color: #ffd36b; }
+#tut .tx { min-width: 44px; min-height: 40px; }
+#tut .tstage { position: relative; overflow: hidden; background: radial-gradient(120% 90% at 50% 30%, #1386c4, #0a5f9c 60%, #073f73); }
+#tsvg { width: 100%; height: 100%; display: block; transition: opacity .3s; }
+#tut .tstage.dim #tsvg { opacity: .3; }
+#tut .tchips { position: absolute; top: .4rem; left: .3rem; right: .3rem; display: flex; gap: .25rem; justify-content: center; flex-wrap: wrap; z-index: 2; }
+#tut .tchip { display: flex; gap: .3rem; align-items: center; background: rgba(5, 20, 45, .88); border: 2px solid var(--c); border-left-width: 7px; border-radius: 999px; padding: .1rem .5rem; font-size: .76rem; white-space: nowrap; }
+#tut .tchip .cc { display: inline-flex; align-items: center; gap: 2px; } #tut .tchip .cc::before { content: ''; width: 8px; height: 11px; border-radius: 2px; background: #fffaf0; border: 1px solid #6b5a3a; }
+#tut .tchip.me { box-shadow: 0 0 0 2px #fff; }
+#tut .tchip .dot { width: .7rem; height: .7rem; border-radius: 50%; background: var(--c); }
+#tut .thand { position: absolute; bottom: .4rem; left: 50%; transform: translateX(-50%); display: flex; gap: .3rem; background: rgba(5, 20, 45, .88); padding: .25rem .45rem; border-radius: 12px; z-index: 2; }
+#tut .th { display: grid; place-items: center; min-width: 34px; color: #fff; }
+#tut .th .ic { width: 24px; height: 24px; } #tut .th b { font-size: .75rem; } #tut .th.zero { opacity: .45; } #tut .th.bank small { font-size: .6rem; }
+#tut .tover { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+#tut .tcard { position: absolute; width: 30px; height: 40px; margin: -20px 0 0 -15px; background: #fffaf0; border-radius: 6px; border: 2px solid #6b5a3a; display: grid; place-items: center; box-shadow: 0 4px 10px rgba(0, 0, 0, .4);
+  transition: left .9s cubic-bezier(.4, .1, .2, 1), top .9s cubic-bezier(.4, .1, .2, 1); }
+#tut .tcard .ic { width: 22px; height: 22px; }
+#tut .tback { width: 20px; height: 30px; border-radius: 4px; background: repeating-linear-gradient(45deg, #7a2bd6, #7a2bd6 4px, #9c5cf0 4px, #9c5cf0 8px); }
+#tut .tfinger { position: absolute; font-size: 2.3rem; margin-left: -.45em; transition: top .6s ease-out, transform .15s; filter: drop-shadow(0 3px 4px rgba(0, 0, 0, .5)); }
+#tut .tfinger.tap { transform: scale(.82); }
+#tut .tlabel { position: absolute; transform: translate(-50%, -125%); background: rgba(5, 20, 45, .92); padding: .2rem .55rem; border-radius: 8px; font-weight: 800; white-space: nowrap; display: flex; align-items: center; gap: .3rem; font-size: .9rem; animation: tfade .3s ease-out; }
+#tut .tlabel .ic { width: 20px; height: 20px; } #tut .tlabel.big { font-size: 1.1rem; background: #f0a01c; color: #2a1a00; }
+#tut .tdice { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%); display: flex; gap: .6rem; align-items: center; }
+#tut .td { width: 64px; height: 64px; animation: troll .8s ease-out; } #tut .td.red rect { fill: #e8302a; } #tut .td.red circle { fill: #fff; }
+#tut .tdice b { font-size: 2.3rem; font-weight: 900; text-shadow: 0 3px 8px rgba(0, 0, 0, .6); }
+#tut .tpanel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(92%, 430px); max-height: 88%; overflow: auto; background: rgba(7, 30, 64, .97); border: 2px solid #d7a54a; border-radius: 16px; padding: .8rem 1rem; animation: tin .35s ease-out; pointer-events: auto; }
+#tut .tpanel h4 { margin: 0 0 .4rem; color: #ffd36b; font-size: 1.15rem; }
+#tut .trow { display: flex; gap: .5rem; align-items: center; padding: .32rem 0; border-bottom: 1px solid rgba(255, 255, 255, .08); font-size: .92rem; line-height: 1.35; flex-wrap: wrap; }
+#tut .trow .ic { width: 24px; height: 24px; flex: none; } #tut .trow .pt { margin-left: auto; color: #ffd36b; }
+#tut .tdev { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); width: 120px; height: 160px; background: linear-gradient(#7a4bd8, #4b2a96); border: 3px solid #fff; border-radius: 14px; display: grid; place-items: center; align-content: center; gap: .4rem; box-shadow: 0 10px 30px rgba(0, 0, 0, .5); }
+#tut .tdev .ic { width: 56px; height: 56px; } #tut .tdev b { font-size: .95rem; text-align: center; } #tut .tdev.flip { animation: tflip .7s ease-out; }
+#tut .ttrophy { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); font-size: 4.5rem; display: grid; place-items: center; animation: tin .5s ease-out; }
+#tut .ttrophy b { font-size: 1.6rem; color: #ffd36b; text-shadow: 0 3px 10px rgba(0, 0, 0, .6); }
+#tut .tsevens { display: grid; gap: .3rem; } #tut .tsevens div { display: flex; justify-content: space-between; border-left: 6px solid var(--c); padding: .2rem .5rem; background: rgba(255, 255, 255, .06); border-radius: 6px; }
+#tut .tmuted { color: #bcd; font-size: .85rem; margin: .4rem 0 0; }
+#tut .tfoot { padding: .6rem .9rem; padding-bottom: max(.6rem, env(safe-area-inset-bottom)); background: rgba(4, 18, 40, .97); display: grid; gap: .45rem; }
+#tcap { margin: 0; font-size: 1.02rem; line-height: 1.45; min-height: 3em; }
+#tut .tdots { display: flex; gap: .35rem; justify-content: center; flex-wrap: wrap; }
+#tut .tdot { width: 12px; height: 12px; border-radius: 50%; border: 0; padding: 0; background: rgba(255, 255, 255, .25); cursor: pointer; }
+#tut .tdot.done { background: rgba(255, 211, 107, .55); } #tut .tdot.on { background: #ffd36b; transform: scale(1.35); }
+#tut .tctl { display: flex; gap: .6rem; justify-content: center; } #tut .tctl .btn { min-width: 64px; }
+#tut .tpop { animation: tpop .45s cubic-bezier(.3, 1.6, .5, 1); transform-box: fill-box; transform-origin: center; }
+#tut .tglow { fill: #fff; opacity: 0; animation: tglow 1.6s ease-in-out 2; }
+#tut .tspot { fill: rgba(255, 255, 255, .35); stroke: #fff; stroke-width: 4; }
+#tut .trobber { transition: transform .9s cubic-bezier(.4, .1, .2, 1); }
+#tut .tghost { opacity: .7; }
+#tut .tport { fill: none; stroke: #ffd36b; stroke-width: 6; animation: tring 1.4s ease-in-out 3; }
+#tut .tflash { animation: tflashk .8s ease-in-out 3; }
+@keyframes tpop { from { transform: scale(0); } to { transform: scale(1); } }
+@keyframes tglow { 0%, 100% { opacity: 0; } 50% { opacity: .55; } }
+@keyframes tring { 50% { stroke-opacity: .15; } }
+@keyframes tflashk { 50% { opacity: .35; } }
+@keyframes troll { 0% { transform: rotate(-200deg) scale(.4); opacity: 0; } 70% { transform: rotate(15deg) scale(1.1); opacity: 1; } 100% { transform: none; } }
+@keyframes tflip { from { transform: translate(-50%, -50%) rotateY(90deg) scale(.6); } to { transform: translate(-50%, -50%); } }
+@keyframes tin { from { opacity: 0; transform: translate(-50%, -46%) scale(.94); } to { opacity: 1; transform: translate(-50%, -50%); } }
+@keyframes tfade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { #tut * { animation-duration: .01s !important; transition-duration: .01s !important; } }
+#tut .trow.txt { display: block; }

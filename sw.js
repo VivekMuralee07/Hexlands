@@ -2,7 +2,7 @@
 // Game traffic (the /api routes, including the live event stream) is never touched: it always goes to the network.
 'use strict';
 const VERSION = 'hexlands-shell-v1';
-const SHELL = ['/', '/index.html', '/style.css', '/app.js', '/art.js', '/sound.js', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png'];
+const SHELL = ['/', '/index.html', '/style.css', '/app.js', '/tutorial.js', '/art.js', '/sound.js', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

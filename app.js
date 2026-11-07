@@ -598,6 +598,7 @@ function renderLobby(app) {
       <div class="panel stack lb-room">
         <div><div class="muted">Room code</div><div class="room-code">${st.code}</div></div>
         ${host ? `<div class="row"><button class="btn small" id="togpub">${pub ? 'Make private' : 'Make public'}</button><span class="muted grow" style="font-size:.88em">${pub ? 'Anyone can find this room in the public list.' : 'Only people with the code can join.'}</span></div>` : ''}
+        <button class="btn tutlink" id="tutlobby">▶ How to play: animated tutorial</button>
         <div class="row"><button class="btn" id="copy">Copy invite link</button>${navigator.share ? '<button class="btn" id="share">Share</button>' : ''}</div>
         <ul class="plist">${st.players.map((p, i) => `<li>${swatch(p, i, me, host)}${p.bot ? icon('bot', 'boticon') : ''}<b class="grow">${esc(p.name)}${i === me ? ' (you)' : ''}</b>${p.host ? '<span class="badge">Host</span>' : ''}${needReady && !p.bot ? `<span class="badge rdy${p.ready ? ' on' : ''}">${p.ready ? 'Ready' : 'Not ready'}</span>` : ''}
           ${p.bot ? (host ? `<select class="lvlsel" data-seat="${i}" aria-label="Difficulty for ${esc(p.name)}">${['easy', 'medium', 'hard'].map(l => `<option value="${l}" ${p.bot === l ? 'selected' : ''}>${LEVEL_LABEL[l]}</option>`).join('')}</select><button class="btn small icon-only" data-rmbot="${i}" aria-label="Remove ${esc(p.name)}">✕</button>` : botTag(p)) : `<span class="dot ${p.connected ? '' : 'off'}" title="${p.connected ? 'Connected' : 'Offline'}"></span>`}</li>`).join('')}</ul>
@@ -626,6 +627,7 @@ function renderLobby(app) {
   $('#copy').onclick = async () => { try { await navigator.clipboard.writeText(link); toast('Invite link copied'); } catch { prompt('Copy this link', link); } };
   if ($('#share')) $('#share').onclick = () => navigator.share({ title: 'Join my Hexlands game', text: `Room code ${st.code}`, url: link }).catch(() => {});
   if ($('#start')) $('#start').onclick = () => act({ type: 'start' });
+  if ($('#tutlobby')) $('#tutlobby').onclick = () => openTutorial();
   if ($('#ready')) $('#ready').onclick = () => act({ type: 'ready', value: !imReady });
   if ($('#togpub')) $('#togpub').onclick = () => act({ type: 'setPublic', value: !pub });
   if ($('#fillbots')) $('#fillbots').onclick = () => act({ type: 'fillBots', level: S.botLevel });
@@ -1429,7 +1431,7 @@ function pickResources(n, title, text, done) {
 function openRules() {
   const row = (ic, name, cost, note) => `<div class="devrow">${icon(ic)}<div class="txt"><b>${name}</b><small>${note}</small></div>${costChips(cost)}</div>`;
   const res = [['wood', 'Wood', 'Forest'], ['brick', 'Brick', 'Hills'], ['sheep', 'Sheep', 'Pasture'], ['wheat', 'Hay', 'Fields'], ['ore', 'Ore', 'Mountains']];
-  openModal('rules', `<h3>How to play</h3><div class="rules">
+  openModal('rules', `<h3>How to play</h3><button class="btn primary tutbtn" id="tutbtn">▶ Watch the animated tutorial <small>13 short chapters, about 3 minutes</small></button><div class="rules">
     <section><h4>Goal</h4><p>Be the first to reach the points target on your own turn (10 by default; the host can change it). Settlements are worth 1 point, cities 2, Longest Road 2, Largest Army 2, and each hidden Victory Point card 1.</p></section>
     <section><h4>Setup</h4><p>Each player places a settlement and a road touching it, in turn order. Then it runs backwards, so the last player places both of theirs back to back. Your second settlement pays one card for every tile it touches.</p></section>
     <section><h4>Your turn</h4><ol><li>Roll the dice. Every tile showing that number pays each settlement next to it 1 card and each city 2.</li><li>Trade with other players, or with the bank at 4 to 1 (3 to 1 or 2 to 1 with a harbor).</li><li>Build, or buy a development card.</li><li>End your turn.</li></ol></section>
@@ -1447,7 +1449,7 @@ function openRules() {
     <section><h4>Bonuses</h4><p>Longest Road: 5 or more connected roads, and you must beat the holder to take it. An opponent's settlement built in the middle can cut a road. Largest Army: 3 or more Knights played, and you must beat the holder.</p></section>
     <section><h4>Host options</h4><ul><li><b>Discard limit and amount:</b> how many cards you can hold safely, and whether you lose half or exactly 4.</li><li><b>Move timer:</b> 15, 30 or 60 seconds. If it runs out, the game plays that step for you. Setup placements get 60 seconds.</li><li><b>Friendly robber:</b> the robber can't go next to a player with 2 points or fewer.</li><li><b>Balanced dice:</b> rolls come from a shuffled deck, so totals stay close to the odds.</li></ul></section>
     <section><h4>Bots</h4><p>The host can fill empty seats with Easy, Medium or Hard bots, up to 4 players in total.</p></section>
-  </div><div class="foot"><button class="btn primary" id="rclose">Got it</button></div>`, () => { $('#rclose').onclick = closeModal; });
+  </div><div class="foot"><button class="btn primary" id="rclose">Got it</button></div>`, () => { $('#rclose').onclick = closeModal; $('#tutbtn').onclick = () => { closeModal(); openTutorial(); }; });
 }
 const openCosts = openRules;
 
@@ -1979,4 +1981,6 @@ if (needConsent()) openConsent();   // everyone agrees to the Terms of Use and P
 { // home-screen shortcuts from the installed app
   if (LAUNCH_ACTION === 'rules') openRules(); else if (LAUNCH_ACTION === 'create' && S.name && S.screen === 'home') go('create');
 }
+// The animated tutorial (tutorial.js) draws with the same art as the game.
+window.HexlandsArt = { U, staticLayer, bounds, houseSvg, cityHouseSvg, icon, esc, RES_LABEL, TERRAIN_RES, COST, DEV, costChips, $, $$ };
 })();

@@ -1252,3 +1252,18 @@ test('the numbers lean towards 6, 8 and 9 on every map, and the red 6s and 8s st
     const share = hi / total; assert.ok(share >= 0.36 && share <= 0.46, `${key}: 6, 8 and 9 on ${(share * 100).toFixed(0)}% of the tiles (standard 33%)`);
   }
 });
+
+// ---------- the animated tutorial ----------
+test('the tutorial is recorded from a real game: every move it shows is still legal, and re-recording gives the same tutorial', () => {
+  const { record } = require('./tutorial-record');
+  const fresh = record(7);   // throws if any recorded move is no longer allowed by the rules
+  const kinds = fresh.steps.map(s => s.kind);
+  for (const k of ['settle', 'road', 'roll', 'build-road', 'build-settle', 'build-city', 'bank', 'seven', 'discard', 'robber', 'buydev', 'knight', 'longest', 'cities', 'buyheist', 'heist'])
+    assert.ok(kinds.includes(k), 'the tutorial shows ' + k);
+  assert.equal(kinds.filter(k => k === 'settle').length, 6, 'three players place two settlements each');
+  const roll = fresh.steps.find(s => s.kind === 'roll');
+  assert.ok(roll.pays.length > 0 && roll.pays.every(x => fresh.board.tiles[x.tile].number === roll.dice[0] + roll.dice[1]), 'the recorded roll pays from tiles with that number');
+  const longest = fresh.steps.find(s => s.kind === 'longest'); assert.equal(longest.holder, fresh.me, 'the tutorial player earns Longest Road');
+  const shipped = require('fs').readFileSync(require('path').join(__dirname, 'tutorial.js'), 'utf8').match(/^const TUT_REC = (.*);$/m)[1];
+  assert.deepEqual(JSON.parse(shipped), JSON.parse(JSON.stringify(fresh)), 'tutorial.js holds exactly this recording (run: node tutorial-record.js)');
+});

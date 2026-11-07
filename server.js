@@ -11,7 +11,7 @@ const legal = require('./legal');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC = __dirname;
-const PUBLIC_FILES = new Set(['/index.html', '/app.js', '/art.js', '/sound.js', '/style.css', '/sw.js', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png', '/icon-maskable-512.png', '/apple-touch-icon.png', '/screenshot-home.png', '/screenshot-game.png', '/screenshot-game-wide.png']);
+const PUBLIC_FILES = new Set(['/index.html', '/app.js', '/tutorial.js', '/art.js', '/sound.js', '/style.css', '/sw.js', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png', '/icon-maskable-512.png', '/apple-touch-icon.png', '/screenshot-home.png', '/screenshot-game.png', '/screenshot-game-wide.png']);
 const rooms = new Map(); // code -> { game, clients: Map<token, Set<res>>, touched }
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 

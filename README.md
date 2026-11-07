@@ -56,7 +56,7 @@ Open two browser windows (or a phone on the same network at `http://<your-ip>:30
 
 ## Put it on GitHub
 
-All 30 files sit side by side at the top level of `main`, with no folders. Upload them all at once.
+All 32 files sit side by side at the top level of `main`, with no folders. Upload them all at once.
 
 1. On github.com, create a new empty repository.
 2. Click **uploading an existing file**.
@@ -65,7 +65,7 @@ All 30 files sit side by side at the top level of `main`, with no folders. Uploa
 
 To update an existing repo, do the same: files with the same name are replaced, and the new ones (`legal.js`) are added. Render redeploys automatically.
 
-The repo front page should list the 30 files: `app.js`, `art.js`, `assetlinks.json`, `apple-touch-icon.png`, `bots.js`, `bots.test.js`, `engine.test.js`, `game.js`, `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `icon.svg`, `index.html`, `legal.js`, `manifest.webmanifest`, `maps.js`, `matchmaking.test.js`, `package.json`, `README.md`, `render.yaml`, `rules.test.js`, `screenshot-game-wide.png`, `screenshot-game.png`, `screenshot-home.png`, `server.js`, `server.test.js`, `sound.js`, `style.css`, `sw.js` (and `.gitignore` if your file browser shows hidden files; it is optional).
+The repo front page should list the 32 files: `app.js`, `art.js`, `assetlinks.json`, `apple-touch-icon.png`, `bots.js`, `bots.test.js`, `engine.test.js`, `game.js`, `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `icon.svg`, `index.html`, `legal.js`, `manifest.webmanifest`, `maps.js`, `matchmaking.test.js`, `package.json`, `README.md`, `render.yaml`, `rules.test.js`, `screenshot-game-wide.png`, `screenshot-game.png`, `screenshot-home.png`, `server.js`, `server.test.js`, `sound.js`, `style.css`, `sw.js`, `tutorial.js`, `tutorial-record.js` (and `.gitignore` if your file browser shows hidden files; it is optional).
 
 Only the web app itself is sent to browsers: the page, scripts, styles, icons, screenshots, the manifest and the service worker. The server code, tests and config are never served.
 
@@ -106,6 +106,14 @@ Anyone in the world can open your Render address. Public play is **on by default
 Protection against abuse (all in server memory, nothing stored): per internet address, 20 new rooms an hour, 5 rooms open at a time, 40 joins a minute, and a lock-out after 10 wrong room codes in 10 minutes. The address is read from `cf-connecting-ip` (Cloudflare, which Render uses), falling back to `x-forwarded-for`. Names are cleaned on the server (no hidden characters, 16 characters, "Player 4821" when empty, staff-like names refused). The word list is short; add your own words with the `BLOCKED_WORDS` setting (comma separated). Limits and numbers are constants near the top of `server.js`.
 
 Honest limits of this version: one server holds all rooms, so a restart ends every game; there is no ban list, accounts or automatic muting after repeated reports yet (you read reports at `/api/admin/reports?key=...`); and the server has not been load-tested.
+
+## Animated tutorial
+
+The info page (the **i** button on the home screen) opens with **Watch the animated tutorial**, and the waiting room has a **How to play** button. It plays 13 short chapters in about 3 minutes: the island, the goal, setup, rolling and collecting, building (with the green ✓), trading and harbors, the robber and fair 7s, development cards, Longest Road, the Heist, winning, the special maps, and playing online. Each step has a one or two sentence caption; Back, Play/Pause and Next control it, and the dots jump to a chapter.
+
+It is an animation drawn with the game's own art, not a video file, so it is small (about 40 KB), sharp on every screen, works offline, and matches the game. The moves it shows were recorded from a real game played with the Hexlands engine: the bots chose the setup spots, and the demo turns (a roll that pays three players, two roads, a settlement, a city, a bank trade, a 7 with discards and a steal, a development card and a Knight, Longest Road, three cities and the Heist) were played through the normal rules.
+
+If you change the rules, record it again: `node tutorial-record.js` (optionally with a seed). A test checks that every recorded move is still legal and that `tutorial.js` holds the current recording.
 
 ## How to play
 
