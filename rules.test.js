@@ -516,11 +516,11 @@ test('development card pile: totals, what has been played, and the view for ever
 // The fog rules without the goblets and without the fog-free start (those are tested separately).
 function plainFog(n, seed) { const g = mk(n, seed, 'flamecup'); g.board.goblets = false; g.board.fogFreeStart = false; g.act(0, { type: 'start' }); return g; }
 
-test('map categories: 15 countries and the misc maps (Classic Island, Blue Flame Cup, Hidden Vault, Hay Hollows)', () => {
+test('map categories: 15 countries and the misc maps (Classic Island, Blue Flame Cup, Hidden Vault, Hay Hollows, US 2.0)', () => {
   const list = maps.presetList();
   assert.ok(list.every(m => ['countries', 'misc'].includes(m.category)));
   assert.equal(list.filter(m => m.category === 'countries').length, 15);
-  assert.deepEqual(list.filter(m => m.category === 'misc').map(m => m.key).sort(), ['classic', 'flamecup', 'hayhollows', 'hiddenvault']);
+  assert.deepEqual(list.filter(m => m.category === 'misc').map(m => m.key).sort(), ['classic', 'flamecup', 'hayhollows', 'hiddenvault', 'us2']);
 });
 
 test('Blue Flame Cup layout: lake island, 24 visible forest tiles, 30 fog tiles that never hide wood, six wood harbors in the lake', () => {
@@ -1158,4 +1158,35 @@ test('country maps: islands are kept (Sicily, Sardinia, Corsica, Tasmania, Sri L
   assert.ok(comps('italy') >= 3, 'Italy: the boot, Sicily and Sardinia');
   for (const k of ['france', 'spain', 'australia', 'india', 'canada', 'japan']) assert.ok(comps(k) >= 2, k + ' has its islands');
   assert.equal(comps('germany'), 1); assert.equal(comps('brazil'), 1);
+});
+
+// ---------- US 2.0 ----------
+test('US 2.0: 144 hexes shaped like the United States, with 25 harbors and no touching 6s and 8s', () => {
+  for (const seed of [1, 2, 3, 4, 5, 6]) {
+    const g = mk(3, seed, 'us2'), T = g.board.tiles, ports = g.board.ports;
+    assert.equal(T.length, 144, 'tiles'); assert.equal(ports.length, 25, 'harbors');
+    const types = {}; ports.forEach(p => { types[p.type] = (types[p.type] || 0) + 1; });
+    assert.deepEqual(types, { any: 10, wood: 3, brick: 3, sheep: 3, wheat: 3, ore: 3 });
+    assert.equal(g.board.vertices.filter(v => v.port).length, 50, 'harbors never share a corner');
+    assert.equal(T.filter(t => t.terrain === 'desert').length, 8);
+    const red = T.filter(t => t.number === 6 || t.number === 8);
+    for (const a of red) for (const b of red) if (a !== b) assert.ok(Math.hypot(a.x - b.x, a.y - b.y) > 1.05, 'two red numbers touch (seed ' + seed + ')');
+    assert.ok(g.view(0).bank.wood === 144 || g.bank.wood === 144, 'the bank is as big as the map');
+  }
+  const t = maps.generatePreset('us2', 1).tiles, xs = t.map(a => a.q + a.r / 2), ys = t.map(a => a.r * 0.866);
+  const aspect = (Math.max(...xs) - Math.min(...xs) + 1) / (Math.max(...ys) - Math.min(...ys) + 0.866);
+  assert.ok(aspect > 1.4 && aspect < 2.2, 'wide like the United States: ' + aspect.toFixed(2));
+  const at = new Map(t.map(x => [x.q + ',' + x.r, x])), seen = new Set(), st = [t[0]]; seen.add(t[0].q + ',' + t[0].r);
+  while (st.length) { const y = st.pop(); for (const [dq, dr] of [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]]) { const k = (y.q + dq) + ',' + (y.r + dr); if (at.has(k) && !seen.has(k)) { seen.add(k); st.push(at.get(k)); } } }
+  assert.equal(seen.size, 144, 'one connected country');
+});
+
+test('US 2.0: bots of every level finish a game on it, and the bank stays balanced', () => {
+  for (const level of ['easy', 'medium', 'hard']) {
+    const g = new Game({ code: 'US2', map: maps.generatePreset('us2', 3), rng: maps.makeRng(3) });
+    g.addPlayer('Host', 'host'); ['A', 'B', 'C'].forEach(() => g.act(0, { type: 'addBot', level })); g.players[0].bot = level; g.act(0, { type: 'start' });
+    let steps = 0; while (g.phase !== 'ended' && steps++ < 40000) { const n = bots.nextActor(g); assert.ok(n, 'stalled'); try { g.act(n.pi, bots.decide(g, n.pi)); } catch (e) { assert.ok(bots.rescue(g, n.pi), e.message); } }
+    assert.equal(g.phase, 'ended', level);
+    for (const k of ['wood', 'brick', 'sheep', 'wheat', 'ore']) assert.equal(g.bank[k] + g.players.reduce((a, p) => a + p.res[k], 0), 144, k);
+  }
 });

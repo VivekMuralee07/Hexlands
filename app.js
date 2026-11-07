@@ -178,7 +178,9 @@ function fogLayer(b) {
 }
 function staticLayer(b) {
   const v = bounds(b, 140);
-  const poly = (sc, fill, op = 1, dy = 0) => b.tiles.filter(t => t.terrain !== 'fog').map(t => `<polygon points="${ART.HEX}" transform="translate(${t.x * U} ${t.y * U + dy}) scale(${sc})" fill="${fill}" opacity="${op}"/>`).join('');
+  // One shape per layer (all the hexes in a single path) instead of one element per tile: the same picture, far fewer elements.
+  const HEXPTS = ART.HEX.split(' ').map(q => q.split(',').map(Number));
+  const poly = (sc, fill, op = 1, dy = 0) => `<path fill="${fill}" opacity="${op}" d="${b.tiles.filter(t => t.terrain !== 'fog').map(t => 'M' + HEXPTS.map(([x, y]) => ((t.x * U + x * sc).toFixed(1) + ',' + (t.y * U + dy + y * sc).toFixed(1))).join('L') + 'Z').join('')}"/>`;
   const islandShadow = [[1.42, 30, .09], [1.36, 22, .12], [1.32, 14, .14]].map(([sc, dy, op]) => `<g>${poly(sc, '#021b3d', op, dy)}</g>`).join('');
   let seed = 12345; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const sparkles = Array.from({ length: 30 }, () => {
@@ -479,7 +481,8 @@ function startSession(sess, soft = false) {   // soft: reconnect without clearin
   es.addEventListener('board', e => {
     const fresh = S.boardFor !== sess.code;
     S.board = JSON.parse(e.data); S.boardFor = sess.code; S.boardRev = (S.boardRev || 0) + 1; S.shellReady = false;
-    if (fresh || !S.vb || S.shownKey !== S.board.key) { S.shownKey = S.board.key; S.base = bounds(S.board, VIEW_PAD); S.base.y -= TOP_EXTRA(); S.base.h += TOP_EXTRA(); S.vb = { ...S.base }; S.needFit = true; S.shellReady = false; }
+    if (fresh || !S.vb || S.shownKey !== S.board.key) { S.shownKey = S.board.key; S.base = bounds(S.board, VIEW_PAD); S.base.y -= TOP_EXTRA(); S.base.h += TOP_EXTRA(); S.vb = { ...S.base }; S.needFit = true; S.shellReady = false;
+      S.bigZoom = S.board.tiles.length > 100 ? Math.max(1, S.base.w / (Math.sqrt(3) * U) / 11) : 1; }   // a very big map opens zoomed in (about 11 hexes across) and is slid across the screen
   });
   es.addEventListener('state', e => { opened = true; onState(JSON.parse(e.data)); });
   es.onerror = () => {
@@ -928,9 +931,9 @@ function zoomCenter(f) { const svg = $('#board'), r = svg.getBoundingClientRect(
 // The view keeps the same scale on screen. When the board area changes height (a longer hint, a bar appearing), the map does not
 // shrink or grow: a little more or less sea shows at the bottom instead. Only pinch, the wheel, or a double tap change the zoom.
 function fitVB(W, H) {
-  const B = S.base, s = Math.min(W / B.w, H / B.h), w = W / s, h = H / s;
-  S.fitW = w;
-  return { x: B.x - (w - B.w) / 2, y: B.y, w, h };   // centred across, top aligned
+  const B = S.base, whole = Math.min(W / B.w, H / B.h), z = S.bigZoom || 1, s = whole * z, w = W / s, h = H / s;
+  S.fitW = W / whole;   // the width that shows the whole map: how far you can zoom out
+  return { x: B.x + B.w / 2 - w / 2, y: z > 1 ? B.y + B.h / 2 - h / 2 : B.y, w, h };   // centred across; top aligned, or centred when the map is zoomed in
 }
 function boardPx(svg) { const r = svg.getBoundingClientRect(); return [r.width, r.height, r.top]; }
 function setupPanZoom(svg) {

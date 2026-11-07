@@ -145,6 +145,17 @@ function assignNumbers(tiles, rng) {
     if (bad < bestBad) { bestBad = bad; best = nums; }
   }
   prod.forEach((t, i) => { t.number = best[i]; });
+  // Big maps: random shuffles rarely keep every 6 and 8 apart, so swap numbers around until no two red numbers touch.
+  const redTouch = t => (t.number === 6 || t.number === 8) ? neighbors(t, all).filter(n => n.number === 6 || n.number === 8).length : 0;
+  for (let i = 0; i < 4000 && bestBad > 0; i++) {
+    const bad = prod.filter(t => redTouch(t) > 0); if (!bad.length) break;
+    const a = bad[Math.floor(rng() * bad.length)], b = prod[Math.floor(rng() * prod.length)]; if (a === b || a.number === b.number) continue;
+    const before = redTouch(a) + redTouch(b) + neighbors(a, all).concat(neighbors(b, all)).reduce((s, n) => s + redTouch(n), 0);
+    [a.number, b.number] = [b.number, a.number];
+    const after = redTouch(a) + redTouch(b) + neighbors(a, all).concat(neighbors(b, all)).reduce((s, n) => s + redTouch(n), 0);
+    if (after > before) [a.number, b.number] = [b.number, a.number];
+    else bestBad = prod.reduce((s, t) => s + redTouch(t), 0);
+  }
   tiles.forEach(t => { if (t.terrain === 'desert') t.number = null; });
 }
 
@@ -221,6 +232,24 @@ PRESETS.hayhollows = {
   name: 'Hay Hollows', category: 'misc',
   blurb: 'A big island of hay, all numbered 6, 8 or 9, with random 3:1 harbors on every side. Build a settlement after setup and the hay beside it turns into other resources.',
   generate: rng => hayHollows(rng),
+};
+
+// US 2.0: the United States drawn four times as big, 144 hexes with the Great Lakes cut out of the north and 25 harbors around the coast.
+// The mask was traced from the real outline (equal-area projection, then hexes) at about 255 km per hex.
+const US2_MASK = ['...................', '.XXXXXXX...........', '.XXXXXXXXXX......X.', 'XXXXXXXXXXXXX..XX..', '.XXXXXXXXXXXXX.XXX.', 'XXXXXXXXXXXXXXXX...', '.XXXXXXXXXXXXXXXX..', 'XXXXXXXXXXXXXXXX...', '..XXXXXXXXXXXXXXX..', '..XXXXXXXXXXXXX....', '......XXXXXXXXX....', '......XXXXXX..X....', '........XX.....X...'];
+function usTwo(rng) {
+  const coords = maskToCoords(US2_MASK), deserts = 8, counts = apportion({ forest: 5, hills: 4, pasture: 4, fields: 6, mountains: 4 }, coords.length - deserts), bag = [];
+  Object.keys(counts).forEach(k => { for (let i = 0; i < counts[k]; i++) bag.push(k); });
+  for (let i = 0; i < deserts; i++) bag.push('desert');
+  shuffle(bag, rng);
+  const tiles = coords.map((c, i) => ({ q: c.q, r: c.r, terrain: bag[i], number: null }));
+  assignNumbers(tiles, rng);
+  return { name: 'US 2.0', tiles, portCount: 25 };
+}
+PRESETS.us2 = {
+  name: 'US 2.0', category: 'misc',
+  blurb: 'The United States four times as big: 144 hexes, the Great Lakes in the north and 25 harbors. Slide the map to see all of it.',
+  generate: rng => usTwo(rng),
 };
 
 function generatePreset(key, seed) {

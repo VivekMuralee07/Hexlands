@@ -122,9 +122,13 @@ function placePorts(geo, rng, map) {
     const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
     return { e, mx, my, ang: Math.atan2(my - cy, mx - cx) };
   }).sort((p, q) => p.ang - q.ang);
-  const count = Math.max(3, Math.min(14, Math.round(coastal.length / 3.4), Math.round(tiles.length * 9 / 19)));
+  const count = map && map.portCount ? map.portCount : Math.max(3, Math.min(14, Math.round(coastal.length / 3.4), Math.round(tiles.length * 9 / 19)));
   const pattern = ['any', 'wood', 'any', 'brick', 'sheep', 'any', 'wheat', 'ore', 'any'];
-  const types = shuffle(Array.from({ length: count }, (_, i) => pattern[i % 9]), rng);
+  let types;
+  if (map && map.portCount) {   // a set number of harbors: every resource gets the same number of 2:1 harbors, the rest are 3:1
+    const each = Math.floor(count * 0.6 / 5);
+    types = shuffle([...Array(count - each * 5).fill('any'), ...['wood', 'brick', 'sheep', 'wheat', 'ore'].flatMap(r => Array(each).fill(r))], rng);
+  } else types = shuffle(Array.from({ length: count }, (_, i) => pattern[i % 9]), rng);
   const ports = [], used = new Set();
   const step = coastal.length / count, offset = Math.floor(rng() * step);
   for (let i = 0; i < count; i++) {
