@@ -1431,7 +1431,7 @@ function pickResources(n, title, text, done) {
 function openRules() {
   const row = (ic, name, cost, note) => `<div class="devrow">${icon(ic)}<div class="txt"><b>${name}</b><small>${note}</small></div>${costChips(cost)}</div>`;
   const res = [['wood', 'Wood', 'Forest'], ['brick', 'Brick', 'Hills'], ['sheep', 'Sheep', 'Pasture'], ['wheat', 'Hay', 'Fields'], ['ore', 'Ore', 'Mountains']];
-  openModal('rules', `<h3>How to play</h3><button class="btn primary tutbtn" id="tutbtn">▶ Watch the animated tutorial <small>13 short chapters, about 3 minutes</small></button><div class="rules">
+  openModal('rules', `<h3>How to play</h3><button class="btn primary tutbtn" id="tutbtn">▶ Watch the animated tutorial <small>15 short chapters, about 3½ minutes</small></button><div class="rules">
     <section><h4>Goal</h4><p>Be the first to reach the points target on your own turn (10 by default; the host can change it). Settlements are worth 1 point, cities 2, Longest Road 2, Largest Army 2, and each hidden Victory Point card 1.</p></section>
     <section><h4>Setup</h4><p>Each player places a settlement and a road touching it, in turn order. Then it runs backwards, so the last player places both of theirs back to back. Your second settlement pays one card for every tile it touches.</p></section>
     <section><h4>Your turn</h4><ol><li>Roll the dice. Every tile showing that number pays each settlement next to it 1 card and each city 2.</li><li>Trade with other players, or with the bank at 4 to 1 (3 to 1 or 2 to 1 with a harbor).</li><li>Build, or buy a development card.</li><li>End your turn.</li></ol></section>
@@ -1982,5 +1982,5 @@ if (needConsent()) openConsent();   // everyone agrees to the Terms of Use and P
   if (LAUNCH_ACTION === 'rules') openRules(); else if (LAUNCH_ACTION === 'create' && S.name && S.screen === 'home') go('create');
 }
 // The animated tutorial (tutorial.js) draws with the same art as the game.
-window.HexlandsArt = { U, staticLayer, bounds, houseSvg, cityHouseSvg, icon, esc, RES_LABEL, TERRAIN_RES, COST, DEV, costChips, $, $$ };
+window.HexlandsArt = { U, staticLayer, bounds, houseSvg, cityHouseSvg, icon, esc, RES_LABEL, TERRAIN_RES, COST, DEV, costChips, TW_ICON, $, $$ };
 })();

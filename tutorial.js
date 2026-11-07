@@ -5,7 +5,7 @@ const TUT_REC = {"seed":7,"board":{"name":"Classic Island","key":"classic","fogF
 // It replays moves recorded from a real game played with the Hexlands engine (bots chose the setup spots; the demo turns were played
 // through the normal game rules), using the same art as the game. Each chapter is a few short steps with a caption.
 (function () {
-  const { U, staticLayer, bounds, houseSvg, cityHouseSvg, icon, esc, RES_LABEL, TERRAIN_RES, COST, DEV, costChips, $, $$ } = window.HexlandsArt;
+  const { U, staticLayer, bounds, houseSvg, cityHouseSvg, icon, esc, RES_LABEL, TERRAIN_RES, COST, DEV, costChips, TW_ICON, $, $$ } = window.HexlandsArt;
   const R = TUT_REC, B = R.board, ME = R.me, P = R.players, Ux = U;
   const step = kind => R.steps.find(s => s.kind === kind);
   const steps = kind => R.steps.filter(s => s.kind === kind);
@@ -37,17 +37,17 @@ const TUT_REC = {"seed":7,"board":{"name":"Classic Island","key":"classic","fogF
   function glowTiles(ids, label) { fx(ids.map(t => { const p = txy(t); return `<polygon class="tglow" points="${ART.HEX}" transform="translate(${p.x} ${p.y}) scale(.96)"/>`; }).join('')); }
   function spots(list, kind) { fx(list.map(id => { const p = kind === 'e' ? exy(id) : xy(id); return `<circle class="tspot" cx="${p.x}" cy="${p.y}" r="${kind === 'e' ? 14 : 18}"/>`; }).join('')); }
   function screen(p) { const svg = $('#tsvg'), m = svg.getScreenCTM(), r = $('#tstage').getBoundingClientRect(); const q = new DOMPoint(p.x, p.y).matrixTransform(m); return { x: q.x - r.left, y: q.y - r.top }; }
-  function at(el) { const r = el.getBoundingClientRect(), s = $('#tstage').getBoundingClientRect(); return { x: r.left - s.left + r.width / 2, y: r.top - s.top + r.height / 2 }; }
+  function at(el) { if (!el) { const s = $('#tstage').getBoundingClientRect(); return { x: s.width / 2, y: s.height / 2 }; } const r = el.getBoundingClientRect(), s = $('#tstage').getBoundingClientRect(); return { x: r.left - s.left + r.width / 2, y: r.top - s.top + r.height / 2 }; }
   function over(html) { const d = document.createElement('div'); d.innerHTML = html; const el = d.firstElementChild; $('#tover').appendChild(el); return el; }
   function fly(res, from, to, delay = 0) {   // a card flies across the stage
-    const el = over(`<div class="tcard">${res === 'back' ? '<span class="tback"></span>' : icon(res)}</div>`); el.style.left = from.x + 'px'; el.style.top = from.y + 'px';
+    const el = over(`<div class="tfly">${res === 'back' ? '<span class="tback"></span>' : icon(res)}</div>`); el.style.left = from.x + 'px'; el.style.top = from.y + 'px';
     setTimeout(() => { if (!el.isConnected) return; el.classList.add('go'); el.style.left = to.x + 'px'; el.style.top = to.y + 'px'; }, 60 + delay);
     setTimeout(() => el.remove(), 1500 + delay);
   }
   function finger(p, then) {   // a finger taps a spot on the board
     const s = screen(p), el = over(`<div class="tfinger">☝</div>`); el.style.left = s.x + 'px'; el.style.top = (s.y + 70) + 'px';
     setTimeout(() => { if (el.isConnected) { el.classList.add('go'); el.style.top = (s.y + 16) + 'px'; } }, 50);
-    setTimeout(() => { if (el.isConnected) el.classList.add('tap'); if (then) then(); }, 700);
+    const g = T.gen; setTimeout(() => { if (g !== T.gen || !T.alive) return; if (el.isConnected) el.classList.add('tap'); if (then) then(); }, 700);
     setTimeout(() => el.remove(), 1300);
   }
   function okSquare(p) { fx(`<g class="tok" transform="translate(${p.x} ${p.y - 70})"><rect x="-21" y="-21" width="42" height="42" rx="9" fill="#1f9d45" stroke="#fff" stroke-width="4"/><path d="M-10,1 L-3,8 L11,-7" stroke="#fff" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>`); }
@@ -65,9 +65,60 @@ const TUT_REC = {"seed":7,"board":{"name":"Classic Island","key":"classic","fogF
   }
   const chip = i => at($(`.tchip[data-p="${i}"]`));
 
+  // ----- a working copy of the trade window (same markup and styles as the game; the finger does the tapping) -----
+  const RES5 = ['wood', 'brick', 'sheep', 'wheat', 'ore'], R4 = { wood: 4, brick: 4, sheep: 4, wheat: 4, ore: 4 };
+  let TW = null;
+  function twHtml(o) {
+    const card = (k, n, extra = '', dim = false, cls = '') => `<button class="tcard ${k} ${dim ? 'dim' : ''} ${cls}" data-k="${k}" tabindex="-1">${icon(k)}${n ? `<b class="cnt">${n}</b>` : ''}${extra}</button>`;
+    const want = RES5.map(k => card(k, o.get[k] || 0, '', false, 'w')).join('');
+    const getSel = RES5.filter(k => o.get[k]).map(k => card(k, o.get[k], '', false, 'g')).join('') || '<span class="thint">Tap what you want above</span>';
+    const giveSel = RES5.filter(k => o.give[k]).map(k => card(k, o.give[k], '', false, 'o')).join('') || '<span class="thint">Tap cards in your hand to offer</span>';
+    const handRow = RES5.map(k => o.hand[k] ? card(k, o.hand[k] - (o.give[k] || 0), `<small class="rt${(o.flash || []).includes(k) ? ' trt' : ''}">${o.rates[k]}:1</small>`, o.hand[k] - (o.give[k] || 0) === 0, 'h') : '').join('');
+    const buys = (o.buys || []).map(b => b === 'dev'
+      ? `<button class="tw-buy tpulse" id="t-dev" tabindex="-1">${icon('dev')}<span>Buy a Dev card</span><span class="cost">${['sheep', 'wheat', 'ore'].map(k => icon(k)).join('')}</span></button>`
+      : `<button class="tw-buy heist tpulse" id="t-heist" tabindex="-1">${icon('heist')}<span>Buy the Heist</span><span class="cost">${['wood', 'brick', 'sheep', 'sheep', 'wheat', 'ore'].map(k => icon(k)).join('')}</span></button>`).join('');
+    return `<div class="tradewin ttw${o.slide ? ' slide' : ''}" id="ttw"><div class="tw-main">
+      <div class="tw-panel tw-want"><span class="tw-bank" id="t-bankic">${TW_ICON.bank}</span><div class="tw-cards">${want}</div></div>
+      <div class="tw-panel tw-sel">
+        <div class="tw-row"><span class="tw-who">${TW_ICON.people}</span>${TW_ICON.down}<div class="tw-cards">${getSel}</div></div>
+        <div class="tw-row"><span class="tw-who me" style="background:${P[ME].color}">${TW_ICON.me}</span>${TW_ICON.up}<div class="tw-cards">${giveSel}</div></div>
+        <p class="tw-hint">${esc(o.hint || 'Pick what you want, then what you give.')}</p>
+      </div>
+      <div class="tw-panel tw-hand">${handRow}</div>
+      ${buys ? `<div class="tw-buys">${buys}</div>` : ''}
+    </div>
+    <div class="tw-btns">
+      <button class="tw-btn${o.bank ? ' tpulse' : ''}" id="t-bank" ${o.bank ? '' : 'disabled'} tabindex="-1">${TW_ICON.bank}<span class="tick">${TW_ICON.check}</span></button>
+      <button class="tw-btn${o.players ? ' tpulse' : ''}" id="t-players" ${o.players ? '' : 'disabled'} tabindex="-1">${TW_ICON.people}<span class="tick">${TW_ICON.check}</span></button>
+      <button class="tw-btn cancel" tabindex="-1">${TW_ICON.cross}</button>
+    </div></div>`;
+  }
+  function tw(o) {   // show (or update) the trade window
+    TW = { hand: { wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 0 }, give: {}, get: {}, rates: { ...R4 }, ...TW, flash: [], slide: false, ...o };
+    const old = $('#ttw'), html = twHtml(TW);
+    if (old) old.outerHTML = html; else $('#tstage').insertAdjacentHTML('beforeend', html);
+    TW.slide = false; $('#thand').hidden = true;
+  }
+  function twClose() { TW = null; const el = $('#ttw'); if (el) el.remove(); const h = $('#thand'); if (h) h.hidden = false; }
+  function tap(sel, then) {   // the finger taps an element on the screen
+    const el = typeof sel === 'string' ? $(sel) : sel, g = T.gen; if (!el) { if (then) then(); return; }
+    const s = at(el), f = over(`<div class="tfinger">☝</div>`); f.style.left = s.x + 'px'; f.style.top = (s.y + 60) + 'px';
+    setTimeout(() => { if (f.isConnected) { f.classList.add('go'); f.style.top = (s.y + 8) + 'px'; } }, 40);
+    setTimeout(() => { if (g !== T.gen || !T.alive) return; if (f.isConnected) f.classList.add('tap'); el.classList.add('ttapped'); if (then) then(); }, 620);   // a step change cancels the tap
+    setTimeout(() => f.remove(), 1150);
+  }
+  function bubble(i, text, good) { const c = chip(i), b = over(`<div class="tbubble ${good ? 'yes' : 'no'}">${text}</div>`); b.style.left = c.x + 'px'; b.style.top = (c.y + 26) + 'px'; return b; }
+  function portSpot(type, label) {   // highlight a harbor of this kind (one near the top, so the trade window does not hide it) and its two corners
+    const list = (B.ports || []).filter(p => type === 'any' ? p.type === 'any' : p.type !== 'any').sort((a, b) => a.y - b.y), p = list[0]; if (!p) return null;
+    fx(`<circle class="tport" cx="${p.x * Ux}" cy="${p.y * Ux}" r="36"/>` + p.vx.map(([x, y]) => `<circle class="tcorner" cx="${x * Ux}" cy="${y * Ux}" r="17"/>`).join(''));
+    const s = screen({ x: p.x * Ux, y: p.y * Ux }), el = over(`<div class="tlabel big">${label}${p.type !== 'any' ? ' ' + icon(p.type) : ''}</div>`); el.style.left = s.x + 'px'; el.style.top = (s.y - 30) + 'px';
+    return p;
+  }
+
   // ----- the chapters -----
   const after = (ms, f) => { const g = T.gen; setTimeout(() => { if (g === T.gen && T.alive) f(); }, ms); };
   const setupMoves = R.steps.filter(s => s.kind === 'settle' || s.kind === 'road');
+  const R2 = ((B.ports || []).filter(p => p.type !== 'any').sort((a, b) => a.y - b.y)[0] || { type: 'sheep' }).type, R2N = RES_LABEL[R2], AN = w => /^[aeiou]/i.test(w) ? 'an' : 'a';   // the 2:1 harbor the tutorial shows
   const CH = [
     { title: 'The island', steps: [
       { cap: 'Hexlands is played on an island of hex tiles. Each tile produces one resource.', dur: 4200, run: () => pieces(empty) },
@@ -104,13 +155,52 @@ const TUT_REC = {"seed":7,"board":{"name":"Classic Island","key":"classic","fogF
       { cap: 'A city replaces a settlement and pays double.', dur: 3600, run: () => { const c = step('build-city'); after(600, () => finger(xy(c.v), () => pieces(c.at))); } },
     ] },
     { title: 'Trading', steps: [
-      { cap: 'Tap any of your cards to open the trade window. The bank swaps 4 of a kind for 1 card you choose.', dur: 5000, run: () => {
-        const t = step('bank'); const bank = at($('#tbank')), src = at($(`.th[data-r="${t.give}"]`));
-        for (let i = 0; i < t.n; i++) fly(t.give, src, bank, i * 160);
-        after(1400, () => fly(t.get, bank, at($(`.th[data-r="${t.get}"]`))));
-        after(2400, () => pieces(t.at)); } },
-      { cap: 'Harbors trade better: a ? harbor is 3 for 1, a resource harbor is 2 for 1 of that resource. Build on one of its two corners to use it.', dur: 5200, run: () => fx((B.ports || []).map(p => `<circle class="tport" cx="${p.x * Ux}" cy="${p.y * Ux}" r="34"/>`).join('')) },
-      { cap: 'You can also offer cards to the other players. They accept or decline; you confirm the deal.', dur: 4600, run: () => { const a = chip(ME), b = chip((ME + 1) % P.length); fly('sheep', a, b); after(500, () => fly('ore', b, a)); } },
+      { cap: 'To trade, tap any card in your hand. The trade window opens with that card already offered.', dur: 4200, run: () => {
+        twClose(); pieces(step('build-city').at); TW = null;
+        after(500, () => tap(`#thand [data-r="wood"]`, () => tw({ slide: true, hand: { wood: 4, brick: 1, sheep: 2, wheat: 2, ore: 0 }, give: { wood: 1 }, get: {}, rates: { ...R4 }, hint: 'Pick what you want, then what you give.' }))); } },
+      { cap: 'The top row is what you can get. Tap the card you want: it moves to the "you get" row.', dur: 4200, run: () => {
+        tw({ hand: { wood: 4, brick: 1, sheep: 2, wheat: 2, ore: 0 }, give: { wood: 1 }, get: {}, rates: { ...R4 } });
+        after(600, () => tap('#ttw .tw-want .tcard.ore', () => tw({ get: { ore: 1 }, hint: 'Bank rate for Wood is 4 to 1: give 4 Wood for 1 Ore, or offer this to players.' }))); } },
+      { cap: 'Now tap cards in your hand to give. The small number on each card is your bank rate: 4:1 means 4 of that card for any 1 card.', dur: 5400, run: () => {
+        tw({ give: { wood: 1 }, get: { ore: 1 }, bank: false });
+        [2, 3, 4].forEach((n, i) => after(500 + i * 900, () => tap('#ttw .tw-hand .tcard.wood', () => tw({ give: { wood: n }, ...(n === 4 ? { bank: true, hint: 'Bank: 4 Wood for 1 Ore' } : { hint: `Give ${4 - n} more Wood for the bank rate.` }) })))); } },
+      { cap: 'When the rate is met, the bank button lights up. Tap it: 4 wood go to the bank and the ore comes to you.', dur: 4400, run: () => {
+        tw({ give: { wood: 4 }, get: { ore: 1 }, bank: true, hint: 'Bank: 4 Wood for 1 Ore' });
+        after(500, () => tap('#t-bank', () => {
+          const from = at($('#ttw .tw-sel .tcard.wood') || $('#t-bank')), bank = at($('#t-bankic'));
+          for (let i = 0; i < 4; i++) fly('wood', from, bank, i * 120);
+          after(900, () => fly('ore', bank, at($('#ttw .tw-sel .tcard.ore') || $('#t-bank'))));
+          after(1900, () => tw({ hand: { wood: 0, brick: 1, sheep: 2, wheat: 2, ore: 1 }, give: {}, get: {}, bank: false, hint: 'Traded 4 Wood for 1 Ore.' }));
+        })); } },
+      { cap: 'Trading with players: pick what you want and what you give, then tap the players button. They accept or decline, and you choose who to trade with.', dur: 7200, run: () => {
+        tw({ hand: { wood: 0, brick: 1, sheep: 2, wheat: 2, ore: 1 }, give: {}, get: {}, bank: false, players: false, hint: 'Pick what you want, then what you give.' });
+        const other = (ME + 1) % P.length, third = (ME + 2) % P.length;
+        after(400, () => tap('#ttw .tw-want .tcard.brick', () => tw({ get: { brick: 1 } })));
+        after(1300, () => tap('#ttw .tw-hand .tcard.sheep', () => tw({ give: { sheep: 1 }, players: true, hint: 'Offer this deal to the other players.' })));
+        after(2300, () => tap('#t-players', () => { tw({ players: false, hint: 'Waiting for answers…' }); after(500, () => { bubble(other, '✓ Accept', true); if (P.length > 2) bubble(third, '✗ No', false); }); }));
+        after(4100, () => tap($(`.tchip[data-p="${other}"]`), () => { fly('sheep', at($('#ttw .tw-sel .tcard.sheep') || $('#t-players')), chip(other)); after(400, () => fly('brick', chip(other), at($('#ttw .tw-hand .tcard.brick') || $('#t-players')))); after(1400, () => tw({ hand: { wood: 0, brick: 2, sheep: 1, wheat: 2, ore: 1 }, give: {}, get: {}, hint: `Traded with ${P[other].name}.` })); })); } },
+    ] },
+    { title: 'Harbors: 3:1 and 2:1', steps: [
+      { cap: 'Harbors sit on the coast. Each one touches two corners. With a settlement or city on one of those corners, the harbor is yours to use.', dur: 4800, run: () => { twClose(); pieces(step('build-city').at); portSpot('any', '3:1'); } },
+      { cap: 'A ? harbor (3:1) changes every bank rate in the trade window from 4:1 to 3:1: any 3 matching cards buy 1 card of your choice.', dur: 5600, run: () => {
+        const p = portSpot('any', '3:1'); if (p) { const v = p.vx[0]; after(300, () => fx(`<g transform="translate(${v[0] * Ux} ${v[1] * Ux}) scale(1.72)"><g class="tpop">${houseSvg(P[ME].color, true)}</g></g>`)); }
+        after(1300, () => tw({ slide: true, hand: { wood: 3, brick: 1, sheep: 2, wheat: 3, ore: 1 }, give: {}, get: {}, rates: { ...R4 }, hint: 'Every rate is 4:1 without a harbor.' }));
+        after(2700, () => tw({ rates: { wood: 3, brick: 3, sheep: 3, wheat: 3, ore: 3 }, flash: RES5, hint: 'With a 3:1 harbor every rate is 3:1.' })); } },
+      { cap: `A resource harbor (2:1, it shows that resource) makes only that resource 2:1: here ${AN(R2N)} ${R2N} harbor, so 2 ${R2N.toLowerCase()} buy any 1 card. Your other cards keep their rate.`, dur: 6000, run: () => {
+        twClose(); const p = portSpot('res', '2:1'); if (p) { const v = p.vx[0]; after(300, () => fx(`<g transform="translate(${v[0] * Ux} ${v[1] * Ux}) scale(1.72)"><g class="tpop">${houseSvg(P[ME].color, true)}</g></g>`)); }
+        const r = p ? p.type : 'sheep';
+        after(1300, () => tw({ slide: true, hand: { wood: 3, brick: 1, sheep: 2, wheat: 3, ore: 1, [r]: 2 }, give: {}, get: {}, rates: { ...R4 }, hint: 'Every rate is 4:1 without a harbor.' }));
+        after(2700, () => tw({ rates: { ...R4, [r]: 2 }, flash: [r], hint: `With ${AN(RES_LABEL[r])} ${RES_LABEL[r]} harbor, ${RES_LABEL[r]} is 2:1.` })); } },
+    ] },
+    { title: 'Buying from the trade window', steps: [
+      { cap: 'Development cards are bought in the trade window. When you hold sheep, hay and ore, a Buy a Dev card button appears there. Tap it to draw a card.', dur: 5600, run: () => {
+        twClose(); pieces(step('build-city').at);
+        after(300, () => tw({ slide: true, hand: { wood: 0, brick: 2, sheep: 1, wheat: 2, ore: 1 }, give: {}, get: {}, rates: { ...R4 }, buys: ['dev'], hint: 'You can afford a development card.' }));
+        after(1700, () => tap('#t-dev', () => { fly('sheep', at($('#ttw .tw-hand .tcard.sheep')), at($('#t-dev'))); after(200, () => { over(`<div class="tdev flip">${icon(step('buydev').card)}<b>${DEV[step('buydev').card].name}</b></div>`); tw({ hand: { wood: 0, brick: 2, sheep: 0, wheat: 1, ore: 0 }, buys: [], hint: 'Bought a development card.' }); }); })); } },
+      { cap: 'Once you have 3 cities and can pay wood, brick, 2 sheep, hay and ore, a Buy the Heist button appears too. You can buy it once per game.', dur: 5800, run: () => {
+        twClose(); pieces(step('cities').at);
+        after(300, () => tw({ slide: true, hand: { wood: 1, brick: 1, sheep: 2, wheat: 1, ore: 1 }, give: {}, get: {}, rates: { ...R4 }, buys: ['heist'], hint: '3 cities: you can buy the Heist.' }));
+        after(1800, () => tap('#t-heist', () => after(200, () => { over(`<div class="tdev flip heist">${icon('heist')}<b>Heist</b></div>`); tw({ hand: { wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 0 }, buys: [], hint: 'Bought the Heist card. Play it on a later turn.' }); }))); } },
     ] },
     { title: 'The robber and 7', steps: [
       { cap: 'A roll of 7 brings out the robber. Nobody collects anything.', dur: 3600, run: () => { pieces(step('bank').at); dice(step('seven').dice); } },
@@ -120,7 +210,7 @@ const TUT_REC = {"seed":7,"board":{"name":"Classic Island","key":"classic","fogF
       { cap: 'Fair 7s: every player rolls the 7 equally often, and there are always 3 to 8 other rolls between two 7s.', dur: 5200, run: () => panel(`<h4>Fair 7s</h4><div class="tsevens">${P.map((p, i) => `<div style="--c:${p.color}"><b>${i === ME ? 'You' : esc(p.name)}</b><span>7 · 7 · 7</span></div>`).join('')}</div><p class="tmuted">Nobody is ever more than one 7 ahead.</p>`) },
     ] },
     { title: 'Development cards', steps: [
-      { cap: 'Buy a development card for sheep, hay and ore. The Buy button is in the trade window when you can afford it.', dur: 4600, run: () => { const d = step('buydev'); pieces(d.at); over(`<div class="tdev flip">${icon(d.card)}<b>${DEV[d.card].name}</b></div>`); } },
+      { cap: 'A development card costs sheep, hay and ore (bought in the trade window). It stays hidden in your hand until you play it.', dur: 4400, run: () => { const d = step('buydev'); pieces(d.at); over(`<div class="tdev flip">${icon(d.card)}<b>${DEV[d.card].name}</b></div>`); } },
       { cap: 'Play one card a turn by tapping the Dev card in your hand (not on the turn you bought it).', dur: 7000, run: () => panel(`<h4>The cards</h4>${['knight', 'roadBuilding', 'yearOfPlenty', 'monopoly', 'vp'].map(k => `<div class="trow">${icon(k)} <span><b>${DEV[k].name}</b> ${DEV[k].text}</span></div>`).join('')}`) },
       { cap: 'A Knight moves the robber and steals a card. The first player with 3 Knights gets Largest Army: 2 points.', dur: 4600, run: () => { const k = step('knight'); pieces({ ...T.prev, robber: k.tile }); glowTiles([k.tile]); after(1300, () => { fly('back', chip(k.victim), chip(ME)); pieces(k.at); }); } },
     ] },
@@ -158,6 +248,7 @@ const TUT_REC = {"seed":7,"board":{"name":"Classic Island","key":"classic","fogF
   // ----- the player -----
   function show() {
     T.gen++; clearTimeout(T.timer); clearFx(); $('#tstage').classList.remove('dim');
+    if (!/Trad|Harbor|Buying/.test(CH[T.ch].title)) twClose();
     const ch = CH[T.ch], s = ch.steps[T.st];
     $('#ttitle').textContent = `${T.ch + 1}. ${ch.title}`;
     $('#tcap').textContent = s.cap;
