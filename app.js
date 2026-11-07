@@ -127,7 +127,7 @@ function tileSvg(t, attrs = '') {
 function tokenSvg(n, x, y) {
   const pips = 6 - Math.abs(7 - n), red = n === 6 || n === 8, col = red ? '#d4140d' : '#000';
   const dots = Array.from({ length: pips }, (_, i) => `<circle cx="${(i - (pips - 1) / 2) * 7.4}" cy="19" r="3.3" fill="${col}"/>`).join('');
-  return `<g transform="translate(${x} ${y})" pointer-events="none"><circle r="31" fill="url(#g-token)" stroke="${red ? '#a31a14' : '#6b5a3a'}" stroke-width="2.4" filter="url(#f-shadow)"/>`
+  return `<g transform="translate(${x} ${y})" pointer-events="none"><circle r="31" cy="3.5" fill="#0b1e33" opacity=".32"/><circle r="31" fill="url(#g-token)" stroke="${red ? '#a31a14' : '#6b5a3a'}" stroke-width="2.4"/>`
     + `<circle r="26.5" fill="none" stroke="#c9b48a" stroke-width="1"/><text y="${n >= 10 ? 7 : 9}" text-anchor="middle" font-family="Alegreya SC, Georgia, serif" font-weight="800" font-size="${n >= 10 ? 29 : 35}" fill="${col}" stroke="${col}" stroke-width="1.4" stroke-linejoin="round">${n}</text>${dots}</g>`;
 }
 const RES_COLOR = { wood: '#14943a', brick: '#e2632a', sheep: '#92b40a', wheat: '#f3ba23', ore: '#a3a9a5' };
@@ -142,7 +142,7 @@ function portSvg(p) {
       + `<line x1="${X}" y1="${Y}" x2="${ex}" y2="${ey}" stroke="#b86a1a" stroke-width="12" stroke-dasharray="1.8 5.2"/>`;
   }).join('');
   const sym = any ? `<text x="0" y="-9" text-anchor="middle" font-family="Alegreya Sans, sans-serif" font-weight="800" font-size="24" fill="#5c3b2a">?</text>` : `<use href="#ic-${p.type}" x="-11" y="-27" width="22" height="22"/>`;
-  const ship = `<g transform="translate(${px} ${py})" filter="url(#f-shadow)"><title>${any ? 'Harbor: trade any 3 identical cards for 1' : `Harbor: trade 2 ${RES_LABEL[p.type]} for 1`}</title><g><animateTransform attributeName="transform" type="translate" values="0 0;0 -2.5;0 0" dur="2.8s" repeatCount="indefinite"/>`
+  const ship = `<g transform="translate(${px} ${py})"><title>${any ? 'Harbor: trade any 3 identical cards for 1' : `Harbor: trade 2 ${RES_LABEL[p.type]} for 1`}</title><g>`
     + `<ellipse cy="23" rx="25" ry="5.5" fill="#bfe9fb" opacity=".85"/><ellipse cy="24" rx="19" ry="3.5" fill="#fff" opacity=".7"/>`
     + `<rect x="-1.3" y="-40" width="2.6" height="12" fill="#6b3d12"/><path d="M2,-41 h13 M4,-36.5 h11" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/>`
     + `<path d="M-18,-28 Q-25,-9 -16,7 H16 Q25,-9 18,-28 Q0,-35 -18,-28Z" fill="#fff" stroke="#c4d1de" stroke-width="1.6" stroke-linejoin="round"/>`
@@ -183,10 +183,7 @@ function staticLayer(b) {
   const poly = (sc, fill, op = 1, dy = 0) => `<path fill="${fill}" opacity="${op}" d="${b.tiles.filter(t => t.terrain !== 'fog').map(t => 'M' + HEXPTS.map(([x, y]) => ((t.x * U + x * sc).toFixed(1) + ',' + (t.y * U + dy + y * sc).toFixed(1))).join('L') + 'Z').join('')}"/>`;
   const islandShadow = [[1.42, 30, .09], [1.36, 22, .12], [1.32, 14, .14]].map(([sc, dy, op]) => `<g>${poly(sc, '#021b3d', op, dy)}</g>`).join('');
   let seed = 12345; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  const sparkles = Array.from({ length: 30 }, () => {
-    const x = v.x + rnd() * v.w, y = v.y + rnd() * v.h, sc = .6 + rnd() * .9, dur = 2.4 + rnd() * 2.6, begin = rnd() * 4;
-    return `<path d="M0,-6 L1.6,-1.6 L6,0 L1.6,1.6 L0,6 L-1.6,1.6 L-6,0 L-1.6,-1.6Z" transform="translate(${x.toFixed(0)} ${y.toFixed(0)}) scale(${sc.toFixed(2)})" fill="#fff" opacity="0"><animate attributeName="opacity" values="0;.85;0" dur="${dur.toFixed(1)}s" begin="${begin.toFixed(1)}s" repeatCount="indefinite"/></path>`;
-  }).join('');
+  const sparkles = '';   // (the sea used to twinkle: thirty endless animations kept the whole map repainting)
   const sorted = b.tiles.slice().sort((p, q) => p.y - q.y || p.x - q.x);
   return islandShadow + [[1.31, '#4f9fcb'], [1.27, '#7bd0f9'], [1.2, '#dfeadd'], [1.17, '#f0d9a2'], [1.09, '#dfb86d']].map(([sc, col]) => `<g>${poly(sc, col)}</g>`).join('')
     + fogLayer(b)
@@ -935,7 +932,7 @@ function fitVB(W, H) {
   S.fitW = W / whole;   // the width that shows the whole map: how far you can zoom out
   return { x: B.x + B.w / 2 - w / 2, y: z > 1 ? B.y + B.h / 2 - h / 2 : B.y, w, h };   // centred across; top aligned, or centred when the map is zoomed in
 }
-function boardPx(svg) { const r = svg.getBoundingClientRect(); return [r.width, r.height, r.top]; }
+function boardPx(svg) { const r = (svg.parentElement || svg).getBoundingClientRect(); return [r.width, r.height, r.top]; }   // the board area: not moved by a gesture in progress
 function setupPanZoom(svg) {
   if (window.ResizeObserver) new ResizeObserver(() => {
     if (!svg.isConnected || !S.base) return;
@@ -950,42 +947,64 @@ function setupPanZoom(svg) {
     }
     S.boardPx = [W, H, T]; applyVB();
   }).observe(svg);
-  const pts = new Map(); let downTarget = null, moved = 0, pinchD = 0, lastTap = null;   // pinch or the mouse wheel to zoom, double tap to fit
+  const pts = new Map(); let downTarget = null, moved = 0, lastTap = null;   // pinch or the mouse wheel to zoom, double tap to fit
+  // While a finger is down the drawn map is moved and scaled as one picture (cheap for the phone); the real view changes once,
+  // when the finger lifts. Redrawing thousands of shapes on every finger movement was what made sliding slow.
+  let gest = null, frame = 0;
+  const local = p => { const r = (svg.parentElement || svg).getBoundingClientRect(); return { x: p.x - r.left, y: p.y - r.top }; };
+  const startGesture = () => {
+    const P = [...pts.values()].map(local);
+    gest = P.length >= 2 ? { mode: 'pinch', o: { x: (P[0].x + P[1].x) / 2, y: (P[0].y + P[1].y) / 2 }, d0: Math.hypot(P[0].x - P[1].x, P[0].y - P[1].y), dx: 0, dy: 0, k: 1 }
+      : { mode: 'drag', o: P[0], dx: 0, dy: 0, k: 1 };
+  };
+  const showGesture = () => { frame = 0; if (gest) svg.style.transform = `translate(${gest.dx + gest.o.x - gest.k * gest.o.x}px, ${gest.dy + gest.o.y - gest.k * gest.o.y}px) scale(${gest.k})`; };
+  const commitGesture = () => {
+    if (!gest) return;
+    const g = gest; gest = null; if (frame) { cancelAnimationFrame(frame); frame = 0; }
+    svg.style.transform = ''; svg.style.willChange = '';
+    if (g.k === 1 && !g.dx && !g.dy) return;
+    const v = S.vb, W = boardPx(svg)[0] || 1, s0 = W / v.w, k = g.k;
+    S.vb = { x: v.x + (g.o.x * (k - 1) - g.dx) / (k * s0), y: v.y + (g.o.y * (k - 1) - g.dy) / (k * s0), w: v.w / k, h: v.h / k };
+    applyVB();
+  };
+  const zoomLimits = () => { const v = S.vb; return [v.w / Math.max(S.base.w * 1.25, (S.fitW || 0) * 1.15), v.w / (S.base.w * 0.3)]; };   // allowed range of k
   svg.addEventListener('pointerdown', e => {
+    commitGesture();
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pts.size === 1) { downTarget = e.target; moved = 0; }
-    if (pts.size === 2) { const [a, b] = [...pts.values()]; pinchD = Math.hypot(a.x - b.x, a.y - b.y); moved = 99; }
+    if (pts.size >= 2) moved = 99;
     try { svg.setPointerCapture(e.pointerId); } catch {}
   });
   svg.addEventListener('pointermove', e => {
     const prev = pts.get(e.pointerId); if (!prev) return;
     const cur = { x: e.clientX, y: e.clientY }; pts.set(e.pointerId, cur);
-    if (pts.size === 1) {
-      const dx = cur.x - prev.x, dy = cur.y - prev.y; moved += Math.abs(dx) + Math.abs(dy);
-      if (moved > 8) {
-        svg.classList.add('dragging');
-        const scale = svg.getScreenCTM().a;
-        S.vb.x -= dx / scale; S.vb.y -= dy / scale; applyVB();
-      }
-    } else if (pts.size === 2) {
-      const [a, b] = [...pts.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y);
-      if (pinchD) zoomAt(svg, (a.x + b.x) / 2, (a.y + b.y) / 2, d / pinchD);
-      pinchD = d;
+    if (pts.size === 1) moved += Math.abs(cur.x - prev.x) + Math.abs(cur.y - prev.y);
+    if (pts.size === 1 && moved <= 8) return;
+    if (!gest || (gest.mode === 'drag') !== (pts.size === 1)) { commitGesture(); startGesture(); svg.style.willChange = 'transform'; svg.classList.add('dragging'); }
+    const P = [...pts.values()].map(local);
+    if (gest.mode === 'drag') { gest.dx = P[0].x - gest.o.x; gest.dy = P[0].y - gest.o.y; }
+    else {
+      const m = { x: (P[0].x + P[1].x) / 2, y: (P[0].y + P[1].y) / 2 }, d = Math.hypot(P[0].x - P[1].x, P[0].y - P[1].y), [lo, hi] = zoomLimits();
+      gest.k = Math.max(lo, Math.min(hi, d / (gest.d0 || 1))); gest.dx = m.x - gest.o.x; gest.dy = m.y - gest.o.y;
     }
+    if (!frame) frame = requestAnimationFrame(showGesture);
   });
   const end = e => {
     if (!pts.has(e.pointerId)) return;
     pts.delete(e.pointerId); svg.classList.remove('dragging');
+    commitGesture();
     if (e.type === 'pointerup' && pts.size === 0 && moved <= 8) {
       const now = Date.now(), plain = !(downTarget && downTarget.closest && downTarget.closest('[data-v],[data-e],[data-t],[data-confirm],[data-keep]'));
       if (plain && lastTap && now - lastTap.t < 330 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 30) { lastTap = null; const [W, H, T] = boardPx(svg); S.vb = W && H ? fitVB(W, H) : { ...S.base }; S.boardPx = [W, H, T]; applyVB(); return; }
       lastTap = plain ? { t: now, x: e.clientX, y: e.clientY } : null;
       onBoardTap(downTarget);
     }
-    if (pts.size < 2) pinchD = 0;
   };
   svg.addEventListener('pointerup', end); svg.addEventListener('pointercancel', end);
-  svg.addEventListener('wheel', e => { e.preventDefault(); zoomAt(svg, e.clientX, e.clientY, e.deltaY < 0 ? 1.12 : 1 / 1.12); }, { passive: false });
+  let wheel = null;   // wheel turns within one frame are combined into a single zoom
+  svg.addEventListener('wheel', e => { e.preventDefault(); const f = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+    if (wheel) { wheel.f *= f; wheel.x = e.clientX; wheel.y = e.clientY; return; }
+    wheel = { f, x: e.clientX, y: e.clientY }; requestAnimationFrame(() => { const w = wheel; wheel = null; zoomAt(svg, w.x, w.y, w.f); }); }, { passive: false });
 }
 
 function drawDice(d, roll) {

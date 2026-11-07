@@ -604,7 +604,8 @@ body { background: radial-gradient(130% 100% at 50% 0%, #29d3e6 0%, #129cc9 28%,
 .hc.city { stroke: #b88a00; stroke-width: 3; }
 .hs:hover .hc { fill: rgba(255, 255, 255, .78); }
 .hg { opacity: .92; pointer-events: none; }
-@media (prefers-reduced-motion: no-preference) { .hs .hc { animation: hpulse 1.3s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: center; } }
+/* building spots glow without an endless pulse: hundreds of pulsing circles kept the whole map repainting every frame */
+.hs .hc { animation: none; }
 @keyframes hpulse { from { transform: scale(.93); } to { transform: scale(1.06); } }
 .placing { display: flex; gap: .4rem; align-items: center; }
 .pcardx { width: 46px; height: 46px; padding: 3px; border-radius: 12px; display: grid; place-items: center; border: 3px solid #fff; cursor: pointer;
@@ -1020,3 +1021,6 @@ span.pcardx { cursor: default; }
 .zoom .endbtn:disabled { opacity: .6; }
 /* the bottom bar keeps only what is needed: an empty action row takes no space */
 .actions:empty { display: none; }
+
+/* the map is moved as one picture while a finger is down */
+#board { transform-origin: 0 0; }

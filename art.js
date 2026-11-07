@@ -95,7 +95,7 @@
     <circle cx="40" cy="-42" r="6" fill="#ffe08a" opacity=".5"/>`;
 
   t.fields += `<g transform="translate(-37 -20)"><ellipse cx="0" cy="17" rx="12" ry="3" fill="#7a5a1a" opacity=".4"/><path d="M-7,17 L-4,-6 L4,-6 L7,17Z" fill="#fff4d6" stroke="#8a6a3a" stroke-width="1"/><path d="M-6,-6 L0,-15 L6,-6Z" fill="#e0392b" stroke="#7a1d14" stroke-width=".8"/><rect x="-2" y="8" width="4" height="9" fill="#7a4d24"/>
-    <g transform="translate(0 -7)"><g><animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="8s" repeatCount="indefinite"/>${[0, 90, 180, 270].map(r => `<g transform="rotate(${r})"><rect x="-.9" y="-16" width="1.8" height="16" fill="#6b4a12"/><path d="M1,-15 h7 v7 h-7z" fill="#fff" stroke="#b9a070" stroke-width=".5"/></g>`).join('')}</g><circle r="1.8" fill="#4a3210"/></g></g>`;
+    <g transform="translate(0 -7)"><g>${[0, 90, 180, 270].map(r => `<g transform="rotate(${r})"><rect x="-.9" y="-16" width="1.8" height="16" fill="#6b4a12"/><path d="M1,-15 h7 v7 h-7z" fill="#fff" stroke="#b9a070" stroke-width=".5"/></g>`).join('')}</g><circle r="1.8" fill="#4a3210"/></g></g>`;
   t.pasture += `<g transform="translate(40 6)"><ellipse rx="14" ry="6.5" fill="#1d86b8"/><ellipse rx="12.5" ry="5.4" fill="#45c8f0"/><path d="M-8,-1 q4,-2 8,0" stroke="#fff" stroke-opacity=".7" stroke-width="1" fill="none"/><circle cx="6" cy="1" r="2.2" fill="#5fcf5f"/></g>`;
   // Plain, flat tiles: one colour per resource and no scenery
   const PLAIN = {"forest": "#14943a", "hills": "#e2632a", "pasture": "#92b40a", "fields": "#f3ba23", "mountains": "#a3a9a5", "desert": "#cac284"};
@@ -184,7 +184,7 @@
     ${grad('g-forest', '#0fb040', '#0fb040')}${grad('g-hills', '#f55f1a', '#f55f1a')}${grad('g-pasture', '#8ee014', '#8ee014')}
     ${grad('g-fields', '#ffc914', '#ffc914')}${grad('g-mountains', '#a3bbe6', '#a3bbe6')}${grad('g-desert', '#f3dc92', '#f3dc92')}
     ${rgrad('g-sea', '#1f6a80', '#0b2d3d')}${rgrad('g-token', '#fffaf0', '#e6d6b0')}${rgrad('g-brass', '#f3d27e', '#a87a22')}
-    <pattern id="p-waves" width="120" height="48" patternUnits="userSpaceOnUse"><path d="M0,24 q15,-12 30,0 t30,0 t30,0 t30,0" stroke="#e2fcff" stroke-opacity=".07" stroke-width="2.6" fill="none"/><path d="M0,44 q15,-9 30,0 t30,0 t30,0 t30,0" stroke="#fff" stroke-opacity=".04" stroke-width="2" fill="none"/><animateTransform attributeName="patternTransform" type="translate" from="0 0" to="120 0" dur="16s" repeatCount="indefinite"/></pattern>
+    <pattern id="p-waves" width="120" height="48" patternUnits="userSpaceOnUse"><path d="M0,24 q15,-12 30,0 t30,0 t30,0 t30,0" stroke="#e2fcff" stroke-opacity=".07" stroke-width="2.6" fill="none"/><path d="M0,44 q15,-9 30,0 t30,0 t30,0 t30,0" stroke="#fff" stroke-opacity=".04" stroke-width="2" fill="none"/></pattern>
     <filter id="f-shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="2.5" stdDeviation="2.5" flood-color="#000" flood-opacity=".45"/></filter>
     <filter id="f-glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
     <linearGradient id="g-bevel" x1="0" y1="0" x2=".35" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".26"/><stop offset=".38" stop-color="#fff" stop-opacity="0"/><stop offset=".68" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".2"/></linearGradient>
