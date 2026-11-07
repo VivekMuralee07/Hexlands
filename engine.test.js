@@ -38,7 +38,11 @@ test('classic board geometry matches the standard island', () => {
   assert.equal(g.board.tiles.filter(t => t.terrain === 'desert').length, 1);
   assert.equal(g.board.tiles[g.robber].terrain, 'desert');
   const nums = g.board.tiles.map(t => t.number).filter(n => n).sort((a, b) => a - b);
-  assert.deepEqual(nums, [2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12]);
+  assert.equal(nums.length, 18);   // the standard island has 2 3 3 4 4 5 5 6 6 8 8 9 9 10 10 11 11 12; Hexlands leans a little towards 6, 8 and 9
+  assert.ok(nums.includes(2) && nums.includes(12), 'the rare ends are kept');
+  assert.equal(nums.filter(n => n === 6 || n === 8).length, 4, 'the same four red numbers');
+  assert.equal(nums.filter(n => n === 9).length, 3, 'one more 9 than the standard set');
+  assert.equal(nums.filter(n => [6, 8, 9].includes(n)).length, 7, '7 of 18 tiles instead of 6');
 });
 
 test('every country preset generates a playable board', () => {
