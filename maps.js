@@ -124,18 +124,11 @@ function apportion(weights, total) {
   return res;
 }
 
-// The numbers for a map, in proportion for any size (not the standard list cut off wherever the map ends). Compared with the standard
-// set, 6, 8 and 9 are a little more common (9 the most, because 6 and 8 may never touch): together about 41% of the tiles instead of 33%.
-// 2 and 12 are kept on every map. Counts are shared out by largest remainder.
-const NUMBER_WEIGHTS = { 2: 1, 3: 1.5, 4: 2, 5: 2, 6: 2.3, 8: 2.3, 9: 3, 10: 2, 11: 1.5, 12: 1 };
-const NUMBER_ORDER = [9, 8, 6, 10, 4, 5, 3, 11, 2, 12];   // who wins a tie for the last places
+// The numbers for a map: the standard set (2 3 3 4 4 5 5 6 6 8 8 9 9 10 10 11 11 12), repeated for bigger maps.
 function numberPool(count) {
-  const total = Object.values(NUMBER_WEIGHTS).reduce((a, b) => a + b, 0), rows = NUMBER_ORDER.map(n => ({ n, exact: NUMBER_WEIGHTS[n] * count / total }));
-  rows.forEach(r => { r.c = Math.floor(r.exact); });
-  let left = count - rows.reduce((a, r) => a + r.c, 0);
-  [...rows].sort((x, y) => (y.exact - y.c) - (x.exact - x.c)).forEach(r => { if (left > 0) { r.c++; left--; } });
-  if (count >= 12) [2, 12].forEach(n => { const r = rows.find(x => x.n === n); if (r.c === 0) { rows.sort((x, y) => y.c - x.c)[0].c--; r.c = 1; } });
-  return rows.flatMap(r => Array(r.c).fill(r.n));
+  const pool = [];
+  while (pool.length < count) pool.push(...STANDARD_NUMBERS);
+  return pool.slice(0, count);
 }
 function assignNumbers(tiles, rng) {
   const prod = tiles.filter(t => t.terrain !== 'desert' && t.terrain !== 'diamond');

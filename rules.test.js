@@ -1191,66 +1191,19 @@ test('US 2.0: bots of every level finish a game on it, and the bank stays balanc
   }
 });
 
-// ---------- fair 7s ----------
-test('fair 7s: every player rolls the same number of 7s (never more than one apart), and 7s are about as common as with ordinary dice', () => {
-  for (const players of [2, 3, 4]) for (const balanced of [false, true]) {
-    let sevens = 0, rolls = 0, gap = 0; const counts = {};
-    for (let seed = 1; seed <= 12; seed++) {
-      const g = mk(players, seed); g.opts.balancedDice = balanced; const seen = Array(players).fill(0);
-      for (let round = 0; round < 200; round++) for (let pi = 0; pi < players; pi++) {
-        const d = g.rollDice(pi), sum = d[0] + d[1]; rolls++; counts[sum] = (counts[sum] || 0) + 1;
-        if (sum === 7) { seen[pi]++; g.players[pi].stats.sevens++; sevens++; }
-        gap = Math.max(gap, Math.max(...seen) - Math.min(...seen));
-      }
-    }
-    assert.ok(gap <= 1, `${players} players${balanced ? ' (balanced dice)' : ''}: the biggest lead in 7s was ${gap}`);
-    const rate = sevens / rolls; assert.ok(rate > 0.13 && rate < 0.185, `${players} players: 7s on ${(rate * 100).toFixed(1)}% of rolls (ordinary dice: 16.7%)`);
-    for (let n = 2; n <= 12; n++) assert.ok(counts[n] > 0, 'every total still occurs: ' + n);
-    assert.ok(counts[6] + counts[8] > counts[2] + counts[12] + counts[3] + counts[11], 'the usual shape of the dice is kept');
-  }
-});
-
-test('fair 7s: planned dice never break the rules of the game: a real game with bots has an equal number of 7s per player', () => {
-  const g = mk(0, 5); ['A', 'B', 'C'].forEach((n, i) => g.addPlayer(n, 't' + i)); g.players.forEach(p => { p.bot = 'medium'; p.connected = true; }); g.addPlayer('D', 't3'); g.players[3].bot = 'medium';
-  g.act(0, { type: 'start' });
-  let steps = 0; while (g.phase !== 'ended' && steps++ < 20000) { const n = bots.nextActor(g); if (!n) break; try { g.act(n.pi, bots.decide(g, n.pi)); } catch (e) { bots.rescue(g, n.pi); } }
-  const s = g.players.map(p => p.stats.sevens); assert.ok(Math.max(...s) - Math.min(...s) <= 1, 'sevens per player: ' + s.join(','));
-  assert.equal(g.diceCounts[7], s.reduce((a, b) => a + b, 0));
-});
-
-test('7s are spaced out: never back to back, at least 3 ordinary rolls between two 7s, and never more than 8', () => {
-  for (const players of [2, 3, 4]) for (const balanced of [false, true]) {
-    const gaps = []; let firstGaps = [];
-    for (let seed = 1; seed <= 25; seed++) {
-      const g = mk(players, seed); g.opts.balancedDice = balanced; let since = null, rolls = 0;
-      for (let round = 0; round < 120; round++) for (let pi = 0; pi < players; pi++) {
-        const d = g.rollDice(pi); rolls++;
-        if (d[0] + d[1] === 7) { g.players[pi].stats.sevens++; if (since === null) firstGaps.push(rolls - 1); else gaps.push(since); since = 0; }
-        else if (since !== null) since++;
-      }
-    }
-    const label = `${players} players${balanced ? ' (balanced dice)' : ''}`;
-    assert.ok(gaps.length > 200, label + ': enough 7s to judge');
-    assert.ok(Math.min(...gaps) >= 3, `${label}: the shortest gap between two 7s was ${Math.min(...gaps)} rolls`);
-    assert.ok(Math.max(...gaps) <= 8, `${label}: the longest gap between two 7s was ${Math.max(...gaps)} rolls`);
-    assert.ok(Math.min(...firstGaps) >= 3 && Math.max(...firstGaps) <= 8, label + ': the first 7 comes after 3 to 8 rolls');
-    const mean = gaps.reduce((a, b) => a + b, 0) / gaps.length; assert.ok(mean > 4.5 && mean < 6.5, `${label}: on average ${mean.toFixed(1)} rolls between 7s`);
-  }
-});
-
-test('the numbers lean towards 6, 8 and 9 on every map, and the red 6s and 8s still never touch', () => {
-  for (const { key } of maps.presetList()) {
-    if (key === 'hayhollows') continue;   // all of its hay starts on 6, 8 and 9
-    let hi = 0, total = 0;
-    for (let seed = 1; seed <= 12; seed++) {
-      const g = maps.generatePreset(key, seed), t = g.tiles.filter(x => x.number);
-      hi += t.filter(x => [6, 8, 9].includes(x.number)).length; total += t.length;
-      assert.ok(t.some(x => x.number === 2) && t.some(x => x.number === 12), key + ' keeps a 2 and a 12');
-      const red = t.filter(x => x.number === 6 || x.number === 8);
-      for (const a of red) for (const b of red) if (a !== b) assert.ok(Math.hypot((a.q + a.r / 2) - (b.q + b.r / 2), (a.r - b.r) * 0.866) > 1.05, `${key} seed ${seed}: two red numbers touch`);
-    }
-    const share = hi / total; assert.ok(share >= 0.36 && share <= 0.46, `${key}: 6, 8 and 9 on ${(share * 100).toFixed(0)}% of the tiles (standard 33%)`);
-  }
+// ---------- dice ----------
+test('the dice are plain: every total comes up with its natural chance (6 in 36 for 7 down to 1 in 36 for 2 and 12)', () => {
+  const g = mk(4, 3), N = 72000, count = {}, face = {};
+  for (let i = 0; i < N; i++) { const [a, b] = g.rollDice(i % 4); count[a + b] = (count[a + b] || 0) + 1; face[a] = (face[a] || 0) + 1; face[b] = (face[b] || 0) + 1; }
+  let chi = 0;
+  for (let s2 = 2; s2 <= 12; s2++) { const p = (6 - Math.abs(s2 - 7)) / 36, e = N * p; chi += (count[s2] - e) ** 2 / e;
+    assert.ok(Math.abs(count[s2] / N - p) < 0.006, `total ${s2}: ${(count[s2] / N * 100).toFixed(2)}% vs ${(p * 100).toFixed(2)}%`); }
+  assert.ok(chi < 30, 'the totals fit the natural distribution (chi-square ' + chi.toFixed(1) + ' with 10 degrees of freedom)');
+  for (let f = 1; f <= 6; f++) assert.ok(Math.abs(face[f] / (2 * N) - 1 / 6) < 0.005, 'each face of a die is equally likely');
+  // nothing is planned around players or earlier rolls: a 7 is as likely right after a 7 as at any other time
+  let after7 = 0, sevensAfter = 0, prev = 0;
+  for (let i = 0; i < N; i++) { const [a, b] = g.rollDice(i % 4), t = a + b; if (prev === 7) { after7++; if (t === 7) sevensAfter++; } prev = t; }
+  assert.ok(Math.abs(sevensAfter / after7 - 1 / 6) < 0.02, '7 right after a 7: ' + (sevensAfter / after7 * 100).toFixed(1) + '%');
 });
 
 // ---------- the animated tutorial ----------

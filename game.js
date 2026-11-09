@@ -16,7 +16,6 @@ const PALETTE = [
 ];
 const LABEL = { wood: 'wood', brick: 'brick', sheep: 'sheep', wheat: 'hay', ore: 'ore' };
 const DEV_NAMES = { knight: 'Knight', vp: 'Victory Point', roadBuilding: 'Road Building', yearOfPlenty: 'Year of Plenty', monopoly: 'Monopoly', heist: 'Heist' };
-const SEVEN_MIN_GAP = 3, SEVEN_MAX_GAP = 8;   // ordinary rolls between two 7s: at least 3, at most 8
 const MAX_PLAYERS = 4;
 const SQ3 = Math.sqrt(3);
 
@@ -158,7 +157,7 @@ class Game {
     this.vpTarget = Math.max(5, Math.min(20, vpTarget | 0 || 10));
     this.opts = { discardLimit: 7, discardMode: 'half', timer: 0, friendlyRobber: false, balancedDice: false };
     this.events = []; this.eventSeq = 0; this.devPlayedCount = {}; this.transferredRoads = new Set();
-    this.lastMonopoly = null; this.diceDeck = []; this.lastSum = null; this.sevenClock = 0; this.clockAt = Date.now();
+    this.lastMonopoly = null; this.diceDeck = []; this.lastSum = null; this.clockAt = Date.now();
     this.boardVersion = 0; this.initBoard(map);
     this.players = [];
     this.phase = 'lobby';
@@ -429,34 +428,11 @@ class Game {
   }
   discardAmount(t) { return this.opts.discardMode === 'four' ? 4 : Math.floor(t / 2); }
 
-  // Fair, well spaced 7s. The robber should fall on every player equally often, and never in a cluster:
-  //  - there are always at least SEVEN_MIN_GAP ordinary rolls between two 7s (so never a 7 for the next player), usually 4 to 8;
-  //  - each 7 is planned for a player who has rolled the fewest so far (the gap is chosen so the 7 lands on that player), so nobody
-  //    is ever more than one 7 ahead of anybody else;
-  //  - the overall number of 7s stays close to ordinary dice (a little lower: about 1 roll in 6.5 instead of 1 in 6).
-  // Every other total still comes from the dice settings.
-  planSeven(roller, counts) {   // how many rolls from now the next 7 is due (1 = the very next roll)
-    const n = this.players.length;
-    if (roller == null) return SEVEN_MIN_GAP + 1 + Math.floor(this.rng() * (SEVEN_MAX_GAP - SEVEN_MIN_GAP + 1));   // the first 7 of the game
-    const min = Math.min(...counts), ok = [];
-    for (let d = SEVEN_MIN_GAP + 1; d <= SEVEN_MAX_GAP + 1; d++) if (counts[(roller + d) % n] === min) ok.push(d);   // who rolls d rolls from now: the turn order goes round
-    if (!ok.length) for (let d = SEVEN_MIN_GAP + 1; d <= SEVEN_MAX_GAP + 1; d++) ok.push(d);
-    return ok[Math.floor(this.rng() * ok.length)];
-  }
-  sevenRoll(pi) {   // is this roll the planned 7?
-    if (!this.sevenClock) this.sevenClock = this.planSeven(null);
-    if (--this.sevenClock > 0) return false;
-    const mine = this.players[pi].stats.sevens, fewest = Math.min(...this.players.filter((_, i) => i !== pi).map(p => p.stats.sevens), Infinity);
-    if (mine > fewest) { this.sevenClock = 1; return false; }   // not this player's turn to get one (should not happen): try again on the next roll
-    return true;
-  }
+  // Plain dice: two independent fair dice, so every total has its natural chance (7 is 6 in 36, 6 and 8 are 5 in 36, ..., 2 and 12 are
+  // 1 in 36). Nothing is planned or adjusted. (Only the host's optional Balanced dice setting, off by default, draws from a deck instead.)
   rollDice(pi) {
     if (this.forcedDice) { const d = this.forcedDice.shift(); if (!this.forcedDice.length) this.forcedDice = null; return d; }
-    const want = pi == null ? null : this.sevenRoll(pi);
-    let d = this.rollBase();
-    if (want === true && d[0] + d[1] !== 7) { const a = 1 + Math.floor(this.rng() * 6); d = [a, 7 - a]; }
-    else if (want === false) { for (let tries = 0; d[0] + d[1] === 7 && tries < 40; tries++) d = this.rollBase(); if (d[0] + d[1] === 7) d = [1, 1]; }
-    if (want === true) this.sevenClock = this.planSeven(pi, this.players.map((p, i) => p.stats.sevens + (i === pi ? 1 : 0)));
+    const d = this.rollBase();
     this.lastSum = d[0] + d[1];
     return d;
   }
