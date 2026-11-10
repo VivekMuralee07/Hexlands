@@ -188,6 +188,27 @@ test('share invite: one tap in the waiting room and in the game info window hand
   await ctx.close();
 });
 
+test('play again: the end screen offers Play again, and one tap takes everyone back to the waiting room of the same room', async t => {
+  if (why) return t.skip(why);
+  const c = await startGame();
+  const { ctx, page, errors } = await openPage(c);
+  const g = rooms.get(c.code).game, me = g.indexOf(c.token);
+  await page.waitForSelector('#hand');
+  g.phase = 'ended'; g.winner = me; g.subphase = null;   // the game is over
+  await post('/api/action', { code: c.code, token: c.token, action: { type: 'chat', text: 'gg' } });   // any action sends the new state
+  await page.waitForSelector('#again', { timeout: 10000 });
+  assert.equal(await page.locator('#res').count(), 1, 'Results is still there');
+  await page.waitForSelector('#modal:not([hidden]) #vagain', { timeout: 5000 });   // the results window offers it too
+  await page.click('#vagain');
+  await page.waitForSelector('.lobby', { timeout: 10000 });
+  assert.equal(await page.locator('#modal:not([hidden])').count(), 0, 'no window left open');
+  assert.match(await page.textContent('.lb-room'), new RegExp(c.code), 'the same room code');
+  assert.equal(await page.locator('.plist li').count(), 4, 'Hana and the three bots are all still seated');
+  assert.equal(rooms.get(c.code).game.phase, 'lobby');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
 // ---------- accessibility ----------
 let axePath = null;
 try { axePath = require.resolve('axe-core/axe.min.js'); } catch { /* axe-core is not installed */ }

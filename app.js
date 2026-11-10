@@ -579,7 +579,7 @@ function onState(st) {
   if (prev && prev.phase !== 'lobby' && st.phase !== 'lobby') checkAwards(prev, st);
   if (st.phase === 'lobby') {
     if (prev) st.players.forEach((p, i) => { const q = prev.players[i]; if (q && q.name === p.name && q.colorId !== p.colorId && i !== st.you) toast(`${p.name} selected color ${p.colorName}`); });
-    if (S.screen !== 'lobby') S.screen = 'lobby';
+    if (S.screen !== 'lobby') { S.screen = 'lobby'; S.mode = null; S.evSeq = null; S.logAt = null; S.tw = null; S.shellReady = false; if (S.modal) closeModal(); }   // a new game in the same room
     renderLobby($('#app')); return;
   }
   if (S.screen !== 'game') { S.screen = 'game'; S.shellReady = false; }
@@ -1278,7 +1278,7 @@ function costChips(c) { return `<span class="costchips">${Object.entries(c).map(
 function costIcons(c) { return `<span class="cost">${Object.entries(c).flatMap(([k, n]) => Array(n).fill(icon(k))).join('')}</span>`; }
 function drawActions() {
   const st = S.state, box = $('#actions'), mine = myTurn(), P = st.players[me()];
-  if (st.phase === 'ended') { box.innerHTML = `<button class="act go" id="res">${icon('vp')}Results</button><button class="act" id="home">${icon('settlement')}New game</button>`; $('#res').onclick = openLeaderboard; $('#home').onclick = () => leaveToHome(); return; }
+  if (st.phase === 'ended') { box.innerHTML = `<button class="act go" id="again">${icon('settlement')}Play again</button><button class="act" id="res">${icon('vp')}Results</button><button class="act" id="home">Leave</button>`; $('#again').onclick = playAgain; $('#res').onclick = openLeaderboard; $('#home').onclick = () => leaveToHome(); return; }
   if (st.phase === 'setup' || !mine) { box.innerHTML = ''; return; }
   if (st.subphase) { box.innerHTML = ''; return; }
   if (currentMode() === 'heist') {   // choosing the settlement to steal
@@ -1625,6 +1625,11 @@ function diceChart(counts) {
   }
   return `<svg viewBox="0 0 ${W} ${H}" class="dicechart" role="img" aria-label="Dice rolls this game">${bars}</svg>`;
 }
+// Everyone who is still in the room goes back to its waiting room, with the same options and a new map. Whoever taps first starts it for all.
+async function playAgain() {
+  const r = await act({ type: 'rematch' }); if (r.ok) closeModal();
+}
+
 function openLeaderboard() {
   const st = S.state; if (!st || st.phase !== 'ended') return;
   const w = st.players[st.winner], rows = standings(st), rec = store.get('record', { games: 0, wins: 0 });
@@ -1646,8 +1651,8 @@ function openLeaderboard() {
     <h4 class="lb-title">Leaderboard</h4><ol class="leaderboard">${list}</ol>
     <h4 class="lb-title">Dice this game</h4>${diceChart(st.diceCounts)}<p class="help">Bars show how often each number came up; dots show what fair dice would average.</p>
     <p class="record">${icon('trophy')} Your record on this device: ${plural(rec.wins, 'win')} in ${plural(rec.games, 'game')}.</p>
-    <div class="foot"><button class="btn" id="vclose">View board</button><button class="btn primary" id="vnew">New game</button></div>`, () => {
-    $('#vclose').onclick = closeModal; $('#vnew').onclick = () => leaveToHome();
+    <div class="foot"><button class="btn" id="vclose">View board</button><button class="btn" id="vnew">Leave</button><button class="btn primary" id="vagain">Play again</button></div>`, () => {
+    $('#vclose').onclick = closeModal; $('#vnew').onclick = () => leaveToHome(); $('#vagain').onclick = playAgain;
   });
 }
 

@@ -368,3 +368,32 @@ test('the app asks everyone to agree to the same version of the terms that the s
   assert.ok(/render\(\);\nif \(needConsent\(\)\) openConsent\(\);/.test(app), 'the consent dialog opens at start-up');
   assert.ok(app.includes("!['discard', 'consent'].includes(kind)") && app.includes("!['discard', 'consent'].includes(S.modal)"), 'it cannot be dismissed without agreeing');
 });
+
+test('play again: after a game ends, the same room goes back to its waiting room with the same people, bots and options', async () => {
+  const c = await post('/api/create', { name: 'Hana', map: { preset: 'classic' }, seed: 3, vpTarget: 12 });
+  const j = await post('/api/join', { code: c.body.code, name: 'Ivo' });
+  const act = (who, action) => post('/api/action', { code: c.body.code, token: who.token, action });
+  const me = { token: c.body.token }, ivo = { token: j.body.token };
+  await act(me, { type: 'addBot', level: 'hard' });
+  await act(me, { type: 'setOptions', opts: { timer: 60, balancedDice: true } });
+  const g = rooms.get(c.body.code).game;
+  assert.equal((await act(me, { type: 'rematch' })).status, 200);
+  assert.equal(rooms.get(c.body.code).game, g, 'still in the waiting room: nothing changes');
+  g.phase = 'main';
+  assert.equal((await act(me, { type: 'rematch' })).status, 400, 'no rematch while a game is going on');
+  g.phase = 'ended'; g.winner = 0;   // the game is over
+  g.players[g.indexOf(ivo.token)].takenOver = 'left';   // Ivo left
+  const r = await act(me, { type: 'rematch' });
+  assert.equal(r.status, 200);
+  const n = rooms.get(c.body.code).game;
+  assert.notEqual(n, g, 'a new game');
+  assert.equal(n.code, c.body.code); assert.equal(n.phase, 'lobby');
+  assert.deepEqual(n.players.map(p => p.name), ['Hana', g.players[2].name], 'Hana and the bot stay; Ivo, who left, is dropped');
+  assert.equal(n.players[1].bot, 'hard');
+  assert.equal(n.hostToken, me.token);
+  assert.equal(n.vpTarget, 12); assert.equal(n.opts.timer, 60); assert.equal(n.opts.balancedDice, true);
+  assert.equal(n.indexOf(ivo.token), -1);
+  assert.equal((await act(me, { type: 'rematch' })).status, 200, 'a second tap is harmless');
+  assert.equal(rooms.get(c.body.code).game, n);
+  assert.equal((await act(ivo, { type: 'rematch' })).status, 400, 'someone who left cannot act');
+});
