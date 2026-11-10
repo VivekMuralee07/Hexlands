@@ -216,7 +216,13 @@ Still seeing the address bar? Work through these in order:
 
 ## Leaderboard (SQLite)
 
-Finished games are saved to a SQLite file so wins add up across games and survive restarts. The home screen has a **Leaderboard** button: most wins first, with two tabs, **Multiplayer** (games with two or more people) and **All games** (bots included).
+Finished games are saved to a SQLite file so wins add up across games and survive restarts. The home screen has a **Leaderboard** button: most wins first, with three tabs.
+
+- **Ranked** (the default): games that began in a **public room** with **two or more different people**. The same group of people counts as ranked **3 times in 24 hours**; further games between them still count under Multiplayer. This is what makes it hard to farm wins with a friend.
+- **Multiplayer**: every game with two or more people, public or private.
+- **All games**: every game, against bots too.
+
+A player is listed in a tab only after **3 finished games** in it (`LEADERBOARD_MIN_GAMES` changes that number). Until then they see "Play N more games to be ranked". Two listed players with the same name get a short tag from their ID (for example `Ann #a3f9`), so nobody can pass as someone else. A game against bots or one person alone never counts as ranked. Databases made by the first version are upgraded automatically when the server starts; their old games count under Multiplayer and All games.
 
 - **No accounts.** The app makes a random player ID once and keeps it on the device. It is sent when you create or join a room and is never shown to other players or in the leaderboard. Clearing the app data starts a player from zero.
 - **What is stored** when a game ends: room code, map, time, points to win, turns, and for each person (never bots) their display name, player ID, points, and whether they won or left. A seat that a bot took over counts as a game played and never as the win.
@@ -224,7 +230,7 @@ Finished games are saved to a SQLite file so wins add up across games and surviv
 - **Node 22.5 or later** is needed (the built-in `node:sqlite`, nothing to install). On an older Node the game runs as before and the leaderboard says it is off.
 - **Backups.** The disk survives restarts and crashes but is not a backup. Copy `hexlands.db` somewhere safe now and then.
 - **Privacy.** The Terms and Privacy Policy (`legal.js`) now describe this storage, and the version date changed, so everyone is asked to agree again. Please read the new text and adjust it to how you run the game.
-- Games still in progress are **not** saved: a restart ends them. Saving live games for crash recovery is a separate step.
+- **Games in progress survive a restart or a crash.** While the server runs, every room that changed is saved to the same database about 1.5 seconds later, and all rooms are saved when the host stops the server (SIGTERM). When the server starts, the saved rooms are loaded again: players reconnect by themselves and keep their seats (the seat codes are saved too), and bots and the move clock start again. A player who does not come back within about 45 seconds gets the usual bot takeover. A crash can lose the last second or two of moves. A finished game is removed from the saved rooms (its result is already in the leaderboard), and saves older than 6 hours are dropped. The room owner's IP address is never saved.
 
 ## Make an Android app with Capacitor
 
@@ -305,7 +311,7 @@ You need: a Play Console developer account (one-time fee, identity checks), the 
   - **App activity: other actions** (or the nearest category): the result of each finished game (points, win or loss, room code, map and time), stored with the player ID. This is what the leaderboard is built from.
 - Purpose: App functionality (the game, rejoining, and the leaderboard) and Fraud prevention, security and compliance (for reports and limits). Not used for advertising, analytics or personalization. **Not sold, not shared with third parties.** Other players in the same room see the name and messages, and anyone can see the leaderboard (display names with wins, games played and win rate); the player ID itself is never shown. That is how the game works, but check Google's definition of "sharing" and answer as it asks.
 - Collection is required for the game to work; players choose their own display name. Leaderboard results are collected whenever a game is played; there is no setting to turn them off.
-- Data is encrypted in transit (HTTPS). Games in progress and chat live only in server memory and disappear when the room ends. **Finished game results are kept in a database until deletion is requested** (the database is on the Render disk, `DB_PATH`). Reports are kept up to 90 days. Users can ask for deletion by email (the contact in the Privacy Policy), quoting the player ID; there are no accounts. If the form asks whether you provide a way to request deletion, say yes and describe it this way.
+- Data is encrypted in transit (HTTPS). Games in progress and chat live in server memory and, while the game is going on, in a saved copy in the database so it survives a restart; that copy is deleted when the game ends or the room closes. **Finished game results are kept in a database until deletion is requested** (the database is on the Render disk, `DB_PATH`). Reports are kept up to 90 days. Users can ask for deletion by email (the contact in the Privacy Policy), quoting the player ID; there are no accounts. If the form asks whether you provide a way to request deletion, say yes and describe it this way.
 - The answers must match the Privacy Policy at `/privacy` (`legal.js`). If you change what is stored, change both, and bump the version in `legal.js` and `app.js` so players are asked to agree again.
 - IP addresses are used in memory for rate limits (up to an hour) and are in the hosting provider's logs. If Google's form treats that as collected data, declare it too rather than leave it out.
 

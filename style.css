@@ -1238,3 +1238,5 @@ span.pcardx { cursor: default; }
 .lbgap { text-align: center; opacity: .6; }
 .lbnote { font-size: .78rem; margin-top: .3rem; }
 @media (max-width: 480px) { .lbrow { grid-template-columns: 1.4rem minmax(0, 1fr) auto auto auto; gap: .3rem; padding: .4rem .45rem; font-size: .86rem; } .lbrow .lbnum { font-size: .7rem; } .lbrow .lbnum b { font-size: .9rem; } }
+.lbabout { font-size: .8rem; margin: .5rem 0 0; }
+.lbtag { opacity: .6; font-weight: 700; }

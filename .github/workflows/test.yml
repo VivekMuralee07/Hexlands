@@ -24,5 +24,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22   # the leaderboard needs the built-in node:sqlite (Node 22.5 or later)
-      # Nothing to install: the game and its tests have no dependencies (the Capacitor packages are only for building the Android app).
+      # The game itself has no dependencies. Playwright (for the screen tests in ui.test.js) is a dev dependency, and it needs a browser.
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
       - run: npm test
