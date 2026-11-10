@@ -663,6 +663,7 @@ function buildShell(app) {
       <div class="dice" id="dice"></div><div class="awards" id="awards"></div><div class="offer" id="offer"></div><div class="awaybar" id="awaybar" hidden></div><div class="reconnect" id="reconnect" hidden></div><div class="tradewin" id="tradewin" hidden></div>
       <div class="modechip" id="modechip" hidden></div>
       <button class="zoomreset" id="zoomreset" title="Reset zoom: fit the whole map" aria-label="Reset zoom"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4,9 V4 H9 M20,9 V4 H15 M4,15 V20 H9 M20,15 V20 H15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Fit</span></button>
+      <button class="infobtn" id="infobtn" title="Game info: costs, points, bank and settings" aria-label="Game info">i</button>
       <div class="gbtns"><button class="gbtn drawer-toggle" id="logbtn" title="Messages" aria-label="Messages">${GB_ICON.msg}</button><button class="gbtn" id="quit" title="Leave game" aria-label="Leave game">${GB_ICON.exit}</button></div>
       <div class="zoom"><button class="btn rollbtn" id="rollbtn" hidden aria-label="Roll the dice">${twoDice()}<span>Roll</span></button><button class="btn endbtn" id="endbtn" hidden aria-label="End your turn">${endIcon()}<span>End</span></button></div>
     </main></section>
@@ -676,6 +677,7 @@ function buildShell(app) {
   setupPanZoom($('#board'));
   $('#logbtn').onclick = () => $('#side').classList.toggle('open');
   $('#zoomreset').onclick = resetZoom;
+  $('#infobtn').onclick = () => openInfo();
   bindSoundButtons();
   $('#quit').onclick = async () => {
     const running = S.state.phase !== 'ended';
@@ -1180,9 +1182,11 @@ function openInfo(tab = 'costs') {
       : `<div class="setlist">${set('Points to win', 'The first player to reach this on their own turn wins.', `${st.vpTarget} points`)}${set('Discard limit', 'On a 7, anyone holding more cards than this must discard.', `${o.discardLimit} cards`)}${set('Cards discarded', 'How many they must give up.', o.discardMode === 'four' ? '4 cards' : 'Half the hand, rounded down')}${set('Move timer', 'Time for each step of a turn.', o.timer ? `${o.timer} seconds` : 'Off')}${set('Friendly robber', 'The robber stays off players with 2 points or fewer.', o.friendlyRobber ? 'On' : 'Off')}${set('Balanced dice', 'Dice come from a deck of 36 rolls, with recent totals and 7s balanced between players.', o.balancedDice ? 'On' : 'Off')}</div>`;
   const code = st.code || (S.session && S.session.code) || '', pubRoom = !!(st.net && st.net.public), invite = `${location.origin}/room/${code}`;
   const roomStrip = `<div class="roomstrip"><div><small>Room code</small><b class="rcode" id="rcode">${esc(code)}</b></div><span class="vischip${pubRoom ? ' pub' : ''}">${pubRoom ? 'Public' : 'Private'}</span><div class="rbtns"><button class="btn small" id="icopy">Copy code</button><button class="btn small" id="ilink">Copy invite link</button></div></div>`;
-  openModal('info', `<div class="infowin"><h3>Game info</h3>${roomStrip}<div class="maptabs" role="tablist">${tabs.map(([k, l]) => `<button class="maptab" role="tab" data-itab="${k}" aria-selected="${tab === k}">${l}</button>`).join('')}</div>${body}<div class="foot"><button class="btn primary" id="iclose">Close</button></div></div>`, layer => {
+  const bankLine = `<div class="bank" style="margin:.5rem 0;width:100%;box-sizing:border-box;justify-content:center" title="Cards left in the bank, and development cards left in the pile">${RES.map(k => `<span class="bk ${k}" title="${RES_LABEL[k]} left in the bank">${icon(k)}<b>${st.bank[k]}</b></span>`).join('')}<button class="bk dev" data-pile2 title="Development cards left in the pile. Tap to see what is still unseen.">${icon('dev')}<b>${st.devLeft}</b></button></div>`;
+  openModal('info', `<div class="infowin"><h3>Game info</h3>${roomStrip}${bankLine}<div class="maptabs" role="tablist">${tabs.map(([k, l]) => `<button class="maptab" role="tab" data-itab="${k}" aria-selected="${tab === k}">${l}</button>`).join('')}</div>${body}<div class="foot"><button class="btn primary" id="iclose">Close</button></div></div>`, layer => {
     $('#iclose').onclick = closeModal;
-    const copy = async (text, done) => { try { await navigator.clipboard.writeText(text); toast(done); } catch { prompt('Copy this', text); } };
+    $('[data-pile2]').onclick = () => { closeModal(); openDevPile(); };
+    const copy =async (text, done) => { try { await navigator.clipboard.writeText(text); toast(done); } catch { prompt('Copy this', text); } };
     $('#icopy').onclick = () => copy(code, 'Room code copied');
     $('#ilink').onclick = () => copy(invite, 'Invite link copied');
     layer.querySelectorAll('[data-itab]').forEach(b => b.onclick = () => openInfo(b.dataset.itab));
