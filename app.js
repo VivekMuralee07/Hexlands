@@ -655,12 +655,14 @@ const GB_ICON = {
 function buildShell(app) {
   app.innerHTML = `<div class="game">
     <aside class="players" id="players"></aside>
-    <section class="center"><div class="infobar" id="infobar"><div class="banner" id="banner"></div><div class="placing" id="placing" hidden></div><div class="clock" id="clock" hidden></div><div class="setupstrip" id="setupstrip" hidden></div></div><main class="board-wrap" id="wrap">
+    <section class="center"><div class="infobar" id="infobar"><div class="turnpill" id="turnpill" aria-live="polite"></div><div class="banner" id="banner"></div><div class="placing" id="placing" hidden></div><div class="clock" id="clock" hidden></div><div class="setupstrip" id="setupstrip" hidden></div></div><main class="board-wrap" id="wrap">
       <svg id="board" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMin meet">
         <rect x="-5000" y="-5000" width="10000" height="10000" fill="#0a68a6"/>
         <g id="static"></g><g id="dyn"></g><g id="fx" pointer-events="none"></g>
       </svg>
       <div class="dice" id="dice"></div><div class="awards" id="awards"></div><div class="offer" id="offer"></div><div class="awaybar" id="awaybar" hidden></div><div class="reconnect" id="reconnect" hidden></div><div class="tradewin" id="tradewin" hidden></div>
+      <div class="modechip" id="modechip" hidden></div><div class="menubar" id="menubar" hidden></div><div class="buildmenu" id="buildmenu" hidden></div>
+      <button class="zoomreset" id="zoomreset" title="Reset zoom: fit the whole map" aria-label="Reset zoom"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4,9 V4 H9 M20,9 V4 H15 M4,15 V20 H9 M20,15 V20 H15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Fit</span></button>
       <div class="gbtns"><button class="gbtn drawer-toggle" id="logbtn" title="Messages" aria-label="Messages">${GB_ICON.msg}</button><button class="gbtn" id="quit" title="Leave game" aria-label="Leave game">${GB_ICON.exit}</button></div>
       <div class="zoom"><button class="btn rollbtn" id="rollbtn" hidden aria-label="Roll the dice">${twoDice()}<span>Roll</span></button><button class="btn endbtn" id="endbtn" hidden aria-label="End your turn">${endIcon()}<span>End</span></button></div>
     </main></section>
@@ -673,6 +675,7 @@ function buildShell(app) {
   applyVB();
   setupPanZoom($('#board'));
   $('#logbtn').onclick = () => $('#side').classList.toggle('open');
+  $('#zoomreset').onclick = resetZoom;
   bindSoundButtons();
   $('#quit').onclick = async () => {
     const running = S.state.phase !== 'ended';
@@ -687,7 +690,7 @@ function buildShell(app) {
 function updateGame() {
   validatePick();
   const st = S.state;
-  drawAway(); drawLink(); drawRollBtn(); { const n = $('#chatnote'); if (n) n.hidden = !(st.net && st.net.public); } drawDyn(); drawPlayers(); drawBanner(); drawHand(); drawActions(); drawLog(); drawOffer(); drawClock(); drawSetupStrip(); drawPlacing(); drawTrade(); drawDiamond();
+  drawAway(); drawLink(); drawRollBtn(); { const n = $('#chatnote'); if (n) n.hidden = !(st.net && st.net.public); } drawDyn(); drawPlayers(); drawBanner(); drawHand(); drawActions(); drawLog(); drawOffer(); drawClock(); drawSetupStrip(); drawPlacing(); drawTrade(); drawDiamond(); drawTurnPill(); drawMenuBar(); drawModeChip();
   syncModals();
 }
 
@@ -1037,7 +1040,11 @@ const ARC = '<svg class="ic" viewBox="0 0 32 32" aria-hidden="true"><path d="M4,
 function drawPlayers() {
   const st = S.state, leader = Math.max(...st.players.map(p => p.vp));
   const bank = `<div class="bank" title="Cards left in the bank, and development cards left in the pile">${RES.map(k => `<span class="bk ${k}" title="${RES_LABEL[k]} left in the bank">${icon(k)}<b>${st.bank[k]}</b></span>`).join('')}<button class="bk dev" data-pile title="Development cards left in the pile. Tap to see what is still unseen.">${icon('dev')}<b>${st.devLeft}</b></button><button class="ibtn" data-info title="Game info: costs, points and settings" aria-label="Game info">i</button></div>`;
-  $('#players').innerHTML = bank + st.players.map((p, i) => {
+  const strip = `<div class="pstrip" role="group" aria-label="Players">${st.players.map((p, i) => {
+    const turn = st.turn === i && st.phase !== 'ended';
+    return `<button class="pchip ${turn ? 'turn' : ''} ${i === me() ? 'me' : ''}" style="--pc:${p.color}" data-pdrawer aria-label="${esc(p.name)}: ${p.vp} points, ${p.cards} cards. Tap for details"><span class="pc-dot"></span><span class="pc-nm">${esc(p.name)}</span><span class="pc-vp" title="Victory points">${p.vp}</span><span class="pc-cards" title="Resource cards">${icon('cards')}${p.cards}</span></button>`;
+  }).join('')}<button class="pchip pmore" data-pdrawer aria-expanded="${!!S.pdrawer}" aria-label="Player details" title="Player details">${S.pdrawer ? '▲' : '▼'}</button></div>`;
+  $('#players').innerHTML = strip + '<div class="pdrawer">' + bank + st.players.map((p, i) => {
     const turn = st.turn === i && st.phase !== 'ended';
     const crown = p.vp === leader && leader >= 3 ? `<span class="crown">${icon('monopoly')}</span>` : '';
     const skippable = st.players[me()].host && i !== me() && !p.bot && !p.connected && (st.turn === i || (st.subphase === 'discard' && st.pendingDiscards[i]) || (st.subphase === 'diamond' && st.pendingDiamond[i]));
@@ -1061,11 +1068,71 @@ function drawPlayers() {
       ${skippable ? `<button class="btn small" style="margin-top:.4rem" data-skip>Skip offline player</button>` : ''}
       ${turn ? `<div class="yourturn">${i === me() ? 'Your turn' : esc(p.name) + "'s turn"}<span class="tm"></span></div>` : ''}
     </div>`;
-  }).join('');
+  }).join('') + '</div>';
   $('#players').style.setProperty('--np', st.players.length);
+  $('#players').classList.toggle('open', !!S.pdrawer);
+  $$('[data-pdrawer]').forEach(b => b.onclick = () => { S.pdrawer = !S.pdrawer; drawPlayers(); });
   $$('[data-skip]').forEach(b => b.onclick = () => act({ type: 'skip' }));
   $$('[data-pile]').forEach(b => b.onclick = openDevPile);
   $$('[data-info]').forEach(b => b.onclick = () => openInfo());
+}
+
+// ---------- portrait layout helpers: turn pill, build/trade menus, mode chip, zoom reset ----------
+function resetZoom() {
+  const svg = $('#board'); if (!svg || !S.base) return;
+  const [W, H, T] = boardPx(svg); S.vb = W && H ? fitVB(W, H) : { ...S.base }; S.boardPx = [W, H, T]; applyVB();
+}
+// Always-visible "whose turn is it" pill with the move timer inside it.
+function drawTurnPill() {
+  const el = $('#turnpill'); if (!el) return;
+  const st = S.state, p = st.players[st.turn];
+  if (st.phase === 'ended') { el.className = 'turnpill'; el.innerHTML = '<b>Game over</b>'; return; }
+  const mine = st.turn === me(), pend = st.subphase === 'discard' ? st.pendingDiscards : st.subphase === 'diamond' ? st.pendingDiamond : null;
+  const label = pend && pend[me()] ? (st.subphase === 'diamond' ? 'Your pick' : 'Discard now') : mine ? 'Your turn' : `${esc(p.name)}'s turn`;
+  el.style.setProperty('--pc', p.color);
+  el.className = 'turnpill' + (mine ? ' mine' : '');
+  el.innerHTML = `<span class="tp-dot"></span><b>${label}</b><span class="tm"></span>`;
+  tickClock();
+}
+const BUILD_KINDS = [['road', 'Road', 'road'], ['settle', 'Settlement', 'settlement'], ['city', 'City', 'city']];
+// Floating Build and Trade buttons; each one expands a menu above the cards.
+function drawMenuBar() {
+  const bar = $('#menubar'), menu = $('#buildmenu'); if (!bar) return;
+  const st = S.state, live = myTurn() && st.phase === 'main' && st.rolled && !st.subphase && currentMode() !== 'heist';
+  $('.game').classList.toggle('has-menu', !!live);
+  if (!live) { bar.hidden = true; menu.hidden = true; S.buildOpen = false; return; }
+  bar.hidden = false;
+  const P = st.players[me()];
+  bar.innerHTML = `<button class="mbtn ${S.buildOpen || S.mode ? 'on' : ''}" id="mb-build" aria-expanded="${!!S.buildOpen}">${icon('settlement')}<span>Build</span><i>${S.buildOpen ? '▾' : '▴'}</i></button>`
+    + `<button class="mbtn ${S.tw ? 'on' : ''}" id="mb-trade" aria-expanded="${!!S.tw}">${icon('cards')}<span>Trade</span><i>${S.tw ? '▾' : '▴'}</i></button>`;
+  $('#mb-build').onclick = () => { S.buildOpen = !S.buildOpen; if (S.buildOpen) S.tw = null; updateGame(); };
+  $('#mb-trade').onclick = () => { if (S.tw) S.tw = null; else { S.mode = null; S.pick = null; S.buildOpen = false; S.tw = { give: {}, get: {} }; } updateGame(); };
+  menu.hidden = !S.buildOpen;
+  if (!S.buildOpen) { menu.innerHTML = ''; return; }
+  const left = { road: P.pieces.road, settle: P.pieces.settlement, city: P.pieces.city }, b = buildable();
+  const row = ([k, label, ck]) => {
+    const afford = canAfford(COST[ck]), spots = b[k].length, ok = afford && left[k] > 0 && spots > 0;
+    const why = !left[k] ? 'None left' : !afford ? 'Not enough cards' : !spots ? 'No free spot' : `${spots} spot${spots === 1 ? '' : 's'}`;
+    return `<button class="bm-row ${S.mode === k ? 'sel' : ''}" data-bm="${k}" ${ok ? '' : 'disabled'} aria-pressed="${S.mode === k}"><span class="bm-g">${cardGlyph(k, P.color)}</span><span class="bm-t"><b>${label}</b><small>${why}</small></span>${costIcons(COST[ck])}</button>`;
+  };
+  const devOk = canAfford(COST.dev) && st.devLeft > 0;
+  menu.innerHTML = `<div class="bm-head"><b>Build</b><button class="bm-x" id="bm-close" aria-label="Close build menu">✕</button></div>`
+    + BUILD_KINDS.map(row).join('')
+    + `<button class="bm-row" id="bm-dev" ${devOk ? '' : 'disabled'}><span class="bm-g">${icon('dev')}</span><span class="bm-t"><b>Dev card</b><small>${st.devLeft} left</small></span>${costIcons(COST.dev)}</button>`;
+  $('#bm-close').onclick = () => { S.buildOpen = false; updateGame(); };
+  menu.querySelectorAll('[data-bm]').forEach(x => x.onclick = () => { S.mode = S.mode === x.dataset.bm ? null : x.dataset.bm; S.pick = null; S.buildOpen = false; updateGame(); });
+  $('#bm-dev').onclick = async () => { const r = await act({ type: 'buyDev' }); if (r.ok && r.result) toast(`${icon(r.result.card)} You drew ${DEV[r.result.card].name}`, 'gain', true); updateGame(); };
+}
+// A chip over the map while a build action is chosen: what you are placing, and a way out.
+function drawModeChip() {
+  const el = $('#modechip'), wrap = $('#wrap'); if (!el) return;
+  const st = S.state, k = st.phase === 'main' && myTurn() && !st.subphase ? S.mode : null;
+  const names = { road: 'road', settle: 'settlement', city: 'city' };
+  wrap.dataset.mode = names[k] ? k : '';
+  if (!names[k]) { el.hidden = true; el.innerHTML = ''; return; }
+  el.hidden = false;
+  el.innerHTML = `<span class="mc-ic">${cardGlyph(k, st.players[me()].color)}</span><span class="mc-t"><b>Placing a ${names[k]}</b><small>${S.pick ? 'Tap the green ✓ to confirm' : 'Tap a glowing spot on the map'}</small></span><button id="mc-cancel" aria-label="Cancel building">Cancel</button>`;
+  $('#mc-cancel').onclick = () => { S.mode = null; S.pick = null; updateGame(); };
 }
 
 function drawBanner() {
@@ -1574,7 +1641,7 @@ function tickClock() {
   el.className = 'clock' + (secs <= 5 ? ' urgent' : secs <= 10 ? ' warn' : '');
   el.innerHTML = `<svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="4"/><circle cx="18" cy="18" r="15" fill="none" stroke="${col}" stroke-width="4" stroke-linecap="round" stroke-dasharray="${(94.2 * frac).toFixed(1)} 94.2"/></svg><b>${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}</b><span>${esc(who)}</span>`;
   el.setAttribute('aria-label', `${secs} seconds left for ${who}`);
-  $$('.yourturn .tm').forEach(t => { t.textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`; });
+  $$('.yourturn .tm, .turnpill .tm').forEach(t => { t.textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`; });
   if (mine && secs <= 5 && secs > 0 && S.lastTick !== secs) { S.lastTick = secs; Sound.play('tick'); }
 }
 function drawSetupStrip() {

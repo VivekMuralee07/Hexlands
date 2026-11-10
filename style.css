@@ -1106,3 +1106,126 @@ span.pcardx { cursor: default; }
 #tut .tdev.heist { background: linear-gradient(#efe6ff, #9a7ae0); color: #2a1450; }
 @keyframes twup { from { transform: translateY(40%); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes tpulse { 50% { transform: scale(1.08); } }
+
+/* =====================================================================
+   Portrait / phone layout
+   top: compact player strip, turn pill + timer, status line
+   middle: the map (takes all the spare room), floating dice / End, Build / Trade menus
+   bottom: fixed card panel, scrolls sideways when the hand is wide
+   ===================================================================== */
+
+/* ---- shared pieces (all screen sizes) ---- */
+.pstrip { display: none; }
+.pdrawer { display: contents; }
+.menubar, .buildmenu { display: none; }
+
+.turnpill { display: inline-flex; align-items: center; gap: .4rem; padding: .18rem .7rem .18rem .45rem; border-radius: 999px; background: rgba(255, 255, 255, .1);
+  border: 2px solid var(--pc, #fff); color: #fff; font-weight: 800; font-size: .92rem; white-space: nowrap; line-height: 1.2; }
+.turnpill .tp-dot { width: .8rem; height: .8rem; border-radius: 50%; background: var(--pc, #fff); box-shadow: 0 0 0 2px rgba(255, 255, 255, .6); }
+.turnpill .tm { font-variant-numeric: tabular-nums; opacity: .85; font-weight: 700; }
+.turnpill .tm:empty { display: none; }
+.turnpill.mine { background: var(--pc, #ffd23f); color: #10202c; box-shadow: 0 0 0 3px rgba(255, 255, 255, .85), 0 0 16px var(--pc, #ffd23f); }
+.turnpill.mine .tp-dot { background: #fff; box-shadow: 0 0 0 2px rgba(0, 0, 0, .35); }
+@media (prefers-reduced-motion: no-preference) { .turnpill.mine { animation: tpglow 1.4s ease-in-out infinite alternate; } }
+@keyframes tpglow { from { box-shadow: 0 0 0 3px rgba(255, 255, 255, .85), 0 0 6px var(--pc, #ffd23f); } to { box-shadow: 0 0 0 3px rgba(255, 255, 255, .85), 0 0 18px var(--pc, #ffd23f); } }
+
+.zoomreset { position: absolute; top: .5rem; right: .5rem; z-index: 40; display: inline-flex; align-items: center; gap: .3rem; height: 32px; padding: 0 .6rem 0 .45rem;
+  border-radius: 999px; border: 1.5px solid rgba(255, 255, 255, .55); background: rgba(5, 25, 34, .82); color: #fff; font: 800 .8rem/1 inherit; cursor: pointer; }
+.zoomreset .ic { width: 16px; height: 16px; }
+.zoomreset:hover, .zoomreset:focus-visible { border-color: #ffd23f; }
+
+.modechip { position: absolute; top: .5rem; left: 0; right: 0; margin: 0 auto; width: max-content; z-index: 30; display: flex; align-items: center; gap: .5rem; max-width: calc(100% - 7.5rem); white-space: nowrap;
+  padding: .25rem .3rem .25rem .35rem; border-radius: 14px; background: rgba(5, 25, 34, .92); border: 2px solid #ffd23f; color: #fff; box-shadow: 0 6px 16px rgba(0, 0, 0, .45); }
+.modechip[hidden] { display: none; }
+.modechip .mc-ic { width: 32px; height: 36px; flex: none; } .modechip .mc-ic svg { width: 100%; height: 100%; }
+.modechip .mc-t { display: grid; line-height: 1.15; min-width: 0; } .modechip .mc-t b { font-size: .9rem; } .modechip .mc-t small { font-size: .72rem; opacity: .85; }
+.modechip button { min-height: 34px; padding: 0 .7rem; border-radius: 10px; border: 0; background: #ffd23f; color: #2a1a00; font: 800 .8rem inherit; cursor: pointer; }
+
+/* a glowing frame around the map while a build action is chosen */
+.board-wrap[data-mode] { --mc: #ffd23f; }
+.board-wrap[data-mode=road] { --mc: #ffffff; } .board-wrap[data-mode=settle] { --mc: #6cf08a; } .board-wrap[data-mode=city] { --mc: #ffb347; }
+.board-wrap[data-mode]::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1; box-shadow: inset 0 0 0 5px var(--mc), inset 0 0 40px 2px var(--mc); }
+.board-wrap[data-mode] .hs .hc { filter: drop-shadow(0 0 5px #fff); stroke-width: 4; }
+@media (prefers-reduced-motion: no-preference) { .board-wrap[data-mode]::after { animation: modepulse 1.2s ease-in-out infinite alternate; } }
+@keyframes modepulse { from { opacity: .55; } to { opacity: 1; } }
+
+/* ---- phones ---- */
+@media (max-width: 760px) {
+  .game { grid-template-rows: auto minmax(0, 1fr) auto; grid-template-areas: "players" "board" "dock"; }
+
+  /* 1. compact player strip; the full cards live in a drawer that opens over the map */
+  .players { position: relative; z-index: 60; display: block; padding: 0; overflow: visible; background: rgba(5, 30, 66, .96); border-bottom: 1px solid rgba(255, 255, 255, .14); }
+  .pstrip { display: flex; gap: .25rem; padding: .25rem .35rem; align-items: stretch; }
+  .pchip { flex: 1 1 0; min-width: 0; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: .15rem .3rem; padding: .2rem .35rem; border-radius: 9px; border: 2px solid transparent;
+    background: rgba(255, 255, 255, .08); color: #fff; font: 700 .76rem/1.1 inherit; cursor: pointer; border-left: 5px solid var(--pc, #fff); text-align: left; }
+  .pchip .pc-dot { display: none; }
+  .pchip .pc-nm { grid-column: 1 / -1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pchip .pc-vp { min-width: 1.35rem; height: 1.35rem; display: grid; place-items: center; border-radius: 50%; background: #fff; color: #10202c; font-weight: 900; }
+  .pchip .pc-cards { display: inline-flex; align-items: center; gap: 2px; opacity: .9; } .pchip .pc-cards .ic { width: 12px; height: 12px; }
+  .pchip.turn { border-color: #fff; background: color-mix(in srgb, var(--pc) 45%, #0b2a5a); box-shadow: 0 0 10px var(--pc); }
+  .pchip.me .pc-nm { text-decoration: underline; text-underline-offset: 2px; }
+  .pchip.pmore { flex: 0 0 30px; justify-content: center; border-left-width: 2px; border-color: rgba(255, 255, 255, .25); font-size: .8rem; }
+  .pdrawer { display: none; position: absolute; top: 100%; left: 0; right: 0; max-height: min(70vh, 30rem); overflow-y: auto; overscroll-behavior: contain;
+    padding: 1.4rem .4rem .5rem; gap: 1.5rem .4rem; grid-template-columns: repeat(2, minmax(0, 1fr)); background: rgba(5, 30, 66, .98);
+    border-bottom: 2px solid rgba(255, 255, 255, .25); box-shadow: 0 14px 24px rgba(0, 0, 0, .5); }
+  .players.open .pdrawer { display: grid; }
+  .pdrawer .bank { grid-column: 1 / -1; flex-wrap: wrap; }
+  .pdrawer .pcard .badges { display: flex; }
+
+  /* 2. status line: turn pill, timer, then the hint */
+  .infobar { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .45rem; padding: .3rem .5rem; }
+  .infobar .turnpill { order: 1; }
+  .infobar .clock { order: 2; margin-left: auto; padding: 0 .2rem; background: none; border: 0; box-shadow: none; }
+  .infobar .clock span { display: none; }
+  .infobar .setupstrip { order: 3; }
+  .infobar .placing { order: 4; }
+  .infobar .banner { order: 5; flex: 1 1 100%; font-size: .9rem; padding: 0 .1rem; }
+  .game.has-menu .infobar .placing { display: none; }
+
+  /* 3. the map takes the rest */
+  .center .board-wrap { flex: 1 1 auto; min-height: 0; }
+
+  /* floating controls over the map */
+  .gbtns { top: .5rem; left: .5rem; bottom: auto; right: auto; flex-direction: row; }
+  .zoomreset { top: .5rem; right: .5rem; }
+  .modechip { top: 3.3rem; max-width: calc(100% - 1.2rem); }
+  .zoom { right: .6rem; bottom: .6rem; z-index: 14; }
+  .zoom .rollbtn, .zoom .endbtn { min-width: 68px; min-height: 68px; border-radius: 50%; box-shadow: 0 8px 20px rgba(0, 0, 0, .5); }
+  .zoom .rollbtn svg { width: 46px; height: 36px; }
+  .zoom .endbtn svg { width: 38px; height: 38px; }
+  .board-wrap .dice { left: .6rem; bottom: 3.6rem; }
+
+  .menubar:not([hidden]) { display: flex; position: absolute; left: .6rem; bottom: .6rem; z-index: 13; gap: .4rem; }
+  .mbtn { display: inline-flex; align-items: center; gap: .35rem; min-height: 44px; padding: 0 .75rem; border-radius: 22px; border: 2px solid rgba(255, 255, 255, .55);
+    background: rgba(5, 25, 34, .9); color: #fff; font: 800 .9rem inherit; cursor: pointer; box-shadow: 0 4px 12px rgba(0, 0, 0, .4); }
+  .mbtn .ic { width: 22px; height: 22px; } .mbtn i { font-style: normal; font-size: .75rem; opacity: .8; }
+  .mbtn.on { background: #ffd23f; color: #2a1a00; border-color: #fff; }
+  .board-wrap.trading .menubar, .board-wrap.trading .zoom { display: none; }
+
+  .buildmenu:not([hidden]) { display: grid; position: absolute; left: .6rem; bottom: 3.7rem; z-index: 15; width: min(19rem, calc(100% - 5.4rem)); gap: .3rem; padding: .4rem;
+    border-radius: 14px; background: #06202e; border: 2px solid rgba(255, 255, 255, .4); box-shadow: 0 10px 28px rgba(0, 0, 0, .55); opacity: 1; }
+  .bm-head { display: flex; align-items: center; justify-content: space-between; color: #fff; padding: 0 .2rem; }
+  .bm-x { width: 30px; height: 30px; border-radius: 8px; border: 0; background: rgba(255, 255, 255, .15); color: #fff; cursor: pointer; }
+  .bm-row { display: flex; align-items: center; gap: .5rem; min-height: 44px; padding: .2rem .5rem; border-radius: 10px; border: 2px solid rgba(255, 255, 255, .25); background: #12384c;
+    color: #fff; font: inherit; text-align: left; cursor: pointer; }
+  .bm-row:disabled { opacity: .55; cursor: default; }
+  .bm-row.sel { border-color: #ffd23f; background: #5a4a14; }
+  .bm-g { width: 30px; height: 34px; flex: none; display: grid; place-items: center; } .bm-g svg, .bm-g .ic { width: 100%; height: 100%; }
+  .bm-t { display: grid; line-height: 1.15; flex: 1; } .bm-t small { opacity: .75; font-size: .72rem; }
+  .bm-row .cost { display: flex; gap: 1px; } .bm-row .cost .ic { width: 15px; height: 15px; }
+
+  /* the trade window is the expanded trade menu: it sits above the cards, never over the top bars */
+  .tradewin { max-height: 100%; overflow-y: auto; }
+
+  /* 4. fixed card panel at the bottom; the hand scrolls sideways when it is wider than the screen */
+  .dock { position: relative; z-index: 25; flex-direction: column; gap: 0; padding: .25rem .45rem; padding-bottom: max(.3rem, env(safe-area-inset-bottom));
+    background: linear-gradient(#0c3578, #07224f); border-top: 2px solid rgba(255, 255, 255, .25); box-shadow: 0 -6px 16px rgba(0, 0, 0, .35); }
+  .hand { display: flex; flex-wrap: nowrap; justify-content: flex-start; align-items: flex-end; gap: .35rem; width: 100%; overflow-x: auto; overflow-y: hidden;
+    padding: 10px 10px 3px; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .hand::-webkit-scrollbar { display: none; }
+  .hand > * { flex: 0 0 auto; scroll-snap-align: center; }
+  .hand > :first-child { margin-left: auto; } .hand > :last-child { margin-right: auto; }
+  .hand .card { width: 50px; height: 62px; } .hand .card .ic { width: 26px; height: 26px; } .hand .card .lbl { font-size: .56em; }
+  .hand .card .n { min-width: 20px; height: 20px; font-size: .8em; }
+}
+@media (max-width: 360px) { .hand .card { width: 44px; height: 56px; } .pchip { font-size: .7rem; } .mbtn span { display: none; } }
