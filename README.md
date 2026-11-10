@@ -49,8 +49,10 @@ Requires Node.js 18 or newer.
 
 ```bash
 npm start            # http://localhost:3000
-npm test             # 128 tests, including full simulated games and matchmaking
+npm test             # 141 tests, including full simulated games, matchmaking and the leaderboard (about a minute)
 ```
+
+GitHub Actions (`.github/workflows/test.yml`) runs `npm test` on Node 22 for every pull request and every push to `main`, and a newer push cancels an older run. To stop a failing run from being merged, turn on branch protection for `main` (Settings, Branches) and require the **npm test** check.
 
 Open two browser windows (or a phone on the same network at `http://<your-ip>:3000`) to play against yourself.
 
