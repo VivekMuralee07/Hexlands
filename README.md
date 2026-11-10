@@ -296,10 +296,15 @@ You need: a Play Console developer account (one-time fee, identity checks), the 
 > Hexlands is an independent game and is not affiliated with any other board game or publisher.
 
 **Suggested Data safety answers** (verify before submitting)
-- Data collected and sent off the device: **Name** (the display name the player types), **Messages: other in-app messages** (chat, visible to the other players in the room), and **User IDs** (a random session code that lets you rejoin a game).
-- Purpose: App functionality (and Fraud prevention, security and compliance for reports and limits). Not used for advertising, analytics or personalization. **Not sold, not shared with third parties** (other players in the same room see the name and messages, which is how the game works).
-- Collection is required for the game to work; players choose their own display name.
-- Data is encrypted in transit (HTTPS). Games and chat live only in server memory and disappear when the room ends; reports are kept up to 90 days. Users can ask for deletion by email (the contact in the Privacy Policy); there are no accounts.
+- Data collected and sent off the device:
+  - **Name**: the display name the player types.
+  - **Messages: other in-app messages**: chat, visible to the other players in the room.
+  - **User IDs** (or "Device or other IDs", whichever Google's definition fits better): a random session code that lets you rejoin a game, and a **random player ID** made once on the device and used to add up wins for the leaderboard.
+  - **App activity: other actions** (or the nearest category): the result of each finished game (points, win or loss, room code, map and time), stored with the player ID. This is what the leaderboard is built from.
+- Purpose: App functionality (the game, rejoining, and the leaderboard) and Fraud prevention, security and compliance (for reports and limits). Not used for advertising, analytics or personalization. **Not sold, not shared with third parties.** Other players in the same room see the name and messages, and anyone can see the leaderboard (display names with wins, games played and win rate); the player ID itself is never shown. That is how the game works, but check Google's definition of "sharing" and answer as it asks.
+- Collection is required for the game to work; players choose their own display name. Leaderboard results are collected whenever a game is played; there is no setting to turn them off.
+- Data is encrypted in transit (HTTPS). Games in progress and chat live only in server memory and disappear when the room ends. **Finished game results are kept in a database until deletion is requested** (the database is on the Render disk, `DB_PATH`). Reports are kept up to 90 days. Users can ask for deletion by email (the contact in the Privacy Policy), quoting the player ID; there are no accounts. If the form asks whether you provide a way to request deletion, say yes and describe it this way.
+- The answers must match the Privacy Policy at `/privacy` (`legal.js`). If you change what is stored, change both, and bump the version in `legal.js` and `app.js` so players are asked to agree again.
 - IP addresses are used in memory for rate limits (up to an hour) and are in the hosting provider's logs. If Google's form treats that as collected data, declare it too rather than leave it out.
 
 **Updates:** the app loads your live site, so a normal `git push` updates the game for everyone. Upload a new `.aab` only when you change the package itself (icon, name, colors, target level). If the Console says the target API level is too old, build a fresh package in PWABuilder, keep the same signing key, and upload it as a new version.
