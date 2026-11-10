@@ -49,7 +49,7 @@ Requires Node.js 18 or newer.
 
 ```bash
 npm start            # http://localhost:3000
-npm test             # 158 tests: rules, full simulated games, matchmaking, leaderboard, saved games, and browser screen tests (about a minute)
+npm test             # 163 tests: rules, full simulated games, matchmaking, leaderboard, saved games, and browser screen tests (about a minute)
 ```
 
 GitHub Actions (`.github/workflows/test.yml`) runs `npm test` on Node 22 for every pull request and every push to `main`, and a newer push cancels an older run. To stop a failing run from being merged, turn on branch protection for `main` (Settings, Branches) and require the **npm test** check.
@@ -221,6 +221,13 @@ Finished games are saved to a SQLite file so wins add up across games and surviv
 - **Ranked** (the default): games that began in a **public room** with **two or more different people**. The same group of people counts as ranked **3 times in 24 hours**; further games between them still count under Multiplayer. This is what makes it hard to farm wins with a friend.
 - **Multiplayer**: every game with two or more people, public or private.
 - **All games**: every game, against bots too.
+
+Each list has a **period** (all time, last 30 days, last 7 days) and a **sort** order (most wins, win rate, average points). The window shows, from the top:
+
+- **Totals** for the list: games played, players ranked, turns per game, and the most played map.
+- **Your standing**: rank, win rate ring, wins and games, a win streak, and your last five results (green won, red lost).
+- **A podium** for the top three, then everyone else with their record (for example 5W 7L) and a win-rate bar.
+- **Details on tap** for any player: win rate, average points, best game, current win streak, favourite map, when they last played, and their last five results.
 
 A player is listed in a tab only after **3 finished games** in it (`LEADERBOARD_MIN_GAMES` changes that number). Until then they see "Play N more games to be ranked". Two listed players with the same name get a short tag from their ID (for example `Ann #a3f9`), so nobody can pass as someone else. A game against bots or one person alone never counts as ranked. Databases made by the first version are upgraded automatically when the server starts; their old games count under Multiplayer and All games.
 

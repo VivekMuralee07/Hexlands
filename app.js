@@ -2042,24 +2042,97 @@ async function openMapPicker(tab) {
 }
 
 // ---------- public rooms ----------
-// The leaderboard: most wins first. "Multiplayer" counts games with two or more people; "All games" counts games against bots too.
-function openRankings(mode = 'ranked') {
-  const tabs = [['ranked', 'Ranked'], ['multi', 'Multiplayer'], ['all', 'All games']];
-  const about = { ranked: 'Games in public rooms with at least two different people. The same group counts three times a day at most.', multi: 'Every game with two or more people, public or private.', all: 'Every game, against bots too.' };
-  const row = r => `<div class="lbrow${r.you ? ' you' : ''}"><span class="lbrank">${r.rank || '–'}</span><span class="lbname">${esc(r.name)}${r.tag ? ` <small class="lbtag">#${esc(r.tag)}</small>` : ''}${r.you ? ' (you)' : ''}</span><span class="lbnum" title="Wins"><b>${r.wins}</b> won</span><span class="lbnum" title="Games played">${r.games} played</span><span class="lbnum" title="Win rate">${r.winRate}%</span></div>`;
-  openModal('rankings', `<div class="infowin"><h3>Leaderboard</h3><div class="maptabs" role="tablist">${tabs.map(([k, l]) => `<button class="maptab" role="tab" data-lbtab="${k}" aria-selected="${mode === k}">${l}</button>`).join('')}</div>
-    <p class="muted lbabout">${about[mode]}</p>
-    <div class="lblist" id="lblist" aria-live="polite"><p class="muted">Loading…</p></div><div class="foot"><button class="btn primary" id="lbclose">Close</button></div></div>`, layer => {
+// ---------- the leaderboard window ----------
+// Three lists (Ranked, Multiplayer, All games), a time period and a sort order. Your own standing is on top, then the podium, then the rest.
+// Tap any player to see more: win rate, average and best points, streak, favourite map, last five results.
+const LB = { mode: 'ranked', period: 'all', sort: 'wins', seq: 0 };   // what the window shows; kept while the app is open
+const LB_MODES = [['ranked', 'Ranked'], ['multi', 'Multiplayer'], ['all', 'All games']];
+const LB_ABOUT = { ranked: 'Public games with at least two different people. The same group counts three times a day at most.', multi: 'Every game with two or more people, public or private.', all: 'Every game, against bots too.' };
+const lbHue = name => { let h = 0; for (const ch of String(name).toLowerCase()) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; };
+const lbAvatar = r => `<span class="lbav" style="--h:${lbHue(r.name)}" aria-hidden="true">${esc([...String(r.name)][0] || '?')}</span>`;
+function timeAgo(ms) {
+  const m = Math.max(0, Math.round((Date.now() - ms) / 60000));
+  if (m < 2) return 'just now'; if (m < 60) return `${m} min ago`;
+  const h = Math.round(m / 60); if (h < 24) return `${h} h ago`;
+  const d = Math.round(h / 24); return d === 1 ? 'yesterday' : `${d} days ago`;
+}
+// The last five results, oldest on the left and the newest on the right: green won, red lost, grey not played yet.
+const lbForm = form => {
+  const cells = Array.from({ length: 5 }, (_, j) => { const x = form[4 - j]; return x === undefined ? '<i class="none"></i>' : x ? '<i class="w"></i>' : '<i class="l"></i>'; }).join('');
+  const words = form.length ? form.map(x => (x ? 'won' : 'lost')).join(', ') : 'no games yet';
+  return `<span class="lbform" role="img" aria-label="Last ${form.length || 5} games, newest first: ${words}" title="Last 5 games, newest on the right">${cells}</span>`;
+};
+const lbDonut = pct => { const r = 15.9, c = 2 * Math.PI * r; return `<svg class="lbdonut" viewBox="0 0 36 36" role="img" aria-label="Win rate ${pct} percent"><circle cx="18" cy="18" r="${r}" class="trk"/><circle cx="18" cy="18" r="${r}" class="val" stroke-dasharray="${(c * pct / 100).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 18 18)"/><text x="18" y="21.6" text-anchor="middle">${pct}%</text></svg>`; };
+const LB_FLAME = '<svg class="lbflame" viewBox="0 0 20 24" aria-hidden="true"><path d="M10 1c1 4 6 6 6 12a6 6 0 0 1-12 0c0-2 1-4 2-5 0 2 1 3 2 3 0-4-1-6 2-10z" fill="#ff8a2a"/><path d="M10 12c1 2 3 3 3 6a3 3 0 0 1-6 0c0-2 2-3 3-6z" fill="#ffd23f"/></svg>';
+const LB_CROWN = '<svg class="lbcrown" viewBox="0 0 28 20" aria-hidden="true"><path d="M2 17 0 4l7 6 7-9 7 9 7-6-2 13z" fill="#ffd23f" stroke="#a87a00" stroke-width="1.2" stroke-linejoin="round"/></svg>';
+const lbDetail = r => `<div class="lbdetail"><div class="lbtiles">
+  <div class="lbtile">${lbDonut(r.winRate)}<span>Win rate</span></div>
+  <div class="lbtile"><b>${r.avgVp}</b><span>Average points</span></div>
+  <div class="lbtile"><b>${r.bestVp}</b><span>Best game</span></div>
+  <div class="lbtile"><b>${r.streak ? LB_FLAME + ' ' : ''}${r.streak}</b><span>Win streak</span></div>
+  <div class="lbtile"><b class="lbsmall">${esc(r.favMap || '–')}</b><span>Favourite map</span></div>
+  <div class="lbtile"><b class="lbsmall">${timeAgo(r.lastPlayed)}</b><span>Last played</span></div>
+</div><div class="lbformrow"><span>Last 5 games</span>${lbForm(r.form)}</div></div>`;
+const lbName = r => `${esc(r.name)}${r.tag ? ` <small class="lbtag">#${r.tag}</small>` : ''}${r.you ? ' <em>(you)</em>' : ''}`;
+const lbRow = (r, id) => `<div class="lbitem${r.you ? ' you' : ''}"><button class="lbrow" aria-expanded="false" aria-controls="lbd${id}" data-lbd="lbd${id}">
+  <span class="lbrank">${r.rank || '–'}</span>${lbAvatar(r)}
+  <span class="lbwho"><b>${lbName(r)}</b><span class="lbrec">${r.wins}W ${r.losses}L · ${r.games} played</span></span>
+  <span class="lbbar" title="Win rate ${r.winRate}%"><span class="trk"><span style="width:${r.winRate}%"></span></span><b>${r.winRate}%</b></span>
+  <svg class="lbchev" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 8l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+</button><div class="lbdd" id="lbd${id}" hidden>${lbDetail(r)}</div></div>`;
+const lbPodium = rows => `<div class="lbpodium" role="group" aria-label="Top three">${[1, 0, 2].filter(i => rows[i]).map(i => { const r = rows[i];
+  return `<button class="lbpod p${r.rank}${r.you ? ' you' : ''}" data-lbp="${i}" aria-expanded="false" aria-controls="lbpd">${r.rank === 1 ? LB_CROWN : ''}<span class="lbmedal">${r.rank}</span>${lbAvatar(r)}<b class="lbpname">${lbName({ ...r, you: false })}${r.you ? '<span class="lbsr"> (you)</span>' : ''}</b><span class="lbpwins"><b>${r.wins}</b> ${r.wins === 1 ? 'win' : 'wins'}</span><span class="lbprate">${r.winRate}% · ${r.games} played</span></button>`; }).join('')}</div><div class="lbdd" id="lbpd" hidden></div>`;
+const lbYou = (r, total) => `<section class="lbyou" aria-label="Your standing"><div class="lbyl">${lbAvatar(r)}<div><b>${esc(r.name)}</b><span>${r.rank ? `Rank <strong>#${r.rank}</strong> of ${total}` : `Not ranked yet: play ${r.need} more ${r.need === 1 ? 'game' : 'games'}`}</span></div></div>
+  <div class="lbyr">${lbDonut(r.winRate)}<div class="lbys"><span><b>${r.wins}</b> won</span><span><b>${r.games}</b> played</span>${r.streak > 1 ? `<span class="lbstreak">${LB_FLAME} <b>${r.streak}</b> in a row</span>` : ''}${lbForm(r.form)}</div></div></section>`;
+
+function openRankings(mode) {
+  if (mode) LB.mode = mode;
+  const sel = (id, label, opts, cur) => `<label class="lbsel"><span>${label}</span><select id="${id}">${opts.map(([v, t]) => `<option value="${v}"${v === cur ? ' selected' : ''}>${t}</option>`).join('')}</select></label>`;
+  openModal('rankings', `<div class="infowin lbwin"><h3>Leaderboard</h3>
+    <div class="maptabs" role="tablist">${LB_MODES.map(([k, l]) => `<button class="maptab" role="tab" data-lbtab="${k}" aria-selected="${LB.mode === k}">${l}</button>`).join('')}</div>
+    <p class="muted lbabout" id="lbabout">${LB_ABOUT[LB.mode]}</p>
+    <div class="lbfilters">${sel('lbperiod', 'Period', [['all', 'All time'], ['30', 'Last 30 days'], ['7', 'Last 7 days']], LB.period)}${sel('lbsort', 'Sort by', [['wins', 'Most wins'], ['rate', 'Win rate'], ['vp', 'Average points']], LB.sort)}</div>
+    <div class="lbbody" id="lbbody" aria-live="polite"><p class="muted">Loading…</p></div><div class="foot"><button class="btn primary" id="lbclose">Close</button></div></div>`, layer => {
     $('#lbclose').onclick = closeModal;
-    layer.querySelectorAll('[data-lbtab]').forEach(b => b.onclick = () => openRankings(b.dataset.lbtab));
-    fetch(`/api/leaderboard?mode=${mode}&pid=${playerId()}`).then(r => r.json()).then(j => {
-      const box = $('#lblist'); if (!box || S.modal !== 'rankings') return;
-      const mine = j.me ? (j.me.rank ? `<div class="lbgap">…</div>${row(j.me)}` : `<div class="lbgap">Not ranked yet</div>${row(j.me)}<p class="muted lbnote">Play ${j.me.need} more ${j.me.need === 1 ? 'game' : 'games'} in this list to be ranked.</p>`) : '';
-      if (j.error) box.innerHTML = `<p class="muted">${esc(j.error)}</p>`;
-      else if (!j.enabled) box.innerHTML = '<p class="muted">The leaderboard is not switched on for this server yet.</p>';
-      else if (!j.rows.length) box.innerHTML = `<p class="muted">Nobody is ranked here yet. A player appears after ${j.minGames} finished ${j.minGames === 1 ? 'game' : 'games'} in this list.</p>${mine}`;
-      else box.innerHTML = j.rows.map(row).join('') + mine + `<p class="muted lbnote">${j.total} ${j.total === 1 ? 'player' : 'players'} ranked (at least ${j.minGames} games each). Ranked by wins. Your ID is stored on this device, so clearing the app data starts you from zero.</p>`;
-    }).catch(() => { const box = $('#lblist'); if (box) box.innerHTML = '<p class="muted">Could not load the leaderboard. Check your connection.</p>'; });
+    layer.querySelectorAll('[data-lbtab]').forEach(b => b.onclick = () => {
+      LB.mode = b.dataset.lbtab; $('#lbabout').textContent = LB_ABOUT[LB.mode];
+      layer.querySelectorAll('[data-lbtab]').forEach(x => x.setAttribute('aria-selected', String(x === b))); load();
+    });
+    $('#lbperiod').onchange = e => { LB.period = e.target.value; load(); };
+    $('#lbsort').onchange = e => { LB.sort = e.target.value; load(); };
+    const bind = (box, j) => {
+      const open = (btn, id, html) => { const was = btn.getAttribute('aria-expanded') === 'true'; btn.setAttribute('aria-expanded', String(!was)); const dd = box.querySelector('#' + id); dd.innerHTML = html || dd.innerHTML; dd.hidden = was; };
+      box.querySelectorAll('[data-lbd]').forEach(b => b.onclick = () => open(b, b.dataset.lbd, ''));
+      box.querySelectorAll('[data-lbp]').forEach(b => b.onclick = () => {   // the podium shares one detail panel
+        const dd = box.querySelector('#lbpd'), same = b.getAttribute('aria-expanded') === 'true';
+        box.querySelectorAll('[data-lbp]').forEach(x => x.setAttribute('aria-expanded', 'false'));
+        if (same) { dd.hidden = true; return; }
+        b.setAttribute('aria-expanded', 'true'); dd.innerHTML = lbDetail(j.rows[+b.dataset.lbp]); dd.hidden = false;
+      });
+    };
+    const paint = j => {
+      const box = $('#lbbody'); if (!box || S.modal !== 'rankings') return;
+      if (j.error) { box.innerHTML = `<p class="muted">${esc(j.error)}</p>`; return; }
+      if (!j.enabled) { box.innerHTML = '<p class="muted">The leaderboard is not switched on for this server yet.</p>'; return; }
+      const you = j.rows.find(r => r.you) || j.me, sm = j.summary;
+      const summary = sm.games ? `<div class="lbsum"><div><b>${sm.games}</b><span>games played</span></div><div><b>${sm.players}</b><span>${sm.players === 1 ? 'player' : 'players'} ranked</span></div><div><b>${sm.avgTurns}</b><span>turns per game</span></div></div>${sm.topMap ? `<p class="muted lbmap">Most played map: <b>${esc(sm.topMap)}</b></p>` : ''}` : '';
+      if (!j.rows.length) {
+        box.innerHTML = summary + (you ? lbYou(you, j.total) : '') + `<div class="lbempty"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30" fill="rgba(255,255,255,.08)"/><path d="M20 14h24v8c0 9-5 15-12 17-7-2-12-8-12-17zM14 16h6v6c0 4 2 7 5 8M50 16h-6v6c0 4-2 7-5 8M26 44h12M32 39v5M22 50h20" fill="none" stroke="#ffd23f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><b>Nobody is ranked here yet</b><span>A player appears after ${j.minGames} finished ${j.minGames === 1 ? 'game' : 'games'} in this list${LB.period === 'all' ? '' : ' and period'}. Win a few and you could be first.</span></div>`;
+        return;
+      }
+      const top = j.rows.slice(0, 3), rest = j.rows.slice(3);
+      box.innerHTML = summary + (you ? lbYou(you, j.total) : '') + lbPodium(top)
+        + (rest.length ? `<div class="lblist">${rest.map((r, i) => lbRow(r, i + 3)).join('')}</div>` : '')
+        + (j.me && !j.rows.some(r => r.you) && j.me.rank ? `<div class="lbgap">…</div><div class="lblist">${lbRow(j.me, 'me')}</div>` : '')
+        + `<p class="muted lbnote">${j.total} ${j.total === 1 ? 'player' : 'players'} ranked (at least ${j.minGames} games each). Tap a player for details. Your ID is stored on this device, so clearing the app data starts you from zero.</p>`;
+      bind(box, j);
+    };
+    const load = () => {
+      const my = ++LB.seq, box = $('#lbbody'); if (box) box.setAttribute('aria-busy', 'true');
+      fetch(`/api/leaderboard?mode=${LB.mode}&period=${LB.period}&sort=${LB.sort}&pid=${playerId()}`).then(r => r.json()).then(j => { if (my === LB.seq) { paint(j); const b = $('#lbbody'); if (b) b.removeAttribute('aria-busy'); } })
+        .catch(() => { const b = $('#lbbody'); if (b && my === LB.seq) b.innerHTML = '<p class="muted">Could not load the leaderboard. Check your connection.</p>'; });
+    };
+    load();
   });
 }
 function openRooms() {
