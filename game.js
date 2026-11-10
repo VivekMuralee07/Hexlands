@@ -190,6 +190,24 @@ class Game {
     this.devDeck = shuffle(dev, this.rng);
     this.devTotal = {}; dev.forEach(c => { this.devTotal[c] = (this.devTotal[c] || 0) + 1; });
   }
+  // ----- saving a game so it can carry on after a server restart -----
+  // The state (everything but the board) and the board are separate strings: the board is large and only changes in the waiting room
+  // or when fog is uncovered, so the server saves it less often. Sets and Maps are written in a tagged form and read back by restore().
+  // The random generator is not saved: the server rolls with Math.random, which cannot be restored and does not need to be.
+  snapshot(withBoard = true) {
+    const state = {};
+    for (const k of Object.keys(this)) if (k !== 'rng' && k !== 'board') state[k] = this[k];
+    const tag = (k, v) => (v instanceof Set ? { $set: [...v] } : v instanceof Map ? { $map: [...v] } : v);
+    return { state: JSON.stringify(state, tag), board: withBoard ? JSON.stringify(this.board) : '', boardVersion: this.boardVersion };
+  }
+  static restore({ state, board }, rng = Math.random, now = Date.now()) {
+    const untag = (k, v) => (v && typeof v === 'object' && !Array.isArray(v) ? (v.$set ? new Set(v.$set) : v.$map ? new Map(v.$map) : v) : v);
+    const g = Object.create(Game.prototype);
+    Object.assign(g, JSON.parse(state, untag));
+    g.board = JSON.parse(board); g.rng = rng; g.clockAt = now;
+    g.players.forEach(p => { if (!p.bot) { p.connected = false; p.offlineSince = now; } });   // nobody is connected until they come back
+    return g;
+  }
   setMap(map) {
     if (this.phase !== 'lobby') fail('The map cannot change after the game starts.');
     this.initBoard(map); this.boardVersion++; this.version++; this.unreadyAll();

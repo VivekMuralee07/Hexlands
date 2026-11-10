@@ -33,6 +33,14 @@ CREATE TABLE IF NOT EXISTS players (
   pid TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   updated_at INTEGER NOT NULL
+);
+-- Games and waiting rooms that are still going on, so they survive a restart or a crash. A row is removed when its room ends.
+CREATE TABLE IF NOT EXISTS rooms (
+  code TEXT PRIMARY KEY,
+  state TEXT NOT NULL,
+  board TEXT NOT NULL,
+  meta TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
 );`;
 
 const MODES = { multi: 'games with two or more people', all: 'all games, bots included' };
@@ -63,6 +71,11 @@ function makeStore(db) {
     ORDER BY wins DESC, games ASC, vp DESC, p.name ASC
     LIMIT 5000`);
   const q = { multi: standings(true), all: standings(false) };
+  const putRoom = db.prepare(`INSERT INTO rooms (code, state, board, meta, updated_at) VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(code) DO UPDATE SET state = excluded.state, board = COALESCE(NULLIF(excluded.board, ''), rooms.board), meta = excluded.meta, updated_at = excluded.updated_at`);
+  const dropRoom = db.prepare('DELETE FROM rooms WHERE code = ?');
+  const allRooms = db.prepare('SELECT code, state, board, meta, updated_at FROM rooms WHERE updated_at >= ?');
+  const dropOld = db.prepare('DELETE FROM rooms WHERE updated_at < ?');
 
   return {
     // One finished game. results: [{ pid, name, seat, vp, won, left }]. Only people with a player ID are stored (never bots).
@@ -89,6 +102,14 @@ function makeStore(db) {
       const rows = all.slice(0, limit).map(shape);
       const mine = pid ? all.find(r => r.pid === pid) : null;
       return { mode: key, rows, me: mine && !rows.some(r => r.you) ? shape(mine) : null, total: all.length };
+    },
+    // Live rooms. board may be '' to keep the board that is already saved (it changes rarely).
+    saveRoom({ code, state, board = '', meta = {}, updatedAt = Date.now() }) { putRoom.run(String(code), state, board, JSON.stringify(meta), updatedAt); },
+    deleteRoom(code) { dropRoom.run(String(code)); },
+    // Rooms saved since `sinceMs` ago; older rows are deleted.
+    loadRooms(maxAgeMs, now = Date.now()) {
+      dropOld.run(now - maxAgeMs);
+      return allRooms.all(now - maxAgeMs).map(r => ({ code: r.code, state: r.state, board: r.board, meta: JSON.parse(r.meta), updatedAt: Number(r.updated_at) }));
     },
     close() { try { db.close(); } catch { /* already closed */ } },
   };

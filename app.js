@@ -1919,7 +1919,7 @@ function openColorPicker(seat) {
 }
 
 // ---------- terms, privacy, reporting and muting ----------
-const LEGAL_VERSION = '2026-11-10';   // must match legal.js (a server test checks it); change both to ask everyone to agree again
+const LEGAL_VERSION = '2026-11-10b';   // must match legal.js (a server test checks it); change both to ask everyone to agree again
 S.muted = store.get('muted', {});
 const needConsent = () => store.get('terms', null) !== LEGAL_VERSION;
 function openConsent() {

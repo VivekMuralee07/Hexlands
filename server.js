@@ -88,6 +88,48 @@ function newCode() {
 }
 const newToken = () => crypto.randomBytes(16).toString('hex');
 
+// ---------- saving live games, so a restart or a crash does not end them ----------
+// While the server runs for real, every room that changed is written to the database a moment later (and everything on shutdown).
+// When the server starts, the saved rooms are loaded again: players reconnect on their own, and keep their seats because the seat
+// tokens are saved too. Finished games are removed from the table (their result goes to the leaderboard instead).
+let persistOn = false;   // off when the tests load this file; on when the server is started with `node server.js`
+const SAVE_DELAY_MS = 1500, KEEP_ROOMS_MS = 6 * 3600e3, RESTORE_GRACE_MS = 45e3;
+let saveTimer = null;
+function markDirty(room) {
+  if (!persistOn) return;
+  room.dirty = true;
+  if (!saveTimer) { saveTimer = setTimeout(() => { saveTimer = null; flushRooms(); }, SAVE_DELAY_MS); if (saveTimer.unref) saveTimer.unref(); }
+}
+function saveOne(room, s) {
+  const g = room.game;
+  room.dirty = false;
+  if (g.phase === 'ended') return s.deleteRoom(g.code);
+  const snap = g.snapshot(room.savedBoard !== g.boardVersion);   // the board only when it changed
+  s.saveRoom({ code: g.code, state: snap.state, board: snap.board, meta: { public: room.public, createdAt: room.createdAt, recorded: !!room.recorded, publicAtStart: room.publicAtStart === undefined ? null : room.publicAtStart } });
+  room.savedBoard = snap.boardVersion;
+}
+function flushRooms() {
+  const s = persistOn && getStore(); if (!s) return;
+  for (const room of rooms.values()) if (room.dirty) { try { saveOne(room, s); } catch (e) { console.error('Could not save room', room.game.code, e.message); } }
+}
+function loadSavedRooms(now = Date.now()) {
+  const s = getStore(); if (!s) return 0;
+  let n = 0;
+  for (const r of s.loadRooms(KEEP_ROOMS_MS, now)) {
+    try {
+      const game = Game.restore({ state: r.state, board: r.board }, Math.random, now);
+      if (game.phase === 'ended' || rooms.has(game.code)) { s.deleteRoom(r.code); continue; }
+      game.players.forEach(p => { if (!p.bot) p.offlineSince = now + RESTORE_GRACE_MS; });   // time to reconnect before a bot is offered the seat
+      const room = newRoom(game, { pub: !!r.meta.public });   // the owner's IP address is never saved (see the Privacy Policy)
+      room.createdAt = r.meta.createdAt || now; room.recorded = !!r.meta.recorded; room.savedBoard = game.boardVersion;
+      if (r.meta.publicAtStart !== null && r.meta.publicAtStart !== undefined) room.publicAtStart = !!r.meta.publicAtStart;
+      rooms.set(game.code, room); n++;
+      broadcast(room, now);   // starts the bots and the move clock again
+    } catch (e) { console.error('Could not restore room', r.code, e.message); }
+  }
+  return n;
+}
+
 // ---------- leaderboard (SQLite) ----------
 // Finished games are written to a SQLite file. DB_PATH says where; on Render point it at a persistent disk (for example /var/data/hexlands.db),
 // otherwise the file sits in ./data and is lost when a deploy rebuilds the server. The file is opened on first use. Without Node's
@@ -127,6 +169,7 @@ function destroyRoom(room) {
   clearTimeout(room.botTimer); clearTimeout(room.clockTimer);
   for (const set of room.clients.values()) for (const r of set) r.end();
   room.clients.clear(); rooms.delete(room.game.code);
+  if (persistOn) { try { const s = getStore(); if (s) s.deleteRoom(room.game.code); } catch (e) { console.error('Could not delete room', e.message); } }
 }
 const hostOf = g => g.players.find(p => p.token === g.hostToken);
 function openLobbies() {   // public rooms still waiting for players, with a free seat and a human actually connected
@@ -175,7 +218,9 @@ function makeGame(code, spec, seed, vpTarget) {
 
 function broadcast(room, now = Date.now()) {
   room.touched = now;
+  if (room.publicAtStart === undefined && room.game.phase !== 'lobby') room.publicAtStart = room.public;   // was it a public game when it began?
   recordFinished(room);
+  markDirty(room);
   lobbyAuto(room, now);
   // Tiles uncovered from the fog (or a new map) change the board, so everyone gets it again.
   const bv = room.game.boardVersion, boardMsg = room.boardSent !== bv ? `event: board\ndata: ${JSON.stringify(room.game.boardView())}\n\n` : null;
@@ -524,5 +569,13 @@ setInterval(() => {
 }, 60e3).unref();
 setInterval(() => { try { tick(); } catch (e) { console.error('tick error', e); } }, 1000).unref();
 
-if (require.main === module) server.listen(PORT, () => console.log(`Hexlands running on http://localhost:${PORT}`));
-module.exports = { server, rooms, getStore, recordFinished, readAssetLinks, reports, tick, limits, clientIp, cleanName, hasBlocked, maskBlocked, hits };
+if (require.main === module) {
+  persistOn = true;
+  const restored = loadSavedRooms();
+  if (restored) console.log(`Restored ${restored} room(s) from the database`);
+  server.listen(PORT, () => console.log(`Hexlands running on http://localhost:${PORT}`));
+  // The host stops the server with SIGTERM when it deploys or restarts: write every room first.
+  const bye = () => { try { for (const room of rooms.values()) room.dirty = true; flushRooms(); } finally { process.exit(0); } };
+  process.on('SIGTERM', bye); process.on('SIGINT', bye);
+}
+module.exports = { server, rooms, getStore, recordFinished, flushRooms, loadSavedRooms, enablePersistence: on => { persistOn = !!on; }, readAssetLinks, reports, tick, limits, clientIp, cleanName, hasBlocked, maskBlocked, hits };

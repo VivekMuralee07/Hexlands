@@ -3,7 +3,7 @@
 // listing links to) and for the windows inside the app. The wording follows what the game really does; if the game
 // changes (accounts, ads, analytics), change this file and bump VERSION so everyone is asked to agree again.
 // Set OPERATOR_NAME and CONTACT_EMAIL in the hosting settings so the pages name who runs the game and how to reach them.
-const VERSION = '2026-11-10';
+const VERSION = '2026-11-10b';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 function who() {
@@ -37,7 +37,7 @@ function terms() {
 <p>If you lose your connection during a game, a bot plays your seat so the others can carry on, and you get the seat back as soon as you reconnect. If you leave a game on purpose, the bot keeps your seat for the rest of that game and you cannot rejoin it. If you let the move timer run out twice in a row, a bot plays for you until you tap Take back control. If the host leaves, another player becomes the host.</p>
 <p>We limit how many rooms and requests one internet address can make, so the game stays fair and available for everyone.</p>
 <h3>5. Rooms are temporary</h3>
-<p>Games in progress are not saved. A room ends when everyone has left, after a period without activity, or when the server restarts, and its game and chat are then deleted. When a game finishes, its result (who played, the points and who won) is kept for the leaderboard, as described in the Privacy Policy. Public waiting rooms close soon after the last person leaves. We do not promise that Hexlands will always be available or free of errors.</p>
+<p>A game in progress is saved on the server so that it can carry on after a restart. A room ends when everyone has left or after a period without activity, and its game and chat are then deleted. When a game finishes, its result (who played, the points and who won) is kept for the leaderboard, as described in the Privacy Policy. Public waiting rooms close soon after the last person leaves. We do not promise that Hexlands will always be available or free of errors.</p>
 <h3>6. An independent game</h3>
 <p>Hexlands is an independent game. It is not affiliated with, sponsored by or endorsed by any other board game, video game, publisher or brand. All other names and trademarks belong to their owners.</p>
 <h3>7. Ownership</h3>
@@ -77,7 +77,7 @@ function privacy() {
 <h3>Who can see it</h3>
 <p>The other players in your room see your name and messages. Anyone using Hexlands can see the details of a public room, as described above. Our hosting provider processes technical data on our behalf. We share information with others only if the law requires it or to protect people from harm.</p>
 <h3>How long we keep it</h3>
-<p>Game rooms and chat exist only in the server's memory. They are deleted when the room ends: after 30 minutes without activity, after at most 6 hours, or when the server restarts. Finished game results for the leaderboard are kept in a database until you ask us to delete them. Reports are kept only as long as needed to review them, and not longer than 90 days where we control the retention (our hosting provider's logs follow its own schedule).</p>
+<p>Game rooms and chat are kept in the server's memory and, while a game is going on, also saved in a database so the game survives a server restart. That saved copy (the game, chat, display names, seat codes and player IDs) is deleted when the game ends or the room closes: after 30 minutes without activity or at most 6 hours, and any older save is removed when the server starts. Finished game results for the leaderboard are kept in a database until you ask us to delete them. Reports are kept only as long as needed to review them, and not longer than 90 days where we control the retention (our hosting provider's logs follow its own schedule).</p>
 <h3>Your choices</h3>
 <p>You can leave a room at any time, mute players, and clear your stored data. Depending on where you live you may have rights to ask what we hold about you, or to have it corrected or deleted. Because there are no accounts, we can find data only by your player ID, or by room code and time, so please include them. Write to ${w.contact}.</p>
 <h3>Children</h3>
