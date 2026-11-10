@@ -1118,7 +1118,7 @@ function drawModeChip() {
   const el = $('#modechip'), wrap = $('#wrap'); if (!el) return;
   const st = S.state, k = st.phase === 'main' && myTurn() && !st.subphase ? S.mode : null;
   const names = { road: 'road', settle: 'settlement', city: 'city' };
-  wrap.dataset.mode = names[k] ? k : '';
+  if (names[k]) wrap.dataset.mode = k; else wrap.removeAttribute('data-mode');
   if (!names[k]) { el.hidden = true; el.innerHTML = ''; return; }
   el.hidden = false;
   el.innerHTML = `<span class="mc-ic">${cardGlyph(k, st.players[me()].color)}</span><span class="mc-t"><b>Placing a ${names[k]}</b><small>${S.pick ? 'Tap the green ✓ to confirm' : 'Tap a glowing spot on the map'}</small></span><button id="mc-cancel" aria-label="Cancel building">Cancel</button>`;
