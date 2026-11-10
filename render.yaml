@@ -6,9 +6,18 @@ services:
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /healthz
+    # A persistent disk keeps the leaderboard database across deploys, restarts and crashes (about $0.25 per GB per month; 1 GB is plenty).
+    # A service with a disk runs as a single instance.
+    disk:
+      name: hexlands-data
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
+      # Node 22.5 or later is needed for the built-in SQLite database. On an older Node the game still runs, with the leaderboard off.
       - key: NODE_VERSION
-        value: "20"
+        value: "22"
+      - key: DB_PATH
+        value: /var/data/hexlands.db
       # Shown in the Terms of Use and Privacy Policy. Render asks for these when you deploy.
       - key: OPERATOR_NAME
         sync: false

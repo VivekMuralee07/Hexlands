@@ -3,7 +3,7 @@
 // listing links to) and for the windows inside the app. The wording follows what the game really does; if the game
 // changes (accounts, ads, analytics), change this file and bump VERSION so everyone is asked to agree again.
 // Set OPERATOR_NAME and CONTACT_EMAIL in the hosting settings so the pages name who runs the game and how to reach them.
-const VERSION = '2026-10-31b';
+const VERSION = '2026-11-10';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 function who() {
@@ -37,7 +37,7 @@ function terms() {
 <p>If you lose your connection during a game, a bot plays your seat so the others can carry on, and you get the seat back as soon as you reconnect. If you leave a game on purpose, the bot keeps your seat for the rest of that game and you cannot rejoin it. If you let the move timer run out twice in a row, a bot plays for you until you tap Take back control. If the host leaves, another player becomes the host.</p>
 <p>We limit how many rooms and requests one internet address can make, so the game stays fair and available for everyone.</p>
 <h3>5. Rooms are temporary</h3>
-<p>Games are not saved. A room ends when everyone has left, after a period without activity, or when the server restarts, and its game and chat are then deleted. Public waiting rooms close soon after the last person leaves. We do not promise that Hexlands will always be available or free of errors.</p>
+<p>Games in progress are not saved. A room ends when everyone has left, after a period without activity, or when the server restarts, and its game and chat are then deleted. When a game finishes, its result (who played, the points and who won) is kept for the leaderboard, as described in the Privacy Policy. Public waiting rooms close soon after the last person leaves. We do not promise that Hexlands will always be available or free of errors.</p>
 <h3>6. An independent game</h3>
 <p>Hexlands is an independent game. It is not affiliated with, sponsored by or endorsed by any other board game, video game, publisher or brand. All other names and trademarks belong to their owners.</p>
 <h3>7. Ownership</h3>
@@ -54,7 +54,7 @@ function privacy() {
   const w = who();
   return `<h2>Privacy Policy</h2>
 <p class="upd">Version ${VERSION}</p>
-<p class="note">In short: there are no accounts, no ads and no tracking. The game keeps only what it needs to run, and rooms disappear when they end.</p>
+<p class="note">In short: there are no accounts, no ads and no tracking. Rooms and chat disappear when they end. The only thing kept afterwards is the result of finished games (display name, points, win or loss) for the leaderboard, tied to a random ID on your device.</p>
 <p>This policy explains what Hexlands (run by ${w.name}) handles when you play.</p>
 <h3>What we handle</h3>
 <ul>
@@ -62,6 +62,8 @@ function privacy() {
 <li><b>Your chat messages</b> and the moves you make in the game. Everyone in your room can see them.</li>
 <li><b>Public room details</b>: if you create a public room (or use Quick play and no room is open), your display name, the map, the points to win and the number of players are shown in a list to everyone who uses Hexlands, until the game starts or the room closes.</li>
 <li><b>A random session code</b>, stored on your device, that lets you rejoin your game after a break.</li>
+<li><b>A random player ID</b>, made on your device and sent to the server when you create or join a room. It is never shown to other players.</li>
+<li><b>Finished game results, for the leaderboard</b>: when a game ends, the server stores the room code, the map, the time, and for each person (not bots) their display name, player ID, points, and whether they won or left. Anyone can see the leaderboard: it shows display names with wins, games played and win rate.</li>
 <li><b>Reports</b> you send: the message, the names of you and the reported player, your reason and optional note, the room code and the time.</li>
 <li><b>Technical data</b>: when your device connects, our hosting provider processes your IP address and basic request information, as every website does, and may keep it in its own server logs for a limited time.</li>
 <li><b>Your IP address in our server's memory</b>: to stop abuse, the game counts requests per IP address (for up to an hour) and remembers which address opened each room (for as long as that room exists, at most 6 hours). This is held in memory only, is not added to any database, and is gone when the server restarts. We may block an address that abuses the service.</li>
@@ -69,15 +71,15 @@ function privacy() {
 <h3>What we do not collect</h3>
 <p>No email address, phone number, location, contacts, photos, camera or microphone data, advertising ID or payment details. There are no analytics, no ads and no tracking cookies.</p>
 <h3>What is stored on your device</h3>
-<p>The game saves in your browser or app storage: your display name, the session code, your sound settings, the names of players you muted, and your agreement to our terms. The app also keeps a copy of its own files so it starts quickly. You can remove all of this by clearing the site or app data.</p>
+<p>The game saves in your browser or app storage: your display name, the session code, your player ID, your sound settings, the names of players you muted, and your agreement to our terms. The app also keeps a copy of its own files so it starts quickly. You can remove all of this by clearing the site or app data.</p>
 <h3>How we use it</h3>
 <p>To run the game, to show your name and messages to the other players in your room (and your name in the public room list), to match you with other players, to review reports and to keep the game safe, for example by limiting how fast one address can create rooms or send messages. We do not sell your data and do not use it for advertising.</p>
 <h3>Who can see it</h3>
 <p>The other players in your room see your name and messages. Anyone using Hexlands can see the details of a public room, as described above. Our hosting provider processes technical data on our behalf. We share information with others only if the law requires it or to protect people from harm.</p>
 <h3>How long we keep it</h3>
-<p>Game rooms and chat exist only in the server's memory. They are deleted when the room ends: after 30 minutes without activity, after at most 6 hours, or when the server restarts. Reports are kept only as long as needed to review them, and not longer than 90 days where we control the retention (our hosting provider's logs follow its own schedule).</p>
+<p>Game rooms and chat exist only in the server's memory. They are deleted when the room ends: after 30 minutes without activity, after at most 6 hours, or when the server restarts. Finished game results for the leaderboard are kept in a database until you ask us to delete them. Reports are kept only as long as needed to review them, and not longer than 90 days where we control the retention (our hosting provider's logs follow its own schedule).</p>
 <h3>Your choices</h3>
-<p>You can leave a room at any time, mute players, and clear your stored data. Depending on where you live you may have rights to ask what we hold about you, or to have it corrected or deleted. Because there are no accounts, we can find data only by room code and time, so please include them. Write to ${w.contact}.</p>
+<p>You can leave a room at any time, mute players, and clear your stored data. Depending on where you live you may have rights to ask what we hold about you, or to have it corrected or deleted. Because there are no accounts, we can find data only by your player ID, or by room code and time, so please include them. Write to ${w.contact}.</p>
 <h3>Children</h3>
 <p>Hexlands is not meant for children under 13, and we do not knowingly collect data from them. If you think a child has used it, contact us and we will delete what we can.</p>
 <h3>Security and location</h3>

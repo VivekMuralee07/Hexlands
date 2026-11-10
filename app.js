@@ -59,8 +59,15 @@ function toast(msg, kind = '', html = false) {
   setTimeout(() => el.classList.add('out'), 1650); setTimeout(() => el.remove(), 2000);   // every pop-up is gone within 2 seconds
   while ($('#toasts').children.length > 3) $('#toasts').firstChild.remove();
 }
+// A random player ID, made once and kept on this device. It lets the server add up your finished games for the leaderboard (no account needed).
+function playerId() {
+  let id = store.get('pid', null);
+  if (!/^[a-f0-9]{32}$/.test(id || '')) { id = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join(''); store.set('pid', id); }
+  return id;
+}
 async function post(path, body) {
   let r;
+  if (/^\/api\/(create|join|quickplay)$/.test(path)) body = { ...body, pid: playerId() };
   try { r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
   catch { throw new Error('Cannot reach the server. Check your connection.'); }
   const j = await r.json().catch(() => ({ error: 'The server sent an unexpected reply.' }));
@@ -236,6 +243,7 @@ function renderHome(app) {
         <label class="field">Your name<input id="name" maxlength="16" autocomplete="nickname" placeholder="e.g. Vivek" value="${esc(S.name)}"></label>
         ${S.publicOn ? `<button class="btn primary quick" id="quick"><b>Quick play</b><small>Join a public game with players from anywhere</small></button>
         <div class="row"><button class="btn grow" id="browse">Public rooms</button><button class="btn grow" id="go-create">Create a room</button></div>` : '<button class="btn primary" id="go-create">Create a room</button>'}
+        <button class="btn" id="rankings">Leaderboard</button>
         <div class="divider">or join a friend</div>
         <div class="row"><input id="code" class="code-input grow" maxlength="5" placeholder="CODE" autocomplete="off" value="${esc(S.joinCode)}" aria-label="Room code"><button class="btn" id="go-join">Join room</button></div>
         ${S.session && S.sessionOk === S.session.code ? `<button class="btn primary" id="resume">Reconnect to your game (${esc(S.session.code)})</button>` : ''}
@@ -246,6 +254,7 @@ function renderHome(app) {
   S.error = null;
   fetch('/api/preview?map=classic').then(r => r.json()).then(j => { const h = $('#hero'); if (h) h.innerHTML = boardPreviewSvg(j.board); }).catch(() => {});
   $('#info').onclick = openRules;
+  $('#rankings').onclick = () => openRankings();
   $$('[data-legal]').forEach(b => b.onclick = () => openLegal(b.dataset.legal));
   showInstall();
   const nameOk = () => { const n = $('#name').value.trim() || S.name; $('#name').value = n; S.name = n; store.set('name', n); return n; };
@@ -1910,7 +1919,7 @@ function openColorPicker(seat) {
 }
 
 // ---------- terms, privacy, reporting and muting ----------
-const LEGAL_VERSION = '2026-10-31b';   // must match legal.js (a server test checks it); change both to ask everyone to agree again
+const LEGAL_VERSION = '2026-11-10';   // must match legal.js (a server test checks it); change both to ask everyone to agree again
 S.muted = store.get('muted', {});
 const needConsent = () => store.get('terms', null) !== LEGAL_VERSION;
 function openConsent() {
@@ -1991,6 +2000,23 @@ async function openMapPicker(tab) {
 }
 
 // ---------- public rooms ----------
+// The leaderboard: most wins first. "Multiplayer" counts games with two or more people; "All games" counts games against bots too.
+function openRankings(mode = 'multi') {
+  const tabs = [['multi', 'Multiplayer'], ['all', 'All games']];
+  const row = r => `<div class="lbrow${r.you ? ' you' : ''}"><span class="lbrank">${r.rank}</span><span class="lbname">${esc(r.name)}${r.you ? ' (you)' : ''}</span><span class="lbnum" title="Wins"><b>${r.wins}</b> won</span><span class="lbnum" title="Games played">${r.games} played</span><span class="lbnum" title="Win rate">${r.winRate}%</span></div>`;
+  openModal('rankings', `<div class="infowin"><h3>Leaderboard</h3><div class="maptabs" role="tablist">${tabs.map(([k, l]) => `<button class="maptab" role="tab" data-lbtab="${k}" aria-selected="${mode === k}">${l}</button>`).join('')}</div>
+    <div class="lblist" id="lblist" aria-live="polite"><p class="muted">Loading…</p></div><div class="foot"><button class="btn primary" id="lbclose">Close</button></div></div>`, layer => {
+    $('#lbclose').onclick = closeModal;
+    layer.querySelectorAll('[data-lbtab]').forEach(b => b.onclick = () => openRankings(b.dataset.lbtab));
+    fetch(`/api/leaderboard?mode=${mode}&pid=${playerId()}`).then(r => r.json()).then(j => {
+      const box = $('#lblist'); if (!box || S.modal !== 'rankings') return;
+      if (j.error) box.innerHTML = `<p class="muted">${esc(j.error)}</p>`;
+      else if (!j.enabled) box.innerHTML = '<p class="muted">The leaderboard is not switched on for this server yet.</p>';
+      else if (!j.rows.length) box.innerHTML = `<p class="muted">No finished games yet${mode === 'multi' ? ' with two or more people' : ''}. Win one and you will be first!</p>`;
+      else box.innerHTML = j.rows.map(row).join('') + (j.me ? `<div class="lbgap">…</div>${row(j.me)}` : '') + `<p class="muted lbnote">${j.total} ${j.total === 1 ? 'player' : 'players'} ranked. Ranked by wins; your ID is stored on this device, so clearing the app data starts you from zero.</p>`;
+    }).catch(() => { const box = $('#lblist'); if (box) box.innerHTML = '<p class="muted">Could not load the leaderboard. Check your connection.</p>'; });
+  });
+}
 function openRooms() {
   const poll = S.roomsPoll = {};
   const paint = list => {

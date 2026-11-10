@@ -8,6 +8,7 @@ const { Game, GameError, MAX_PLAYERS } = require('./game');
 const maps = require('./maps');
 const bots = require('./bots');
 const legal = require('./legal');
+const db = require('./db');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC = __dirname;
@@ -87,6 +88,29 @@ function newCode() {
 }
 const newToken = () => crypto.randomBytes(16).toString('hex');
 
+// ---------- leaderboard (SQLite) ----------
+// Finished games are written to a SQLite file. DB_PATH says where; on Render point it at a persistent disk (for example /var/data/hexlands.db),
+// otherwise the file sits in ./data and is lost when a deploy rebuilds the server. The file is opened on first use. Without Node's
+// built-in SQLite (Node 22.5+) the game runs as before and the leaderboard reports that it is off.
+let store;
+const getStore = () => (store === undefined ? (store = db.open(process.env.DB_PATH || path.join(__dirname, 'data', 'hexlands.db'))) : store);
+// A player ID is a random code the app creates once per device. It is how wins add up across games without accounts. It is never sent to other players.
+const cleanPid = raw => (/^[a-f0-9]{16,64}$/.test(String(raw || '')) ? String(raw) : null);
+function tagPlayer(game, pi, body) { const pid = cleanPid(body && body.pid); if (pid && game.players[pi]) game.players[pi].pid = pid; }
+function recordFinished(room) {
+  const g = room.game;
+  if (room.recorded || g.phase !== 'ended') return;
+  room.recorded = true;
+  if (!g.players.some(p => p.pid)) return;   // nobody with a player ID: nothing to keep
+  try {
+    const s = getStore(); if (!s) return;
+    s.recordGame({
+      code: g.code, finishedAt: Date.now(), map: g.board.name, vpTarget: g.vpTarget, turns: g.turnNumber, seats: g.players.length,
+      results: g.players.map((p, i) => ({ pid: p.pid, name: p.name, seat: i, vp: g.vp(i, true), won: i === g.winner && !p.takenOver, left: !!p.takenOver })),
+    });
+  } catch (e) { console.error('Could not save the finished game:', e.message); }
+}
+
 function newRoom(game, { pub = false, ip = '' } = {}) {
   const now = Date.now();
   return { game, clients: new Map(), touched: now, boardSent: game.boardVersion, public: !!pub, ownerIp: ip, createdAt: now,
@@ -151,6 +175,7 @@ function makeGame(code, spec, seed, vpTarget) {
 
 function broadcast(room, now = Date.now()) {
   room.touched = now;
+  recordFinished(room);
   lobbyAuto(room, now);
   // Tiles uncovered from the fog (or a new map) change the board, so everyone gets it again.
   const bv = room.game.boardVersion, boardMsg = room.boardSent !== bv ? `event: board\ndata: ${JSON.stringify(room.game.boardView())}\n\n` : null;
@@ -303,7 +328,7 @@ async function api(req, res, url) {
     const name = cleanName(body.name), token = newToken();
     const open = openLobbies().sort((a, b) => b.game.players.length - a.game.players.length || a.createdAt - b.createdAt)[0];
     if (open) {
-      open.game.addPlayer(uniqueName(open.game, name), token);
+      tagPlayer(open.game, open.game.addPlayer(uniqueName(open.game, name), token), body);
       broadcast(open);
       return sendJson(res, 200, { code: open.game.code, token, created: false, host: (hostOf(open.game) || {}).name || '' });
     }
@@ -311,9 +336,15 @@ async function api(req, res, url) {
     const ip = checkCapacity(req), code = newCode();
     const { game } = makeGame(code, { preset: 'classic' }, undefined, 10);
     game.opts.timer = 30;
-    game.addPlayer(name, token);
+    tagPlayer(game, game.addPlayer(name, token), body);
     rooms.set(code, newRoom(game, { pub: true, ip }));
     return sendJson(res, 200, { code, token, created: true });
+  }
+  if (req.method === 'GET' && route === '/api/leaderboard') {   // most wins; ?mode=all counts games against bots too; ?pid= marks and ranks you
+    guard(req, 'board', 60, 60e3, 'Too many requests. Please wait a moment.');
+    const s = getStore(), mode = url.searchParams.get('mode') === 'all' ? 'all' : 'multi';
+    if (!s) return sendJson(res, 200, { enabled: false, mode, rows: [], me: null, total: 0 });
+    return sendJson(res, 200, { enabled: true, ...s.top({ mode, limit: 25, pid: cleanPid(url.searchParams.get('pid')) }) });
   }
   if (req.method === 'GET' && route === '/api/maps') return sendJson(res, 200, { maps: maps.presetList() });
 
@@ -332,7 +363,7 @@ async function api(req, res, url) {
     const name = cleanName(body.name), ip = checkCapacity(req), code = newCode(), token = newToken(), pub = body.public === true && publicOn();
     const { game } = makeGame(code, body.map, body.seed, Number(body.vpTarget) || 10);
     if (pub) game.opts.timer = 30;   // strangers: the move clock is on unless the host turns it off
-    game.addPlayer(name, token);
+    tagPlayer(game, game.addPlayer(name, token), body);
     rooms.set(code, newRoom(game, { pub, ip }));
     return sendJson(res, 200, { code, token });
   }
@@ -350,7 +381,7 @@ async function api(req, res, url) {
       return sendJson(res, 200, { code, token: body.token });
     }
     const token = newToken(), name = cleanName(body.name);
-    room.game.addPlayer(room.public ? uniqueName(room.game, name) : name, token);
+    tagPlayer(room.game, room.game.addPlayer(room.public ? uniqueName(room.game, name) : name, token), body);
     broadcast(room);
     return sendJson(res, 200, { code, token });
   }
@@ -494,4 +525,4 @@ setInterval(() => {
 setInterval(() => { try { tick(); } catch (e) { console.error('tick error', e); } }, 1000).unref();
 
 if (require.main === module) server.listen(PORT, () => console.log(`Hexlands running on http://localhost:${PORT}`));
-module.exports = { server, rooms, readAssetLinks, reports, tick, limits, clientIp, cleanName, hasBlocked, maskBlocked, hits };
+module.exports = { server, rooms, getStore, recordFinished, readAssetLinks, reports, tick, limits, clientIp, cleanName, hasBlocked, maskBlocked, hits };
