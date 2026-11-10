@@ -1141,11 +1141,11 @@ span.pcardx { cursor: default; }
 .modechip button { min-height: 34px; padding: 0 .7rem; border-radius: 10px; border: 0; background: #ffd23f; color: #2a1a00; font: 800 .8rem inherit; cursor: pointer; }
 
 /* a glowing frame around the map while a build action is chosen */
-.board-wrap[data-mode] { --mc: #ffd23f; }
+/* (only for the three real modes: an empty data-mode attribute must show nothing) */
 .board-wrap[data-mode=road] { --mc: #ffffff; } .board-wrap[data-mode=settle] { --mc: #6cf08a; } .board-wrap[data-mode=city] { --mc: #ffb347; }
-.board-wrap[data-mode]::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1; box-shadow: inset 0 0 0 5px var(--mc), inset 0 0 40px 2px var(--mc); }
-.board-wrap[data-mode] .hs .hc { filter: drop-shadow(0 0 5px #fff); stroke-width: 4; }
-@media (prefers-reduced-motion: no-preference) { .board-wrap[data-mode]::after { animation: modepulse 1.2s ease-in-out infinite alternate; } }
+.board-wrap:is([data-mode=road], [data-mode=settle], [data-mode=city])::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1; box-shadow: inset 0 0 0 5px var(--mc), inset 0 0 40px 2px var(--mc); }
+.board-wrap:is([data-mode=road], [data-mode=settle], [data-mode=city]) .hs .hc { filter: drop-shadow(0 0 5px #fff); stroke-width: 4; }
+@media (prefers-reduced-motion: no-preference) { .board-wrap:is([data-mode=road], [data-mode=settle], [data-mode=city])::after { animation: modepulse 1.2s ease-in-out infinite alternate; } }
 @keyframes modepulse { from { opacity: .55; } to { opacity: 1; } }
 
 /* ---- phones ---- */
