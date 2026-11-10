@@ -247,3 +247,21 @@ test('leaderboard window with players: summary, your standing, podium, details o
   assert.deepEqual(errors, []);
   await ctx.close();
 });
+
+test('home screen: everything fits on one screen, with no scrolling, on small and large phones and on its side', async t => {
+  if (why) return t.skip(why);
+  for (const [w, h] of [[320, 568], [360, 640], [390, 780], [412, 915], [844, 390], [667, 375]]) {
+    const ctx = await browser.newContext({ viewport: { width: w, height: h }, isMobile: true, hasTouch: true });
+    await ctx.addInitScript(v => localStorage.setItem('hexlands.terms', JSON.stringify(v)), legal.VERSION);
+    const page = await ctx.newPage();
+    await page.goto(base + '/'); await page.waitForSelector('#rankings');
+    const m = await page.evaluate(() => { const home = document.querySelector('.home'), hero = document.querySelector('.hero-board').getBoundingClientRect(); const box = id => document.getElementById(id).getBoundingClientRect(); const last = document.querySelector('.legalfoot').getBoundingClientRect();
+      return { page: document.documentElement.scrollHeight - innerHeight, inner: home.scrollHeight - home.clientHeight, hero: Math.round(hero.height), bottom: Math.round(last.bottom), quick: box('quick').height > 0, sideways: document.documentElement.scrollWidth - innerWidth }; });
+    assert.ok(m.page <= 0, `${w}x${h}: the page scrolls by ${m.page}px`);
+    assert.ok(m.inner <= 0, `${w}x${h}: the home screen scrolls inside itself by ${m.inner}px`);
+    assert.ok(m.bottom <= h, `${w}x${h}: the Terms and Privacy links end at ${m.bottom}px, below the screen`);
+    assert.ok(m.hero >= 90, `${w}x${h}: the picture is only ${m.hero}px tall`);
+    assert.ok(m.quick && m.sideways <= 0);
+    await ctx.close();
+  }
+});

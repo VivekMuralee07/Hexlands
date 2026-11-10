@@ -244,8 +244,7 @@ function renderHome(app) {
         ${S.error ? `<div class="notice">${esc(S.error)}</div>` : ''}
         <label class="field">Your name<input id="name" maxlength="16" autocomplete="nickname" placeholder="e.g. Vivek" value="${esc(S.name)}"></label>
         ${S.publicOn ? `<button class="btn primary quick" id="quick"><b>Quick play</b><small>Join a public game with players from anywhere</small></button>
-        <div class="row"><button class="btn grow" id="browse">Public rooms</button><button class="btn grow" id="go-create">Create a room</button></div>` : '<button class="btn primary" id="go-create">Create a room</button>'}
-        <button class="btn" id="rankings">Leaderboard</button>
+        <div class="row trio"><button class="btn grow" id="browse">Public rooms</button><button class="btn grow" id="go-create">Create a room</button><button class="btn grow" id="rankings">Leaderboard</button></div>` : '<div class="row trio"><button class="btn primary grow" id="go-create">Create a room</button><button class="btn grow" id="rankings">Leaderboard</button></div>'}
         <div class="divider">or join a friend</div>
         <div class="row"><input id="code" class="code-input grow" maxlength="5" placeholder="CODE" autocomplete="off" value="${esc(S.joinCode)}" aria-label="Room code"><button class="btn" id="go-join">Join room</button></div>
         ${S.session && S.sessionOk === S.session.code ? `<button class="btn primary" id="resume">Reconnect to your game (${esc(S.session.code)})</button>` : ''}
