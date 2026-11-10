@@ -212,6 +212,18 @@ Still seeing the address bar? Work through these in order:
 4. Android remembers a failed check. Uninstall the app and install the APK again (or clear Chrome's data), then open the app twice.
 5. On Render's free plan, wake the site first by opening it in a browser. If the server is asleep while the app launches, the check can time out.
 
+## Leaderboard (SQLite)
+
+Finished games are saved to a SQLite file so wins add up across games and survive restarts. The home screen has a **Leaderboard** button: most wins first, with two tabs, **Multiplayer** (games with two or more people) and **All games** (bots included).
+
+- **No accounts.** The app makes a random player ID once and keeps it on the device. It is sent when you create or join a room and is never shown to other players or in the leaderboard. Clearing the app data starts a player from zero.
+- **What is stored** when a game ends: room code, map, time, points to win, turns, and for each person (never bots) their display name, player ID, points, and whether they won or left. A seat that a bot took over counts as a game played and never as the win.
+- **Where.** `DB_PATH` sets the file (default `./data/hexlands.db`, which is ignored by git). `render.yaml` adds a 1 GB persistent disk mounted at `/var/data` and sets `DB_PATH=/var/data/hexlands.db`; without a disk the file is lost on every deploy. A service with a disk runs as one instance.
+- **Node 22.5 or later** is needed (the built-in `node:sqlite`, nothing to install). On an older Node the game runs as before and the leaderboard says it is off.
+- **Backups.** The disk survives restarts and crashes but is not a backup. Copy `hexlands.db` somewhere safe now and then.
+- **Privacy.** The Terms and Privacy Policy (`legal.js`) now describe this storage, and the version date changed, so everyone is asked to agree again. Please read the new text and adjust it to how you run the game.
+- Games still in progress are **not** saved: a restart ends them. Saving live games for crash recovery is a separate step.
+
 ## Make an Android app with Capacitor
 
 An alternative to PWABuilder: a native Android Studio project in `android/`, managed by [Capacitor](https://capacitorjs.com). Like the PWABuilder app it is a shell that loads the live site, so a push to GitHub updates the game without a new APK. Settings are in `capacitor.config.json`:
@@ -313,6 +325,7 @@ sw.js             Service worker (offline shell; never touches game traffic)
 manifest.webmanifest  App name, colors, icons, screenshots and shortcuts
 icon*.png, icon.svg, apple-touch-icon.png, screenshot-*.png  App icons and store images
 assetlinks.json   Android app verification (replace with PWABuilder's file)
+db.js             SQLite leaderboard storage (node:sqlite)
 capacitor.config.json  Capacitor settings for the native Android app
 android/          Capacitor Android Studio project
 www/              Offline page for the Capacitor app
