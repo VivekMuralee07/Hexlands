@@ -157,7 +157,7 @@ class Game {
     this.vpTarget = Math.max(5, Math.min(20, vpTarget | 0 || 10));
     this.opts = { discardLimit: 7, discardMode: 'half', timer: 0, friendlyRobber: false, balancedDice: false };
     this.events = []; this.eventSeq = 0; this.devPlayedCount = {}; this.transferredRoads = new Set();
-    this.lastMonopoly = null; this.diceDeck = []; this.lastSum = null; this.clockAt = Date.now();
+    this.lastMonopoly = null; this.diceState = null; this.clockAt = Date.now();
     this.boardVersion = 0; this.initBoard(map);
     this.players = [];
     this.phase = 'lobby';
@@ -429,31 +429,53 @@ class Game {
   discardAmount(t) { return this.opts.discardMode === 'four' ? 4 : Math.floor(t / 2); }
 
   // Plain dice: two independent fair dice, so every total has its natural chance (7 is 6 in 36, 6 and 8 are 5 in 36, ..., 2 and 12 are
-  // 1 in 36). Nothing is planned or adjusted. (Only the host's optional Balanced dice setting, off by default, draws from a deck instead.)
+  // 1 in 36). Nothing is planned or adjusted. (Only the host's optional Balanced dice setting, off by default, adjusts the rolls.)
   rollDice(pi) {
     if (this.forcedDice) { const d = this.forcedDice.shift(); if (!this.forcedDice.length) this.forcedDice = null; return d; }
-    const d = this.rollBase();
-    this.lastSum = d[0] + d[1];
-    return d;
+    return this.rollBase(pi);
   }
-  rollBase() {
+  rollBase(pi = 0) {
     const die = () => 1 + Math.floor(this.rng() * 6);
     if (!this.opts.balancedDice) return [die(), die()];
-    // Same idea as colonist.io: one 36-roll deck, reshuffled when 12 remain,
-    // and a 30% chance of skipping a card that repeats the previous total.
-    if (this.diceDeck.length <= 12) {
-      const deck = [];
-      for (let x = 1; x <= 6; x++) for (let y = 1; y <= 6; y++) deck.push([x, y]);
-      this.diceDeck = shuffle(deck, this.rng);
+    return this.balancedRoll(pi);
+  }
+  // Balanced dice, the same method as colonist.io:
+  //  - one deck of the 36 dice combinations, reshuffled (refilled) once fewer than 13 cards are left;
+  //  - each total is drawn with a weight equal to its share of the cards left, so the deck evens the totals out;
+  //  - a total that came up in the last 5 rolls has its weight cut by 34% for every time it did (never below 0);
+  //  - the 7 is nudged by how many 7s each player has rolled: a player who just rolled 7s (a streak, 40% per 7) or who has rolled
+  //    more than their share gets fewer, the others get more; the 7's weight is multiplied by a factor kept between 0 and 2.
+  balancedRoll(pi) {
+    const R = 0.34, STREAK = 0.4, RECENT = 5, MIN_LEFT = 13;
+    const st = this.diceState || (this.diceState = { cards: null, left: 0, recent: [], streak: { p: -1, n: 0 }, sevens: new Map() });
+    if (!st.sevens.has(pi)) st.sevens.set(pi, 0);
+    if (st.left < MIN_LEFT) {   // a fresh deck: cards[total] holds the combinations still in it
+      st.cards = {};
+      for (let x = 1; x <= 6; x++) for (let y = 1; y <= 6; y++) (st.cards[x + y] || (st.cards[x + y] = [])).push([x, y]);
+      st.left = 36;
     }
-    let i = this.diceDeck.length - 1;
-    const c = this.diceDeck[i];
-    if (this.lastSum !== null && c[0] + c[1] === this.lastSum && this.rng() < 0.3) {
-      const alt = this.diceDeck.findIndex(k => k[0] + k[1] !== this.lastSum);
-      if (alt >= 0) i = alt;
+    const totals = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], w = {};
+    for (const t of totals) {
+      const seen = st.recent.filter(r => r === t).length;
+      w[t] = Math.max(0, (st.cards[t].length / st.left) * (1 - R * seen));
     }
-    const d = this.diceDeck.splice(i, 1)[0];
-    this.lastSum = d[0] + d[1];
+    if (this.players.length >= 2) {   // the 7 follows the players: streaks and imbalance
+      const total = [...st.sevens.values()].reduce((a, b) => a + b, 0), n = st.sevens.size;
+      let imbalance = 1;
+      if (total >= n) { const ideal = 1 / n; imbalance = 1 + (ideal - st.sevens.get(pi) / total) / ideal; }
+      const streak = STREAK * st.streak.n * (st.streak.p === pi ? -1 : 1);
+      w[7] *= Math.max(0, Math.min(2, imbalance + streak));
+    }
+    let r = this.rng() * totals.reduce((a, t) => a + w[t], 0), pick = null;
+    for (const t of totals) { if (w[t] > 0 && r <= w[t]) { pick = t; break; } r -= w[t]; }
+    if (pick === null) {   // every weight came out as 0 (only possible near the end of a deck): draw any card that is left
+      const left = totals.filter(t => st.cards[t].length);
+      pick = left[Math.floor(this.rng() * left.length)];
+    }
+    const list = st.cards[pick], d = list.splice(Math.floor(this.rng() * list.length), 1)[0];
+    st.left--;
+    st.recent.push(pick); if (st.recent.length > RECENT) st.recent.shift();
+    if (pick === 7) { st.sevens.set(pi, st.sevens.get(pi) + 1); st.streak = st.streak.p === pi ? { p: pi, n: st.streak.n + 1 } : { p: pi, n: 1 }; }
     return d;
   }
 
