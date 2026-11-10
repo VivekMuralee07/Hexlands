@@ -211,6 +211,8 @@ test('leaderboard window with players: summary, your standing, podium, details o
     store.recordGame({ code: 'UI' + n++, finishedAt: now - n * 3600e3, map: ['Classic Island', 'Japan'][n % 2], turns: 50 + n, seats: 2, pub: true,
       results: [i, j].map(p => ({ pid: ids[p], name: names[p], seat: p === i ? 0 : 1, vp: p === win ? 10 : 6, won: p === win })) });
   }
+  store.recordGame({ code: 'UIB', finishedAt: now, map: 'Japan', turns: 66, seats: 3, pub: false, results: [{ pid: ids[0], name: 'Ann', seat: 0, vp: 10, won: true }],
+    bots: [{ level: 'easy', seat: 1, vp: 5, won: false }, { level: 'hard', seat: 2, vp: 7, won: false }] });   // a game against two bots
   const { ctx, page, errors } = await openPage(null);
   await page.evaluate(id => localStorage.setItem('hexlands.pid', JSON.stringify(id)), ids[0]);
   await page.waitForSelector('#rankings'); await page.click('#rankings');
@@ -232,6 +234,13 @@ test('leaderboard window with players: summary, your standing, podium, details o
   if (axePath) assert.deepEqual(await axeFindings(page), [], 'the populated, expanded Leaderboard window');
   await page.click('.lbtab, [data-lbtab="all"]');
   await page.waitForFunction(() => document.querySelector('[data-lbtab="all"]').getAttribute('aria-selected') === 'true');
+  await page.waitForSelector('.lbbots');
+  assert.equal(await page.locator('.lbbot').count(), 3, 'a card for each difficulty');
+  const botText = await page.textContent('.lbbots'); for (const w of ['Easy', 'Medium', 'Hard']) assert.ok(botText.includes(w), w);
+  assert.match(botText, /Bots won 0 of the 1 games/);
+  assert.equal(await page.locator('.lbbots').count(), 1);
+  if (axePath) assert.deepEqual(await axeFindings(page), [], 'the All games list with the bot statistics');
+  await page.click('[data-lbtab="ranked"]'); await page.waitForFunction(() => !document.querySelector('.lbbots'));
   assert.deepEqual(errors, []);
   await ctx.close();
 });

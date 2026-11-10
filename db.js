@@ -30,6 +30,16 @@ CREATE TABLE IF NOT EXISTS results (
   PRIMARY KEY (game_id, pid)
 );
 CREATE INDEX IF NOT EXISTS results_pid ON results (pid);
+-- Bot seats in finished games (never a person's seat that a bot took over). One row per bot seat, with its difficulty.
+CREATE TABLE IF NOT EXISTS bot_results (
+  game_id INTEGER NOT NULL REFERENCES games(id),
+  seat INTEGER NOT NULL,
+  level TEXT NOT NULL,
+  vp INTEGER NOT NULL,
+  won INTEGER NOT NULL,
+  PRIMARY KEY (game_id, seat)
+);
+CREATE INDEX IF NOT EXISTS bot_results_level ON bot_results (level);
 CREATE TABLE IF NOT EXISTS players (
   pid TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -47,6 +57,7 @@ CREATE TABLE IF NOT EXISTS rooms (
 // ranked: played in a public room with at least two different people, and not the same people again and again (see RANKED_REPEAT_LIMIT)
 const MODES = { ranked: 'public games with two or more people', multi: 'games with two or more people', all: 'all games, bots included' };
 const RANKED_REPEAT_LIMIT = 3, REPEAT_WINDOW_MS = 24 * 3600e3;   // the same group of people counts as ranked 3 times in 24 hours, then only under "multiplayer"
+const LEVELS = ['easy', 'medium', 'hard'];
 const sha = text => crypto.createHash('sha256').update(text).digest('hex');
 // Adds the columns that newer versions need to a database made by an older one.
 function migrate(db) {
@@ -76,6 +87,7 @@ function open(file) {
 function makeStore(db) {
   const addGame = db.prepare('INSERT INTO games (code, finished_at, map, vp_target, turns, seats, humans, pub, ranked, humans_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
   const addResult = db.prepare('INSERT OR IGNORE INTO results (game_id, pid, seat, vp, won, left_game, multi, ranked) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+  const addBot = db.prepare('INSERT OR IGNORE INTO bot_results (game_id, seat, level, vp, won) VALUES (?, ?, ?, ?, ?)');
   const repeats = db.prepare('SELECT COUNT(*) AS c FROM games WHERE humans_key = ? AND ranked = 1 AND finished_at >= ?');
   const upName = db.prepare('INSERT INTO players (pid, name, updated_at) VALUES (?, ?, ?) ON CONFLICT(pid) DO UPDATE SET name = excluded.name, updated_at = excluded.updated_at');
   const putRoom = db.prepare(`INSERT INTO rooms (code, state, board, meta, updated_at) VALUES (?, ?, ?, ?, ?)
@@ -85,10 +97,11 @@ function makeStore(db) {
   const dropOld = db.prepare('DELETE FROM rooms WHERE updated_at < ?');
 
   return {
-    // One finished game. results: [{ pid, name, seat, vp, won, left }]. Only people with a player ID are stored (never bots).
+    // One finished game. results: [{ pid, name, seat, vp, won, left }]: only people with a player ID. bots: [{ level, seat, vp, won }]: the bot seats,
+    // which feed the bot statistics under "All games" and nothing else.
     // pub: the game began in a public room. It is "ranked" when it was public, had two or more different people, and the same group
     // has not already had RANKED_REPEAT_LIMIT ranked games in the last day (so two friends cannot farm wins against each other).
-    recordGame({ code, finishedAt = Date.now(), map = '', vpTarget = 10, turns = 0, seats = 0, pub = false, results }) {
+    recordGame({ code, finishedAt = Date.now(), map = '', vpTarget = 10, turns = 0, seats = 0, pub = false, results, bots = [] }) {
       const people = results.filter(r => r && r.pid);
       if (!people.length) return null;
       const pids = [...new Set(people.map(r => r.pid))].sort(), humans = pids.length, key = sha(pids.join(',')).slice(0, 16);
@@ -100,6 +113,7 @@ function makeStore(db) {
           addResult.run(id, r.pid, r.seat | 0, r.vp | 0, r.won ? 1 : 0, r.left ? 1 : 0, humans >= 2 ? 1 : 0, ranked ? 1 : 0);
           upName.run(r.pid, String(r.name).slice(0, 16), finishedAt);
         }
+        for (const b of bots) if (LEVELS.includes(b.level)) addBot.run(id, b.seat | 0, b.level, b.vp | 0, b.won ? 1 : 0);
         db.exec('COMMIT');
         return id;
       } catch (e) { try { db.exec('ROLLBACK'); } catch { /* already closed */ } throw e; }
@@ -136,7 +150,17 @@ function makeStore(db) {
       const mineAny = pid ? everyone.find(r => r.pid === pid) : null, mine = mineAny && (ranked.find(r => r.pid === pid) || mineAny);
       const g = db.prepare(`SELECT COUNT(*) AS c, AVG(t) AS t FROM (SELECT DISTINCT g.id AS id, g.turns AS t ${from()})`).get(...args);
       const m = db.prepare(`SELECT g.map AS map, COUNT(DISTINCT g.id) AS c ${from()} GROUP BY g.map ORDER BY c DESC LIMIT 1`).get(...args);
-      return { mode, sort, period: days ? String(days) : 'all', rows, me: mine && !rows.some(r => r.you) ? shape(mine) : null, total: ranked.length, minGames,
+      let bots = null;
+      if (mode === 'all') {   // how the bots do, by difficulty (a bot seat in a finished game counts once)
+        const bw = days ? 'WHERE g.finished_at >= ?' : '', ba = days ? [now - days * 86400e3] : [];
+        const by = Object.fromEntries(db.prepare(`SELECT b.level AS level, COUNT(*) AS games, SUM(b.won) AS wins, SUM(b.vp) AS vp, MAX(b.vp) AS best FROM bot_results b JOIN games g ON g.id = b.game_id ${bw} GROUP BY b.level`).all(...ba).map(r => [r.level, r]));
+        const tot = db.prepare(`SELECT COUNT(DISTINCT b.game_id) AS games, COUNT(DISTINCT CASE WHEN b.won = 1 THEN b.game_id END) AS wins FROM bot_results b JOIN games g ON g.id = b.game_id ${bw}`).get(...ba);
+        bots = { games: Number(tot.games), botWins: Number(tot.wins), levels: LEVELS.map(level => {
+          const r = by[level], n = r ? Number(r.games) : 0, w = r ? Number(r.wins) : 0, v = r ? Number(r.vp) : 0;
+          return { level, games: n, wins: w, losses: n - w, winRate: n ? Math.round(100 * w / n) : 0, avgVp: n ? Math.round(10 * v / n) / 10 : 0, bestVp: r ? Number(r.best) : 0 };
+        }) };
+      }
+      return { mode, sort, period: days ? String(days) : 'all', rows, bots, me: mine && !rows.some(r => r.you) ? shape(mine) : null, total: ranked.length, minGames,
         summary: { games: Number(g.c), players: ranked.length, avgTurns: g.t ? Math.round(Number(g.t)) : 0, topMap: m ? m.map : '' } };
     },
     // Live rooms. board may be '' to keep the board that is already saved (it changes rarely).

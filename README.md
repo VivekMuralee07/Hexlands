@@ -49,7 +49,7 @@ Requires Node.js 18 or newer.
 
 ```bash
 npm start            # http://localhost:3000
-npm test             # 163 tests: rules, full simulated games, matchmaking, leaderboard, saved games, and browser screen tests (about a minute)
+npm test             # 166 tests: rules, full simulated games, matchmaking, leaderboard, saved games, and browser screen tests (about a minute)
 ```
 
 GitHub Actions (`.github/workflows/test.yml`) runs `npm test` on Node 22 for every pull request and every push to `main`, and a newer push cancels an older run. To stop a failing run from being merged, turn on branch protection for `main` (Settings, Branches) and require the **npm test** check.
@@ -220,7 +220,7 @@ Finished games are saved to a SQLite file so wins add up across games and surviv
 
 - **Ranked** (the default): games that began in a **public room** with **two or more different people**. The same group of people counts as ranked **3 times in 24 hours**; further games between them still count under Multiplayer. This is what makes it hard to farm wins with a friend.
 - **Multiplayer**: every game with two or more people, public or private.
-- **All games**: every game, against bots too.
+- **All games**: every game, against bots too. This list also has a **Bots** section: how the easy, medium and hard bots do (win rate, wins out of seats played, average and best points) and how many of the games with bots a bot won. Each bot seat in a finished game counts once, so a game with two easy bots adds two games to Easy. Bot results are saved from the games that finish after this feature was added (earlier games have no bot data), and the period filter applies to them too. A person's seat that a bot took over (after they left) is not counted as a bot.
 
 Each list has a **period** (all time, last 30 days, last 7 days) and a **sort** order (most wins, win rate, average points). The window shows, from the top:
 

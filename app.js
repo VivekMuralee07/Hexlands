@@ -2080,10 +2080,25 @@ const lbRow = (r, id) => `<div class="lbitem${r.you ? ' you' : ''}"><button clas
   <span class="lbbar" title="Win rate ${r.winRate}%"><span class="trk"><span style="width:${r.winRate}%"></span></span><b>${r.winRate}%</b></span>
   <svg class="lbchev" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 8l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
 </button><div class="lbdd" id="lbd${id}" hidden>${lbDetail(r)}</div></div>`;
-const lbPodium = rows => `<div class="lbpodium" role="group" aria-label="Top three">${[1, 0, 2].filter(i => rows[i]).map(i => { const r = rows[i];
+const lbPodium = rows => `<div class="lbpodium n${rows.length}" role="group" aria-label="Top three">${[1, 0, 2].filter(i => rows[i]).map(i => { const r = rows[i];
   return `<button class="lbpod p${r.rank}${r.you ? ' you' : ''}" data-lbp="${i}" aria-expanded="false" aria-controls="lbpd">${r.rank === 1 ? LB_CROWN : ''}<span class="lbmedal">${r.rank}</span>${lbAvatar(r)}<b class="lbpname">${lbName({ ...r, you: false })}${r.you ? '<span class="lbsr"> (you)</span>' : ''}</b><span class="lbpwins"><b>${r.wins}</b> ${r.wins === 1 ? 'win' : 'wins'}</span><span class="lbprate">${r.winRate}% · ${r.games} played</span></button>`; }).join('')}</div><div class="lbdd" id="lbpd" hidden></div>`;
 const lbYou = (r, total) => `<section class="lbyou" aria-label="Your standing"><div class="lbyl">${lbAvatar(r)}<div><b>${esc(r.name)}</b><span>${r.rank ? `Rank <strong>#${r.rank}</strong> of ${total}` : `Not ranked yet: play ${r.need} more ${r.need === 1 ? 'game' : 'games'}`}</span></div></div>
   <div class="lbyr">${lbDonut(r.winRate)}<div class="lbys"><span><b>${r.wins}</b> won</span><span><b>${r.games}</b> played</span>${r.streak > 1 ? `<span class="lbstreak">${LB_FLAME} <b>${r.streak}</b> in a row</span>` : ''}${lbForm(r.form)}</div></div></section>`;
+
+// How the bots do, by difficulty. A bot seat in a finished game counts once, so a game with two easy bots adds two games to Easy.
+const lbBots = b => {
+  if (!b) return '';
+  const share = b.games ? Math.round(100 * b.botWins / b.games) : 0;
+  const cards = b.levels.map(l => `<div class="lbbot lvl-${l.level}" role="group" aria-label="${LEVEL_LABEL[l.level]} bots">
+    <span class="lbbotname">${icon('bot', 'boticon')}<b>${LEVEL_LABEL[l.level]}</b></span>
+    ${l.games ? `<span class="lbbotrate">${l.winRate}<small>%</small></span><span class="lbbotsub">won ${l.wins} of ${l.games}</span><span class="lbbotsub">avg ${l.avgVp} pts</span><span class="lbbotsub">best ${l.bestVp} pts</span>`
+      : '<span class="lbbotrate">–</span><span class="lbbotsub">no games yet</span>'}
+  </div>`).join('');
+  return `<section class="lbbots" aria-label="Bot statistics"><h4 role="heading" aria-level="3">Bots</h4>
+    <p class="muted lbbotsum">${b.games ? `Bots won <b>${b.botWins}</b> of the <b>${b.games}</b> games they played in (${share}%).` : 'No finished games with bots yet. Bot results count from games that finish after this update.'}</p>
+    <div class="lbbotlist">${cards}</div>
+    <p class="muted lbnote">Win rate is wins out of bot seats played. With four players everyone wins about 25% by chance.</p></section>`;
+};
 
 function openRankings(mode) {
   if (mode) LB.mode = mode;
@@ -2117,13 +2132,14 @@ function openRankings(mode) {
       const you = j.rows.find(r => r.you) || j.me, sm = j.summary;
       const summary = sm.games ? `<div class="lbsum"><div><b>${sm.games}</b><span>games played</span></div><div><b>${sm.players}</b><span>${sm.players === 1 ? 'player' : 'players'} ranked</span></div><div><b>${sm.avgTurns}</b><span>turns per game</span></div></div>${sm.topMap ? `<p class="muted lbmap">Most played map: <b>${esc(sm.topMap)}</b></p>` : ''}` : '';
       if (!j.rows.length) {
-        box.innerHTML = summary + (you ? lbYou(you, j.total) : '') + `<div class="lbempty"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30" fill="rgba(255,255,255,.08)"/><path d="M20 14h24v8c0 9-5 15-12 17-7-2-12-8-12-17zM14 16h6v6c0 4 2 7 5 8M50 16h-6v6c0 4-2 7-5 8M26 44h12M32 39v5M22 50h20" fill="none" stroke="#ffd23f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><b>Nobody is ranked here yet</b><span>A player appears after ${j.minGames} finished ${j.minGames === 1 ? 'game' : 'games'} in this list${LB.period === 'all' ? '' : ' and period'}. Win a few and you could be first.</span></div>`;
+        box.innerHTML = summary + (you ? lbYou(you, j.total) : '') + `<div class="lbempty"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30" fill="rgba(255,255,255,.08)"/><path d="M20 14h24v8c0 9-5 15-12 17-7-2-12-8-12-17zM14 16h6v6c0 4 2 7 5 8M50 16h-6v6c0 4-2 7-5 8M26 44h12M32 39v5M22 50h20" fill="none" stroke="#ffd23f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><b>Nobody is ranked here yet</b><span>A player appears after ${j.minGames} finished ${j.minGames === 1 ? 'game' : 'games'} in this list${LB.period === 'all' ? '' : ' and period'}. Win a few and you could be first.</span></div>` + lbBots(j.bots);
         return;
       }
       const top = j.rows.slice(0, 3), rest = j.rows.slice(3);
       box.innerHTML = summary + (you ? lbYou(you, j.total) : '') + lbPodium(top)
         + (rest.length ? `<div class="lblist">${rest.map((r, i) => lbRow(r, i + 3)).join('')}</div>` : '')
         + (j.me && !j.rows.some(r => r.you) && j.me.rank ? `<div class="lbgap">…</div><div class="lblist">${lbRow(j.me, 'me')}</div>` : '')
+        + lbBots(j.bots)
         + `<p class="muted lbnote">${j.total} ${j.total === 1 ? 'player' : 'players'} ranked (at least ${j.minGames} games each). Tap a player for details. Your ID is stored on this device, so clearing the app data starts you from zero.</p>`;
       bind(box, j);
     };
