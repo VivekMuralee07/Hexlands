@@ -216,7 +216,13 @@ Still seeing the address bar? Work through these in order:
 
 ## Leaderboard (SQLite)
 
-Finished games are saved to a SQLite file so wins add up across games and survive restarts. The home screen has a **Leaderboard** button: most wins first, with two tabs, **Multiplayer** (games with two or more people) and **All games** (bots included).
+Finished games are saved to a SQLite file so wins add up across games and survive restarts. The home screen has a **Leaderboard** button: most wins first, with three tabs.
+
+- **Ranked** (the default): games that began in a **public room** with **two or more different people**. The same group of people counts as ranked **3 times in 24 hours**; further games between them still count under Multiplayer. This is what makes it hard to farm wins with a friend.
+- **Multiplayer**: every game with two or more people, public or private.
+- **All games**: every game, against bots too.
+
+A player is listed in a tab only after **3 finished games** in it (`LEADERBOARD_MIN_GAMES` changes that number). Until then they see "Play N more games to be ranked". Two listed players with the same name get a short tag from their ID (for example `Ann #a3f9`), so nobody can pass as someone else. A game against bots or one person alone never counts as ranked. Databases made by the first version are upgraded automatically when the server starts; their old games count under Multiplayer and All games.
 
 - **No accounts.** The app makes a random player ID once and keeps it on the device. It is sent when you create or join a room and is never shown to other players or in the leaderboard. Clearing the app data starts a player from zero.
 - **What is stored** when a game ends: room code, map, time, points to win, turns, and for each person (never bots) their display name, player ID, points, and whether they won or left. A seat that a bot took over counts as a game played and never as the win.

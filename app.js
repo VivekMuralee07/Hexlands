@@ -2001,19 +2001,22 @@ async function openMapPicker(tab) {
 
 // ---------- public rooms ----------
 // The leaderboard: most wins first. "Multiplayer" counts games with two or more people; "All games" counts games against bots too.
-function openRankings(mode = 'multi') {
-  const tabs = [['multi', 'Multiplayer'], ['all', 'All games']];
-  const row = r => `<div class="lbrow${r.you ? ' you' : ''}"><span class="lbrank">${r.rank}</span><span class="lbname">${esc(r.name)}${r.you ? ' (you)' : ''}</span><span class="lbnum" title="Wins"><b>${r.wins}</b> won</span><span class="lbnum" title="Games played">${r.games} played</span><span class="lbnum" title="Win rate">${r.winRate}%</span></div>`;
+function openRankings(mode = 'ranked') {
+  const tabs = [['ranked', 'Ranked'], ['multi', 'Multiplayer'], ['all', 'All games']];
+  const about = { ranked: 'Games in public rooms with at least two different people. The same group counts three times a day at most.', multi: 'Every game with two or more people, public or private.', all: 'Every game, against bots too.' };
+  const row = r => `<div class="lbrow${r.you ? ' you' : ''}"><span class="lbrank">${r.rank || '–'}</span><span class="lbname">${esc(r.name)}${r.tag ? ` <small class="lbtag">#${esc(r.tag)}</small>` : ''}${r.you ? ' (you)' : ''}</span><span class="lbnum" title="Wins"><b>${r.wins}</b> won</span><span class="lbnum" title="Games played">${r.games} played</span><span class="lbnum" title="Win rate">${r.winRate}%</span></div>`;
   openModal('rankings', `<div class="infowin"><h3>Leaderboard</h3><div class="maptabs" role="tablist">${tabs.map(([k, l]) => `<button class="maptab" role="tab" data-lbtab="${k}" aria-selected="${mode === k}">${l}</button>`).join('')}</div>
+    <p class="muted lbabout">${about[mode]}</p>
     <div class="lblist" id="lblist" aria-live="polite"><p class="muted">Loading…</p></div><div class="foot"><button class="btn primary" id="lbclose">Close</button></div></div>`, layer => {
     $('#lbclose').onclick = closeModal;
     layer.querySelectorAll('[data-lbtab]').forEach(b => b.onclick = () => openRankings(b.dataset.lbtab));
     fetch(`/api/leaderboard?mode=${mode}&pid=${playerId()}`).then(r => r.json()).then(j => {
       const box = $('#lblist'); if (!box || S.modal !== 'rankings') return;
+      const mine = j.me ? (j.me.rank ? `<div class="lbgap">…</div>${row(j.me)}` : `<div class="lbgap">Not ranked yet</div>${row(j.me)}<p class="muted lbnote">Play ${j.me.need} more ${j.me.need === 1 ? 'game' : 'games'} in this list to be ranked.</p>`) : '';
       if (j.error) box.innerHTML = `<p class="muted">${esc(j.error)}</p>`;
       else if (!j.enabled) box.innerHTML = '<p class="muted">The leaderboard is not switched on for this server yet.</p>';
-      else if (!j.rows.length) box.innerHTML = `<p class="muted">No finished games yet${mode === 'multi' ? ' with two or more people' : ''}. Win one and you will be first!</p>`;
-      else box.innerHTML = j.rows.map(row).join('') + (j.me ? `<div class="lbgap">…</div>${row(j.me)}` : '') + `<p class="muted lbnote">${j.total} ${j.total === 1 ? 'player' : 'players'} ranked. Ranked by wins; your ID is stored on this device, so clearing the app data starts you from zero.</p>`;
+      else if (!j.rows.length) box.innerHTML = `<p class="muted">Nobody is ranked here yet. A player appears after ${j.minGames} finished ${j.minGames === 1 ? 'game' : 'games'} in this list.</p>${mine}`;
+      else box.innerHTML = j.rows.map(row).join('') + mine + `<p class="muted lbnote">${j.total} ${j.total === 1 ? 'player' : 'players'} ranked (at least ${j.minGames} games each). Ranked by wins. Your ID is stored on this device, so clearing the app data starts you from zero.</p>`;
     }).catch(() => { const box = $('#lblist'); if (box) box.innerHTML = '<p class="muted">Could not load the leaderboard. Check your connection.</p>'; });
   });
 }

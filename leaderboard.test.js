@@ -1,6 +1,7 @@
 'use strict';
 process.env.BOT_DELAY_MS = '0';
-process.env.DB_PATH = ':memory:';   // the server opens its leaderboard database on first use; keep it out of the repository
+process.env.DB_PATH = ':memory:';
+process.env.LEADERBOARD_MIN_GAMES = '1';   // the server hides players with fewer than 3 games; the tests use small numbers   // the server opens its leaderboard database on first use; keep it out of the repository
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const dbmod = require('./db');
@@ -77,5 +78,91 @@ test('server: a seat taken over by a bot counts as a game played, never as the w
 test('server: the leaderboard answers for either mode and ignores a malformed pid', { skip }, async () => {
   const all = (await get('/api/leaderboard?mode=all&pid=%3Cscript%3E')).body;
   assert.equal(all.mode, 'all'); assert.ok(all.rows.every(r => r.you === false));
-  assert.equal((await get('/api/leaderboard?mode=bogus')).body.mode, 'multi');
+  assert.equal((await get('/api/leaderboard?mode=bogus')).body.mode, 'ranked', 'ranked is the default');
+});
+
+// ---------- integrity: ranked games, minimum games, repeats, look-alike names ----------
+const D = 'd'.repeat(32), E = 'e'.repeat(32);
+const duel = (code, win, lose) => game(code, [{ pid: win, name: 'P' + win[0], seat: 0, vp: 10, won: true }, { pid: lose, name: 'P' + lose[0], seat: 1, vp: 5, won: false }]);   // a player is called P<first letter of the ID>
+
+test('db: "ranked" needs a public game with two different people; private and bot games count only elsewhere', { skip }, () => {
+  const s = dbmod.open(':memory:');
+  s.recordGame({ ...duel('R1', A, B), pub: true });
+  s.recordGame({ ...duel('R2', A, B), pub: false });                                                // private: multiplayer, not ranked
+  s.recordGame({ code: 'R3', pub: true, turns: 30, seats: 4, results: [{ pid: C, name: 'Cy', seat: 0, vp: 10, won: true }] });   // one person and bots
+  const g = m => s.top({ mode: m }).rows.map(r => [r.name, r.wins, r.games]);
+  assert.deepEqual(g('ranked'), [['Pa', 1, 1], ['Pb', 0, 1]]);
+  assert.deepEqual(g('multi').find(r => r[0] === 'Pa'), ['Pa', 2, 2]);
+  assert.equal(g('all').some(r => r[0] === 'Cy'), true, 'a game against bots is under "all games"');
+  assert.equal(g('multi').some(r => r[0] === 'Cy'), false);
+  assert.equal(g('ranked').some(r => r[0] === 'Cy'), false);
+  s.close();
+});
+
+test('db: the same group of people counts as ranked 3 times in a day, then only as multiplayer', { skip }, () => {
+  const s = dbmod.open(':memory:');
+  for (let i = 0; i < 5; i++) s.recordGame({ ...duel('F' + i, A, B), pub: true, finishedAt: 1000 + i });
+  assert.equal(s.top({ mode: 'ranked' }).rows.find(r => r.name === 'Pa').games, dbmod.RANKED_REPEAT_LIMIT);
+  assert.equal(s.top({ mode: 'multi' }).rows.find(r => r.name === 'Pa').games, 5);
+  s.recordGame({ ...duel('Fnew', A, B), pub: true, finishedAt: 1000 + 25 * 3600e3 });   // a day later it counts again
+  assert.equal(s.top({ mode: 'ranked' }).rows.find(r => r.name === 'Pa').games, dbmod.RANKED_REPEAT_LIMIT + 1);
+  s.recordGame({ ...duel('Fother', A, C), pub: true, finishedAt: 2000 });                 // a different group is not limited
+  assert.equal(s.top({ mode: 'ranked' }).rows.find(r => r.name === 'Pa').games, dbmod.RANKED_REPEAT_LIMIT + 2);
+  s.close();
+});
+
+test('db: players with too few games are not ranked; they see how many more they need', { skip }, () => {
+  const s = dbmod.open(':memory:');
+  for (let i = 0; i < 3; i++) s.recordGame({ ...duel('M' + i, A, B), pub: false });
+  s.recordGame({ ...duel('Mx', C, A), pub: false });
+  const t = s.top({ mode: 'multi', minGames: 3, pid: C });
+  assert.deepEqual(t.rows.map(r => r.name), ['Pa', 'Pb'], 'only A (4 games) and B (3 games) have enough');
+  assert.equal(t.total, 2);
+  assert.equal(t.me.rank, null); assert.equal(t.me.need, 2, 'C has played 1 game and needs 2 more');
+  assert.equal(s.top({ mode: 'multi', minGames: 3, pid: A }).me, null, 'a ranked player is in the list, no extra row');
+  s.close();
+});
+
+test('db: two ranked players with the same name get a short tag so nobody can pass as another', { skip }, () => {
+  const s = dbmod.open(':memory:');
+  s.recordGame({ ...game('N1', [{ pid: A, name: 'Alex', seat: 0, vp: 10, won: true }, { pid: B, name: 'alex', seat: 1, vp: 5, won: false }, { pid: C, name: 'Zed', seat: 2, vp: 4, won: false }]), pub: true });
+  const rows = s.top({ mode: 'ranked' }).rows;
+  assert.match(rows[0].tag, /^[0-9a-f]{4}$/); assert.match(rows[1].tag, /^[0-9a-f]{4}$/); assert.notEqual(rows[0].tag, rows[1].tag);
+  assert.equal(rows.find(r => r.name === 'Zed').tag, '', 'a name nobody else uses has no tag');
+  s.close();
+});
+
+test('db: a database made by the first version is upgraded and keeps its games', { skip }, () => {
+  const { DatabaseSync } = require('node:sqlite');
+  const fs = require('fs'), os = require('os'), path = require('path');
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'hexdb-')), 'old.db');
+  const old = new DatabaseSync(file);
+  old.exec(`CREATE TABLE games (id INTEGER PRIMARY KEY, code TEXT NOT NULL, finished_at INTEGER NOT NULL, map TEXT, vp_target INTEGER, turns INTEGER, seats INTEGER NOT NULL, humans INTEGER NOT NULL);
+    CREATE TABLE results (game_id INTEGER NOT NULL REFERENCES games(id), pid TEXT NOT NULL, seat INTEGER NOT NULL, vp INTEGER NOT NULL, won INTEGER NOT NULL, left_game INTEGER NOT NULL DEFAULT 0, multi INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (game_id, pid));
+    CREATE TABLE players (pid TEXT PRIMARY KEY, name TEXT NOT NULL, updated_at INTEGER NOT NULL);
+    INSERT INTO games VALUES (1, 'OLD', 5, 'Classic', 10, 40, 2, 2);
+    INSERT INTO results VALUES (1, '${A}', 0, 10, 1, 0, 1), (1, '${B}', 1, 6, 0, 0, 1);
+    INSERT INTO players VALUES ('${A}', 'Old Ann', 5), ('${B}', 'Old Bob', 5);`);
+  old.close();
+  const s = dbmod.open(file);
+  assert.deepEqual(s.top({ mode: 'multi' }).rows.map(r => [r.name, r.wins]), [['Old Ann', 1], ['Old Bob', 0]], 'the old games are still there');
+  assert.equal(s.top({ mode: 'ranked' }).rows.length, 0, 'old games were not public, so they are not ranked');
+  s.recordGame({ ...duel('NEW', A, B), pub: true });
+  assert.equal(s.top({ mode: 'ranked' }).rows.length, 2, 'new games work on the upgraded database');
+  s.close();
+});
+
+test('server: a game that began in a public room is ranked; one that began private is not', { skip }, async () => {
+  const mkGame = async (name, pidA, pidB, pub) => {
+    const c = (await post('/api/create', { name, pid: pidA, public: pub, map: { preset: 'classic' }, seed: 8 })).body;
+    await post('/api/join', { code: c.code, name: name + '2', pid: pidB });
+    const room = rooms.get(c.code); room.publicAtStart = pub; room.game.phase = 'ended'; room.game.winner = 0;
+    recordFinished(room);
+  };
+  await mkGame('Pubby', 'f1'.repeat(16), 'f2'.repeat(16), true);
+  await mkGame('Privy', 'f3'.repeat(16), 'f4'.repeat(16), false);
+  const ranked = (await get('/api/leaderboard?mode=ranked')).body.rows.map(r => r.name);
+  assert.ok(ranked.includes('Pubby') && !ranked.includes('Privy'), 'ranked: ' + ranked);
+  const multi = (await get('/api/leaderboard?mode=multi')).body.rows.map(r => r.name);
+  assert.ok(multi.includes('Pubby') && multi.includes('Privy'));
 });

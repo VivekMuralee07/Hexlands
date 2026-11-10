@@ -137,6 +137,7 @@ function loadSavedRooms(now = Date.now()) {
 let store;
 const getStore = () => (store === undefined ? (store = db.open(process.env.DB_PATH || path.join(__dirname, 'data', 'hexlands.db'))) : store);
 // A player ID is a random code the app creates once per device. It is how wins add up across games without accounts. It is never sent to other players.
+const MIN_GAMES = () => Math.max(1, Number(process.env.LEADERBOARD_MIN_GAMES) || 3);   // games in a mode before a player is ranked there
 const cleanPid = raw => (/^[a-f0-9]{16,64}$/.test(String(raw || '')) ? String(raw) : null);
 function tagPlayer(game, pi, body) { const pid = cleanPid(body && body.pid); if (pid && game.players[pi]) game.players[pi].pid = pid; }
 function recordFinished(room) {
@@ -147,7 +148,7 @@ function recordFinished(room) {
   try {
     const s = getStore(); if (!s) return;
     s.recordGame({
-      code: g.code, finishedAt: Date.now(), map: g.board.name, vpTarget: g.vpTarget, turns: g.turnNumber, seats: g.players.length,
+      code: g.code, finishedAt: Date.now(), map: g.board.name, vpTarget: g.vpTarget, turns: g.turnNumber, seats: g.players.length, pub: !!room.publicAtStart,
       results: g.players.map((p, i) => ({ pid: p.pid, name: p.name, seat: i, vp: g.vp(i, true), won: i === g.winner && !p.takenOver, left: !!p.takenOver })),
     });
   } catch (e) { console.error('Could not save the finished game:', e.message); }
@@ -385,11 +386,11 @@ async function api(req, res, url) {
     rooms.set(code, newRoom(game, { pub: true, ip }));
     return sendJson(res, 200, { code, token, created: true });
   }
-  if (req.method === 'GET' && route === '/api/leaderboard') {   // most wins; ?mode=all counts games against bots too; ?pid= marks and ranks you
+  if (req.method === 'GET' && route === '/api/leaderboard') {   // ?mode=ranked (default) | multi | all; ?pid= marks you and ranks you
     guard(req, 'board', 60, 60e3, 'Too many requests. Please wait a moment.');
-    const s = getStore(), mode = url.searchParams.get('mode') === 'all' ? 'all' : 'multi';
-    if (!s) return sendJson(res, 200, { enabled: false, mode, rows: [], me: null, total: 0 });
-    return sendJson(res, 200, { enabled: true, ...s.top({ mode, limit: 25, pid: cleanPid(url.searchParams.get('pid')) }) });
+    const s = getStore(), m = url.searchParams.get('mode'), mode = ['ranked', 'multi', 'all'].includes(m) ? m : 'ranked';
+    if (!s) return sendJson(res, 200, { enabled: false, mode, rows: [], me: null, total: 0, minGames: MIN_GAMES() });
+    return sendJson(res, 200, { enabled: true, ...s.top({ mode, limit: 25, pid: cleanPid(url.searchParams.get('pid')), minGames: MIN_GAMES() }) });
   }
   if (req.method === 'GET' && route === '/api/maps') return sendJson(res, 200, { maps: maps.presetList() });
 
