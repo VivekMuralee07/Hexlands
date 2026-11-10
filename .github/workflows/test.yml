@@ -20,8 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22   # the leaderboard needs the built-in node:sqlite (Node 22.5 or later)
       # The game itself has no dependencies. Playwright (for the screen tests in ui.test.js) is a dev dependency, and it needs a browser.
