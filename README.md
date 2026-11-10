@@ -49,7 +49,7 @@ Requires Node.js 18 or newer.
 
 ```bash
 npm start            # http://localhost:3000
-npm test             # 166 tests: rules, full simulated games, matchmaking, leaderboard, saved games, and browser screen tests (about a minute)
+npm test             # 173 tests: rules, full simulated games, matchmaking, leaderboard, saved games, and browser screen tests (about a minute)
 ```
 
 GitHub Actions (`.github/workflows/test.yml`) runs `npm test` on Node 22 for every pull request and every push to `main`, and a newer push cancels an older run. To stop a failing run from being merged, turn on branch protection for `main` (Settings, Branches) and require the **npm test** check.
@@ -102,7 +102,10 @@ Anyone in the world can open your Render address. Public play is **on by default
 - **Ready before start:** with two or more people in the room, the host can start only when every person (the host too) has tapped *I'm ready*. One person with bots can start at once. Changing the map or options clears the ticks.
 - **Dropped connections (every running game, public or private):** when a player's connection drops, a bot (medium) plays their seat within about 3 seconds (a page reload is not a drop). Everyone sees *"X is away. A bot plays for them"* and an AWAY tag on the seat. The moment the player comes back (reopening the app, or the connection returning) the bot hands the seat straight back, however long they were gone, and the move clock starts fresh. The player who dropped sees a *Connection lost* card with *Reconnect*.
 - **Leaving and idling:** tapping Leave in a running game hands the seat to a bot at once, **for good**: there is no Reconnect and the seat cannot be taken back. A player who lets the move timer run out twice in a row also gets a bot, but can tap *Take back control*.
-- **In-game info button:** shows the room code, Public or Private, and buttons to copy the code or the invite link.
+- **In-game info button:** shows the room code, Public or Private, buttons to copy the code or the invite link, a **Share invite** button (opens the phone's share sheet, where the browser supports it) and the *Vibrate on my turn* switch.
+- **Share invite:** one tap in the waiting room or the info window hands the link and the room code to WhatsApp, Messages and so on. Where there is no share sheet (most desktop browsers), the link is copied instead.
+- **Turn alerts:** when it becomes your move (your turn, your setup placement, or cards you must discard or pick) you get a sound, a short buzz (phones; the switch is in the info window) and, if the app is in the background, a flashing tab title until you come back.
+- **Play again:** when a game ends, *Play again* (on the end screen and in the results window) sends everyone who stayed back to the waiting room of the same room: same people, bots, points target and options, a new map of the same kind. Players who left are dropped. The finished game's result was already saved.
 - **Chat in public rooms** is free text, with a basic filter: links are refused, bad words are starred out, six messages per ten seconds. Report and mute work as before.
 
 Protection against abuse (all in server memory, nothing stored): per internet address, 20 new rooms an hour, 5 rooms open at a time, 40 joins a minute, and a lock-out after 10 wrong room codes in 10 minutes. The address is read from `cf-connecting-ip` (Cloudflare, which Render uses), falling back to `x-forwarded-for`. Names are cleaned on the server (no hidden characters, 16 characters, "Player 4821" when empty, staff-like names refused). The word list is short; add your own words with the `BLOCKED_WORDS` setting (comma separated). Limits and numbers are constants near the top of `server.js`.
@@ -239,6 +242,8 @@ A player is listed in a tab only after **3 finished games** in it (`LEADERBOARD_
 - **Privacy.** The Terms and Privacy Policy (`legal.js`) now describe this storage, and the version date changed, so everyone is asked to agree again. Please read the new text and adjust it to how you run the game.
 - **Games in progress survive a restart or a crash.** While the server runs, every room that changed is saved to the same database about 1.5 seconds later, and all rooms are saved when the host stops the server (SIGTERM). When the server starts, the saved rooms are loaded again: players reconnect by themselves and keep their seats (the seat codes are saved too), and bots and the move clock start again. A player who does not come back within about 45 seconds gets the usual bot takeover. A crash can lose the last second or two of moves. A finished game is removed from the saved rooms (its result is already in the leaderboard), and saves older than 6 hours are dropped. The room owner's IP address is never saved.
 
+The leaderboard window also has **My recent games**: your last ten finished games on this device (result, points, who won, map, turns, and whether it counted as ranked), from `GET /api/recent?pid=`.
+
 ## Make an Android app with Capacitor
 
 An alternative to PWABuilder: a native Android Studio project in `android/`, managed by [Capacitor](https://capacitorjs.com). Like the PWABuilder app it is a shell that loads the live site, so a push to GitHub updates the game without a new APK. Settings are in `capacitor.config.json`:
@@ -274,7 +279,7 @@ You need: a Play Console developer account (one-time fee, identity checks), the 
 3. Pick the package ID now (for example `com.yourname.hexlands`). It can never change after the first upload.
 
 **In Play Console (Create app: Game, Free)**
-1. *Store listing:* use the texts below, the 512 px `icon-512.png`, a 1024 x 500 feature graphic, and 2 to 8 phone screenshots (`screenshot-home.png`, `screenshot-game.png`; take more of your own if you like).
+1. *Store listing:* use the texts below, the 512 px `icon-512.png`, a 1024 x 500 feature graphic, and 2 to 8 phone screenshots (`screenshot-home.png`, `screenshot-game.png`, `screenshot-leaderboard.png`; take more of your own if you like). Run `npm run screenshots` to retake all four store/install pictures from the current design (it needs Playwright and a Chromium; set `CHROMIUM_PATH` if it cannot find one).
 2. *App content:* Privacy policy URL `https://YOUR-SITE/privacy`. Ads: **No**. App access: **All functionality available without login**. Target audience: **13 and older** (not children; do not pick the under-13 groups). News app, government, health, financial features: **No**.
 3. *Content rating (IARC questionnaire):* no violence beyond abstract board-game moves, no sexual content, no gambling, no purchases. Answer **Yes** to "users can interact or exchange content" (the chat). Expect an "Everyone 10+" or "Teen" style result with a "users interact" notice.
 4. *User-generated content:* Google requires reporting, blocking and terms. Hexlands has report and mute on every chat message, a word filter, rate limits, and Terms of Use. If a form asks, say reports are reviewed through the admin report list.
@@ -341,6 +346,7 @@ Not covered: the map is read as a picture, so a screen-reader user hears what ca
 ## Project layout
 
 ```
+screenshots.js    `npm run screenshots`: retakes the store and install screenshots from the real app
 server.js         HTTP server, rooms, live updates (SSE), matchmaking, limits, filters, bot and move-clock timing
 game.js           Rules engine; the server is the only authority on game state
 bots.js           Bot decisions for easy, medium and hard
