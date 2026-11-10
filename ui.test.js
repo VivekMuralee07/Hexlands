@@ -7,7 +7,7 @@ process.env.DB_PATH = ':memory:';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const legal = require('./legal');
-const { server, rooms, limits } = require('./server');
+const { server, rooms, limits, getStore } = require('./server');
 limits.enabled = false;
 
 let chromium = null;
@@ -69,9 +69,9 @@ test('home screen: shows the title and the Leaderboard window opens', async t =>
   await page.waitForSelector('#rankings');
   assert.match(await page.textContent('h1.title'), /Hexlands/);
   await page.click('#rankings');
-  await page.waitForSelector('.lblist');
+  await page.waitForSelector('#lbbody');
   assert.match(await page.textContent('.modal h3'), /Leaderboard/);
-  await page.waitForFunction(() => !/Loading/.test(document.querySelector('.lblist').textContent));
+  await page.waitForFunction(() => !/Loading/.test(document.querySelector('#lbbody').textContent));
   assert.equal(await page.locator('[data-lbtab]').count() >= 2, true, 'the leaderboard has mode tabs');
   assert.deepEqual(errors, []);
   await ctx.close();
@@ -146,7 +146,7 @@ test('accessibility: no automatic (axe) findings on the home screen, the Leaderb
   let { ctx, page } = await openPage(null);
   await page.waitForSelector('#rankings');
   assert.deepEqual(await axeFindings(page), [], 'home');
-  await page.click('#rankings'); await page.waitForFunction(() => !/Loading/.test(document.querySelector('.lblist').textContent));
+  await page.click('#rankings'); await page.waitForFunction(() => !/Loading/.test(document.querySelector('#lbbody').textContent));
   assert.deepEqual(await axeFindings(page), [], 'Leaderboard window');
   await ctx.close();
 
@@ -199,5 +199,39 @@ test('accessibility: the map can be played with the keyboard (Tab to a glowing c
   const placed = Date.now() + 5000;
   while (!Object.values(g.buildings).some(b => b.p === me) && Date.now() < placed) await new Promise(r => setTimeout(r, 40));
   assert.ok(Object.values(g.buildings).some(b => b.p === me), 'the settlement was built by keyboard alone');
+  await ctx.close();
+});
+
+test('leaderboard window with players: summary, your standing, podium, details on tap, period and sort, no axe findings, nothing sticks out', async t => {
+  if (why) return t.skip(why);
+  const ids = ['a', 'b', 'c', 'd'].map(c => c.repeat(32)), names = ['Ann', 'Bo', 'Cy', 'Di'], store = getStore(), now = Date.now();
+  let n = 0;
+  for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) for (let k = 0; k < 3; k++) {   // every pair plays 3 public games, so everyone has 9 games
+    const win = (i + j + k) % 3 === 0 ? j : i;
+    store.recordGame({ code: 'UI' + n++, finishedAt: now - n * 3600e3, map: ['Classic Island', 'Japan'][n % 2], turns: 50 + n, seats: 2, pub: true,
+      results: [i, j].map(p => ({ pid: ids[p], name: names[p], seat: p === i ? 0 : 1, vp: p === win ? 10 : 6, won: p === win })) });
+  }
+  const { ctx, page, errors } = await openPage(null);
+  await page.evaluate(id => localStorage.setItem('hexlands.pid', JSON.stringify(id)), ids[0]);
+  await page.waitForSelector('#rankings'); await page.click('#rankings');
+  await page.waitForSelector('.lbpodium');
+  assert.equal(await page.locator('.lbpod').count(), 3, 'a podium of three');
+  assert.equal(await page.locator('.lbsum > div').count(), 3, 'three totals');
+  assert.ok(await page.isVisible('.lbyou'), 'your own standing is shown');
+  assert.equal(await page.locator('.lbrow').count(), 1, 'the fourth player is in the list');
+  await page.click('.lbrow');
+  assert.equal(await page.getAttribute('.lbrow', 'aria-expanded'), 'true');
+  assert.ok(await page.isVisible('.lbitem .lbdetail'), 'tapping a player shows the details');
+  assert.match(await page.textContent('.lbitem .lbdetail'), /Win rate[\s\S]*Average points[\s\S]*Best game[\s\S]*Win streak[\s\S]*Favourite map[\s\S]*Last played/);
+  await page.click('.lbpod.p1');
+  assert.ok(await page.isVisible('#lbpd .lbdetail'), 'the podium shows details too');
+  await page.selectOption('#lbsort', 'rate'); await page.waitForFunction(() => !document.querySelector('#lbbody').hasAttribute('aria-busy'));
+  await page.selectOption('#lbperiod', '7'); await page.waitForFunction(() => !document.querySelector('#lbbody').hasAttribute('aria-busy'));
+  assert.ok(await page.locator('.lbpod').count() >= 1, 'still listed for the last 7 days');
+  assert.equal(await page.evaluate(() => { const m = document.querySelector('#modal .modal'); return m.scrollWidth - m.clientWidth; }) <= 1, true, 'nothing sticks out sideways inside the window');
+  if (axePath) assert.deepEqual(await axeFindings(page), [], 'the populated, expanded Leaderboard window');
+  await page.click('.lbtab, [data-lbtab="all"]');
+  await page.waitForFunction(() => document.querySelector('[data-lbtab="all"]').getAttribute('aria-selected') === 'true');
+  assert.deepEqual(errors, []);
   await ctx.close();
 });

@@ -386,11 +386,13 @@ async function api(req, res, url) {
     rooms.set(code, newRoom(game, { pub: true, ip }));
     return sendJson(res, 200, { code, token, created: true });
   }
-  if (req.method === 'GET' && route === '/api/leaderboard') {   // ?mode=ranked (default) | multi | all; ?pid= marks you and ranks you
+  if (req.method === 'GET' && route === '/api/leaderboard') {   // ?mode=ranked (default) | multi | all, ?period=all | 30 | 7 (days), ?sort=wins | rate | vp, ?pid= marks you and ranks you
     guard(req, 'board', 60, 60e3, 'Too many requests. Please wait a moment.');
-    const s = getStore(), m = url.searchParams.get('mode'), mode = ['ranked', 'multi', 'all'].includes(m) ? m : 'ranked';
-    if (!s) return sendJson(res, 200, { enabled: false, mode, rows: [], me: null, total: 0, minGames: MIN_GAMES() });
-    return sendJson(res, 200, { enabled: true, ...s.top({ mode, limit: 25, pid: cleanPid(url.searchParams.get('pid')), minGames: MIN_GAMES() }) });
+    const q = k => url.searchParams.get(k), pick = (v, list) => (list.includes(v) ? v : list[0]);
+    const mode = pick(q('mode'), ['ranked', 'multi', 'all']), period = pick(q('period'), ['all', '30', '7']), sort = pick(q('sort'), ['wins', 'rate', 'vp']);
+    const s = getStore();
+    if (!s) return sendJson(res, 200, { enabled: false, mode, period, sort, rows: [], me: null, total: 0, minGames: MIN_GAMES(), summary: { games: 0, players: 0, avgTurns: 0, topMap: '' } });
+    return sendJson(res, 200, { enabled: true, ...s.top({ mode, period, sort, limit: 25, pid: cleanPid(q('pid')), minGames: MIN_GAMES() }) });
   }
   if (req.method === 'GET' && route === '/api/maps') return sendJson(res, 200, { maps: maps.presetList() });
 

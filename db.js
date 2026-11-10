@@ -78,14 +78,6 @@ function makeStore(db) {
   const addResult = db.prepare('INSERT OR IGNORE INTO results (game_id, pid, seat, vp, won, left_game, multi, ranked) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
   const repeats = db.prepare('SELECT COUNT(*) AS c FROM games WHERE humans_key = ? AND ranked = 1 AND finished_at >= ?');
   const upName = db.prepare('INSERT INTO players (pid, name, updated_at) VALUES (?, ?, ?) ON CONFLICT(pid) DO UPDATE SET name = excluded.name, updated_at = excluded.updated_at');
-  const standings = where => db.prepare(`
-    SELECT r.pid AS pid, p.name AS name, SUM(r.won) AS wins, COUNT(*) AS games, SUM(r.vp) AS vp
-    FROM results r JOIN players p ON p.pid = r.pid
-    ${where ? 'WHERE ' + where : ''}
-    GROUP BY r.pid
-    ORDER BY wins DESC, games ASC, vp DESC, p.name ASC
-    LIMIT 5000`);
-  const q = { ranked: standings('r.ranked = 1'), multi: standings('r.multi = 1'), all: standings('') };
   const putRoom = db.prepare(`INSERT INTO rooms (code, state, board, meta, updated_at) VALUES (?, ?, ?, ?, ?)
     ON CONFLICT(code) DO UPDATE SET state = excluded.state, board = COALESCE(NULLIF(excluded.board, ''), rooms.board), meta = excluded.meta, updated_at = excluded.updated_at`);
   const dropRoom = db.prepare('DELETE FROM rooms WHERE code = ?');
@@ -112,19 +104,40 @@ function makeStore(db) {
         return id;
       } catch (e) { try { db.exec('ROLLBACK'); } catch { /* already closed */ } throw e; }
     },
-    // The ranking: most wins first (fewer games breaks a tie, then points). Only players with at least `minGames` games in this mode are
-    // ranked. `me` is the caller's own row when they are not in the list: with their rank, or with `need` (games still to play) if they are not ranked yet.
+    // The leaderboard for one mode ('ranked' | 'multi' | 'all') and period ('all' | '30' | '7' days), sorted by 'wins' (default), 'rate' or 'vp'.
+    // Only players with at least `minGames` games there are ranked. Each row has the record, win rate, average and best points, the last
+    // five results (newest first), the current win streak, the favourite map and when they last played. `me` is the caller's own row when they
+    // are not in the list (with their rank, or with `need`: the games still to play). `summary` describes the whole list.
     // Two ranked players with the same name get a short tag from their ID, so nobody can pass as someone else.
-    top({ mode = 'ranked', limit = 25, pid = null, minGames = 1 } = {}) {
-      const key = q[mode] ? mode : 'ranked';
-      const everyone = q[key].all().map(r => ({ pid: r.pid, name: r.name, wins: Number(r.wins), games: Number(r.games), vp: Number(r.vp) }));
+    top({ mode = 'ranked', limit = 25, pid = null, minGames = 1, period = 'all', sort = 'wins', now = Date.now() } = {}) {
+      mode = MODES[mode] ? mode : 'ranked';
+      sort = ['wins', 'rate', 'vp'].includes(sort) ? sort : 'wins';
+      const days = { 7: 7, 30: 30 }[period], where = [], args = [];
+      if (mode === 'ranked') where.push('r.ranked = 1'); else if (mode === 'multi') where.push('r.multi = 1');
+      if (days) { where.push('g.finished_at >= ?'); args.push(now - days * 86400e3); }
+      const from = extra => `FROM results r JOIN games g ON g.id = r.game_id JOIN players p ON p.pid = r.pid ${where.concat(extra || []).length ? 'WHERE ' + where.concat(extra || []).join(' AND ') : ''}`;
+      const everyone = db.prepare(`SELECT r.pid AS pid, p.name AS name, SUM(r.won) AS wins, COUNT(*) AS games, SUM(r.vp) AS vp, MAX(r.vp) AS best, MAX(g.finished_at) AS last ${from()} GROUP BY r.pid LIMIT 5000`).all(...args)
+        .map(r => ({ pid: r.pid, name: r.name, wins: Number(r.wins), games: Number(r.games), vp: Number(r.vp), best: Number(r.best), last: Number(r.last) }));
+      const rate = r => r.wins / r.games, avg = r => r.vp / r.games;
+      const order = { wins: (x, y) => y.wins - x.wins || x.games - y.games || y.vp - x.vp, rate: (x, y) => rate(y) - rate(x) || y.games - x.games || y.wins - x.wins, vp: (x, y) => avg(y) - avg(x) || y.games - x.games || y.wins - x.wins }[sort];
+      everyone.sort((x, y) => order(x, y) || x.name.localeCompare(y.name));
       const ranked = everyone.filter(r => r.games >= minGames).map((r, i) => ({ ...r, rank: i + 1 }));
       const count = {}; ranked.forEach(r => { const k = r.name.toLowerCase(); count[k] = (count[k] || 0) + 1; });
-      const shape = r => ({ rank: r.rank || null, name: r.name, tag: r.rank && count[r.name.toLowerCase()] > 1 ? sha(r.pid).slice(0, 4) : '', wins: r.wins, games: r.games,
-        winRate: r.games ? Math.round(100 * r.wins / r.games) : 0, avgVp: r.games ? Math.round(10 * r.vp / r.games) / 10 : 0, you: !!pid && r.pid === pid, need: r.rank ? 0 : Math.max(0, minGames - r.games) });
+      const recent = db.prepare(`SELECT r.won AS won ${from(['r.pid = ?'])} ORDER BY g.finished_at DESC, g.id DESC LIMIT 30`);
+      const favourite = db.prepare(`SELECT g.map AS map, COUNT(*) AS c ${from(['r.pid = ?'])} GROUP BY g.map ORDER BY c DESC, MAX(g.finished_at) DESC LIMIT 1`);
+      const shape = r => {
+        const last = recent.all(...args, r.pid).map(x => Number(x.won)), fav = favourite.get(...args, r.pid);
+        let streak = 0; while (streak < last.length && last[streak] === 1) streak++;
+        return { rank: r.rank || null, name: r.name, tag: r.rank && count[r.name.toLowerCase()] > 1 ? sha(r.pid).slice(0, 4) : '', wins: r.wins, losses: r.games - r.wins, games: r.games,
+          winRate: Math.round(100 * rate(r)), avgVp: Math.round(10 * avg(r)) / 10, bestVp: r.best, form: last.slice(0, 5), streak, lastPlayed: r.last, favMap: fav ? fav.map : '',
+          you: !!pid && r.pid === pid, need: r.rank ? 0 : Math.max(0, minGames - r.games) };
+      };
       const rows = ranked.slice(0, limit).map(shape);
       const mineAny = pid ? everyone.find(r => r.pid === pid) : null, mine = mineAny && (ranked.find(r => r.pid === pid) || mineAny);
-      return { mode: key, rows, me: mine && !rows.some(r => r.you) ? shape(mine) : null, total: ranked.length, minGames };
+      const g = db.prepare(`SELECT COUNT(*) AS c, AVG(t) AS t FROM (SELECT DISTINCT g.id AS id, g.turns AS t ${from()})`).get(...args);
+      const m = db.prepare(`SELECT g.map AS map, COUNT(DISTINCT g.id) AS c ${from()} GROUP BY g.map ORDER BY c DESC LIMIT 1`).get(...args);
+      return { mode, sort, period: days ? String(days) : 'all', rows, me: mine && !rows.some(r => r.you) ? shape(mine) : null, total: ranked.length, minGames,
+        summary: { games: Number(g.c), players: ranked.length, avgTurns: g.t ? Math.round(Number(g.t)) : 0, topMap: m ? m.map : '' } };
     },
     // Live rooms. board may be '' to keep the board that is already saved (it changes rarely).
     saveRoom({ code, state, board = '', meta = {}, updatedAt = Date.now() }) { putRoom.run(String(code), state, board, JSON.stringify(meta), updatedAt); },

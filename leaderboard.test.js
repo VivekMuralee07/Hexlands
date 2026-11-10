@@ -166,3 +166,65 @@ test('server: a game that began in a public room is ranked; one that began priva
   const multi = (await get('/api/leaderboard?mode=multi')).body.rows.map(r => r.name);
   assert.ok(multi.includes('Pubby') && multi.includes('Privy'));
 });
+
+// ---------- the richer leaderboard: record, form, streak, favourite map, period, sort, summary ----------
+const DAY = 86400e3, NOW = 100 * DAY;
+const rec = (code, at, map, winner, loser, turns = 60) => ({ code, finishedAt: at, map, turns, seats: 2, pub: true,
+  results: [{ pid: winner, name: 'P' + winner[0], seat: 0, vp: 10, won: true }, { pid: loser, name: 'P' + loser[0], seat: 1, vp: 6, won: false }] });
+
+test('db: each row has the record, form (newest first), win streak, best and average points, favourite map and last played', { skip }, () => {
+  const s = dbmod.open(':memory:');
+  // A plays 7 games against rotating opponents (so none is capped): L W W L W W W, oldest to newest
+  const opp = [B, C, D, E, B, C, D], won = [0, 1, 1, 0, 1, 1, 1], maps = ['Japan', 'Japan', 'Australia', 'Japan', 'Australia', 'Australia', 'Australia'];
+  opp.forEach((o, i) => s.recordGame(rec('H' + i, NOW - (7 - i) * DAY, maps[i], won[i] ? A : o, won[i] ? o : A, 40 + i * 10)));
+  const a = s.top({ mode: 'all', now: NOW, pid: A }).rows.find(r => r.name === 'Pa');
+  assert.deepEqual([a.wins, a.losses, a.games, a.winRate], [5, 2, 7, 71]);
+  assert.deepEqual(a.form, [1, 1, 1, 0, 1], 'the last five games, newest first');
+  assert.equal(a.streak, 3, 'three wins in a row at the moment');
+  assert.equal(a.bestVp, 10);
+  assert.equal(a.avgVp, Math.round(10 * (5 * 10 + 2 * 6) / 7) / 10);
+  assert.equal(a.favMap, 'Australia');
+  assert.equal(a.lastPlayed, NOW - 1 * DAY);
+  const b = s.top({ mode: 'all', now: NOW }).rows.find(r => r.name === 'Pb');
+  assert.equal(b.streak, 0, 'a player whose last game was lost has no streak');
+  s.close();
+});
+
+test('db: the period keeps only recent games, and the summary describes the list', { skip }, () => {
+  const s = dbmod.open(':memory:');
+  s.recordGame(rec('O1', NOW - 40 * DAY, 'Japan', A, B, 50));
+  s.recordGame(rec('O2', NOW - 20 * DAY, 'Japan', A, C, 70));
+  s.recordGame(rec('O3', NOW - 2 * DAY, 'Australia', B, A, 90));
+  const all = s.top({ mode: 'all', now: NOW, period: 'all' }), d30 = s.top({ mode: 'all', now: NOW, period: '30' }), d7 = s.top({ mode: 'all', now: NOW, period: '7' });
+  assert.deepEqual([all.summary.games, d30.summary.games, d7.summary.games], [3, 2, 1]);
+  assert.equal(all.summary.avgTurns, 70); assert.equal(all.summary.topMap, 'Japan');
+  assert.equal(d7.summary.topMap, 'Australia');
+  assert.equal(d7.rows.find(r => r.name === 'Pa').games, 1, 'only the game of the last 7 days counts for A');
+  assert.equal(d7.period, '7'); assert.equal(all.period, 'all');
+  assert.equal(s.top({ mode: 'all', now: NOW, period: 'bogus' }).period, 'all');
+  s.close();
+});
+
+test('db: sorting by wins, win rate or average points ranks players differently', { skip }, () => {
+  const s = dbmod.open(':memory:');
+  // A: 4 wins in 8 games (50%). B: 2 wins in 2 games (100%). C: 0 wins but always high points? (points are 10 for a win, 6 for a loss)
+  for (let i = 0; i < 4; i++) s.recordGame(rec('S' + i, NOW - i * DAY, 'Japan', A, i % 2 ? C : D));
+  for (let i = 0; i < 4; i++) s.recordGame(rec('T' + i, NOW - i * DAY, 'Japan', i % 2 ? C : D, A));
+  for (let i = 0; i < 2; i++) s.recordGame(rec('U' + i, NOW - i * DAY, 'Japan', B, E));
+  const names = sort => s.top({ mode: 'all', now: NOW, sort }).rows.map(r => r.name);
+  assert.equal(names('wins')[0], 'Pa', 'most wins first');
+  assert.equal(names('rate')[0], 'Pb', 'best win rate first');
+  assert.equal(names('vp')[0], 'Pb', 'best average points first (every win is 10 points)');
+  assert.equal(s.top({ mode: 'all', now: NOW, sort: 'bogus' }).sort, 'wins');
+  s.close();
+});
+
+test('server: the leaderboard reply carries the extra fields and honours period and sort', { skip }, async () => {
+  const lb = (await get('/api/leaderboard?mode=all&period=7&sort=rate')).body;
+  assert.equal(lb.period, '7'); assert.equal(lb.sort, 'rate');
+  assert.ok(lb.summary && typeof lb.summary.games === 'number');
+  const bad = (await get('/api/leaderboard?mode=all&period=zzz&sort=zzz')).body;
+  assert.equal(bad.period, 'all'); assert.equal(bad.sort, 'wins');
+  const row = (await get('/api/leaderboard?mode=all')).body.rows[0];
+  if (row) for (const k of ['wins', 'losses', 'games', 'winRate', 'avgVp', 'bestVp', 'streak', 'form', 'lastPlayed', 'favMap']) assert.ok(k in row, 'row has ' + k);
+});
