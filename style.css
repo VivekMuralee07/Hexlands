@@ -1201,14 +1201,14 @@ span.pcardx { cursor: default; }
   .gbtns { top: .5rem; left: .5rem; bottom: auto; right: auto; flex-direction: row; }
   .zoomreset { top: .5rem; right: .5rem; }
   .modechip { top: 3.3rem; max-width: calc(100% - 1.2rem); }
-  .zoom { right: .6rem; bottom: 3.5rem; z-index: 14; }
-  .infobtn { display: grid; place-items: center; position: absolute; right: .75rem; bottom: .6rem; z-index: 14; width: 38px; height: 38px; padding: 0; border-radius: 50%;
+  .zoom { right: .6rem; bottom: .6rem; z-index: 14; }
+  .infobtn { display: grid; place-items: center; position: absolute; left: .6rem; bottom: .6rem; z-index: 14; width: 38px; height: 38px; padding: 0; border-radius: 50%;
     border: 2px solid rgba(255, 255, 255, .7); background: rgba(5, 25, 34, .88); color: #fff; font: italic 800 1.2rem Georgia, serif; cursor: pointer; box-shadow: 0 4px 12px rgba(0, 0, 0, .4); }
   .board-wrap.trading .infobtn { display: none; }
   .zoom .rollbtn, .zoom .endbtn { min-width: 68px; min-height: 68px; border-radius: 50%; box-shadow: 0 8px 20px rgba(0, 0, 0, .5); }
   .zoom .rollbtn svg { width: 46px; height: 36px; }
   .zoom .endbtn svg { width: 38px; height: 38px; }
-  .board-wrap .dice { left: .6rem; bottom: .6rem; }
+  .board-wrap .dice { left: calc(.6rem + 38px + .5rem); bottom: .6rem; }
 
   .board-wrap.trading .zoom { display: none; }
 
