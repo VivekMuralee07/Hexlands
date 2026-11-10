@@ -2064,7 +2064,6 @@ const lbForm = form => {
 };
 const lbDonut = pct => { const r = 15.9, c = 2 * Math.PI * r; return `<svg class="lbdonut" viewBox="0 0 36 36" role="img" aria-label="Win rate ${pct} percent"><circle cx="18" cy="18" r="${r}" class="trk"/><circle cx="18" cy="18" r="${r}" class="val" stroke-dasharray="${(c * pct / 100).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 18 18)"/><text x="18" y="21.6" text-anchor="middle">${pct}%</text></svg>`; };
 const LB_FLAME = '<svg class="lbflame" viewBox="0 0 20 24" aria-hidden="true"><path d="M10 1c1 4 6 6 6 12a6 6 0 0 1-12 0c0-2 1-4 2-5 0 2 1 3 2 3 0-4-1-6 2-10z" fill="#ff8a2a"/><path d="M10 12c1 2 3 3 3 6a3 3 0 0 1-6 0c0-2 2-3 3-6z" fill="#ffd23f"/></svg>';
-const LB_CROWN = '<svg class="lbcrown" viewBox="0 0 28 20" aria-hidden="true"><path d="M2 17 0 4l7 6 7-9 7 9 7-6-2 13z" fill="#ffd23f" stroke="#a87a00" stroke-width="1.2" stroke-linejoin="round"/></svg>';
 const lbDetail = r => `<div class="lbdetail"><div class="lbtiles">
   <div class="lbtile">${lbDonut(r.winRate)}<span>Win rate</span></div>
   <div class="lbtile"><b>${r.avgVp}</b><span>Average points</span></div>
@@ -2074,14 +2073,16 @@ const lbDetail = r => `<div class="lbdetail"><div class="lbtiles">
   <div class="lbtile"><b class="lbsmall">${timeAgo(r.lastPlayed)}</b><span>Last played</span></div>
 </div><div class="lbformrow"><span>Last 5 games</span>${lbForm(r.form)}</div></div>`;
 const lbName = r => `${esc(r.name)}${r.tag ? ` <small class="lbtag">#${r.tag}</small>` : ''}${r.you ? ' <em>(you)</em>' : ''}`;
-const lbRow = (r, id) => `<div class="lbitem${r.you ? ' you' : ''}"><button class="lbrow" aria-expanded="false" aria-controls="lbd${id}" data-lbd="lbd${id}">
-  <span class="lbrank">${r.rank || '–'}</span>${lbAvatar(r)}
+const LB_SORT_LABEL = { wins: 'Wins', rate: 'Win rate', vp: 'Average points' };
+// The big figure on a row is the one the list is sorted by; the win-rate bar is always there.
+const lbMetric = (r, sort) => (sort === 'rate' ? `<b>${r.winRate}%</b> <span>win rate</span>` : sort === 'vp' ? `<b>${r.avgVp}</b> <span>avg pts</span>` : `<b>${r.wins}</b> <span>${r.wins === 1 ? 'win' : 'wins'}</span>`);
+const lbHead = sort => `<div class="lbhead" aria-hidden="true"><span>Rank and player</span><span>${LB_SORT_LABEL[sort] || 'Wins'} and win rate</span></div>`;
+const lbRow = (r, id, sort) => `<div class="lbitem${r.you ? ' you' : ''}${r.rank && r.rank <= 3 ? ' top' + r.rank : ''}"><button class="lbrow" aria-expanded="false" aria-controls="lbd${id}" data-lbd="lbd${id}">
+  <span class="lbrank r${r.rank && r.rank <= 3 ? r.rank : 0}">${r.rank || '–'}</span>${lbAvatar(r)}
   <span class="lbwho"><b>${lbName(r)}</b><span class="lbrec">${r.wins}W ${r.losses}L · ${r.games} played</span></span>
-  <span class="lbbar" title="Win rate ${r.winRate}%"><span class="trk"><span style="width:${r.winRate}%"></span></span><b>${r.winRate}%</b></span>
+  <span class="lbstat"><span class="lbmetric">${lbMetric(r, sort)}</span><span class="lbbar" title="Win rate ${r.winRate}%"><span class="trk"><span style="width:${r.winRate}%"></span></span>${sort === 'rate' ? '' : `<b>${r.winRate}%</b>`}</span></span>
   <svg class="lbchev" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 8l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
 </button><div class="lbdd" id="lbd${id}" hidden>${lbDetail(r)}</div></div>`;
-const lbPodium = rows => `<div class="lbpodium n${rows.length}" role="group" aria-label="Top three">${[1, 0, 2].filter(i => rows[i]).map(i => { const r = rows[i];
-  return `<button class="lbpod p${r.rank}${r.you ? ' you' : ''}" data-lbp="${i}" aria-expanded="false" aria-controls="lbpd">${r.rank === 1 ? LB_CROWN : ''}<span class="lbmedal">${r.rank}</span>${lbAvatar(r)}<b class="lbpname">${lbName({ ...r, you: false })}${r.you ? '<span class="lbsr"> (you)</span>' : ''}</b><span class="lbpwins"><b>${r.wins}</b> ${r.wins === 1 ? 'win' : 'wins'}</span><span class="lbprate">${r.winRate}% · ${r.games} played</span></button>`; }).join('')}</div><div class="lbdd" id="lbpd" hidden></div>`;
 const lbYou = (r, total) => `<section class="lbyou" aria-label="Your standing"><div class="lbyl">${lbAvatar(r)}<div><b>${esc(r.name)}</b><span>${r.rank ? `Rank <strong>#${r.rank}</strong> of ${total}` : `Not ranked yet: play ${r.need} more ${r.need === 1 ? 'game' : 'games'}`}</span></div></div>
   <div class="lbyr">${lbDonut(r.winRate)}<div class="lbys"><span><b>${r.wins}</b> won</span><span><b>${r.games}</b> played</span>${r.streak > 1 ? `<span class="lbstreak">${LB_FLAME} <b>${r.streak}</b> in a row</span>` : ''}${lbForm(r.form)}</div></div></section>`;
 
@@ -2089,14 +2090,14 @@ const lbYou = (r, total) => `<section class="lbyou" aria-label="Your standing"><
 const lbBots = b => {
   if (!b) return '';
   const share = b.games ? Math.round(100 * b.botWins / b.games) : 0;
-  const cards = b.levels.map(l => `<div class="lbbot lvl-${l.level}" role="group" aria-label="${LEVEL_LABEL[l.level]} bots">
-    <span class="lbbotname">${icon('bot', 'boticon')}<b>${LEVEL_LABEL[l.level]}</b></span>
-    ${l.games ? `<span class="lbbotrate">${l.winRate}<small>%</small></span><span class="lbbotsub">won ${l.wins} of ${l.games}</span><span class="lbbotsub">avg ${l.avgVp} pts</span><span class="lbbotsub">best ${l.bestVp} pts</span>`
-      : '<span class="lbbotrate">–</span><span class="lbbotsub">no games yet</span>'}
-  </div>`).join('');
+  const rows = b.levels.map(l => `<div class="lbitem lbbot lvl-${l.level}" role="group" aria-label="${LEVEL_LABEL[l.level]} bots"><div class="lbbotrow">
+    <span class="lbav lbbotav" aria-hidden="true">${icon('bot', 'boticon')}</span>
+    <span class="lbwho"><b>${LEVEL_LABEL[l.level]} bots</b><span class="lbrec">${l.games ? `${l.wins}W ${l.losses}L · ${l.games} played</span><span class="lbrec">avg ${l.avgVp} pts · best ${l.bestVp}` : 'no games yet'}</span></span>
+    <span class="lbstat">${l.games ? `<span class="lbmetric"><b>${l.winRate}%</b> <span>win rate</span></span><span class="lbbar"><span class="trk"><span style="width:${l.winRate}%"></span></span></span>` : '<span class="lbmetric"><b>–</b></span>'}</span>
+  </div></div>`).join('');
   return `<section class="lbbots" aria-label="Bot statistics"><h4 role="heading" aria-level="3">Bots</h4>
     <p class="muted lbbotsum">${b.games ? `Bots won <b>${b.botWins}</b> of the <b>${b.games}</b> games they played in (${share}%).` : 'No finished games with bots yet. Bot results count from games that finish after this update.'}</p>
-    <div class="lbbotlist">${cards}</div>
+    <div class="lblist">${rows}</div>
     <p class="muted lbnote">Win rate is wins out of bot seats played. With four players everyone wins about 25% by chance.</p></section>`;
 };
 
@@ -2115,15 +2116,9 @@ function openRankings(mode) {
     });
     $('#lbperiod').onchange = e => { LB.period = e.target.value; load(); };
     $('#lbsort').onchange = e => { LB.sort = e.target.value; load(); };
-    const bind = (box, j) => {
+    const bind = box => {
       const open = (btn, id, html) => { const was = btn.getAttribute('aria-expanded') === 'true'; btn.setAttribute('aria-expanded', String(!was)); const dd = box.querySelector('#' + id); dd.innerHTML = html || dd.innerHTML; dd.hidden = was; };
       box.querySelectorAll('[data-lbd]').forEach(b => b.onclick = () => open(b, b.dataset.lbd, ''));
-      box.querySelectorAll('[data-lbp]').forEach(b => b.onclick = () => {   // the podium shares one detail panel
-        const dd = box.querySelector('#lbpd'), same = b.getAttribute('aria-expanded') === 'true';
-        box.querySelectorAll('[data-lbp]').forEach(x => x.setAttribute('aria-expanded', 'false'));
-        if (same) { dd.hidden = true; return; }
-        b.setAttribute('aria-expanded', 'true'); dd.innerHTML = lbDetail(j.rows[+b.dataset.lbp]); dd.hidden = false;
-      });
     };
     const paint = j => {
       const box = $('#lbbody'); if (!box || S.modal !== 'rankings') return;
@@ -2135,13 +2130,12 @@ function openRankings(mode) {
         box.innerHTML = summary + (you ? lbYou(you, j.total) : '') + `<div class="lbempty"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30" fill="rgba(255,255,255,.08)"/><path d="M20 14h24v8c0 9-5 15-12 17-7-2-12-8-12-17zM14 16h6v6c0 4 2 7 5 8M50 16h-6v6c0 4-2 7-5 8M26 44h12M32 39v5M22 50h20" fill="none" stroke="#ffd23f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><b>Nobody is ranked here yet</b><span>A player appears after ${j.minGames} finished ${j.minGames === 1 ? 'game' : 'games'} in this list${LB.period === 'all' ? '' : ' and period'}. Win a few and you could be first.</span></div>` + lbBots(j.bots);
         return;
       }
-      const top = j.rows.slice(0, 3), rest = j.rows.slice(3);
-      box.innerHTML = summary + (you ? lbYou(you, j.total) : '') + lbPodium(top)
-        + (rest.length ? `<div class="lblist">${rest.map((r, i) => lbRow(r, i + 3)).join('')}</div>` : '')
-        + (j.me && !j.rows.some(r => r.you) && j.me.rank ? `<div class="lbgap">…</div><div class="lblist">${lbRow(j.me, 'me')}</div>` : '')
+      box.innerHTML = summary + (you ? lbYou(you, j.total) : '') + lbHead(j.sort)
+        + `<div class="lblist">${j.rows.map((r, i) => lbRow(r, i, j.sort)).join('')}</div>`
+        + (j.me && !j.rows.some(r => r.you) && j.me.rank ? `<div class="lbgap">…</div><div class="lblist">${lbRow(j.me, 'me', j.sort)}</div>` : '')
         + lbBots(j.bots)
         + `<p class="muted lbnote">${j.total} ${j.total === 1 ? 'player' : 'players'} ranked (at least ${j.minGames} games each). Tap a player for details. Your ID is stored on this device, so clearing the app data starts you from zero.</p>`;
-      bind(box, j);
+      bind(box);
     };
     const load = () => {
       const my = ++LB.seq, box = $('#lbbody'); if (box) box.setAttribute('aria-busy', 'true');
