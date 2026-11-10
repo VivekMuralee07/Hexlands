@@ -130,6 +130,85 @@ test('game on a phone: after rolling, tapping a resource card opens the trade wi
   await ctx.close();
 });
 
+test('turn alert: a buzz when it becomes your move, a flashing tab title while hidden, and a switch to turn the buzz off', async t => {
+  if (why) return t.skip(why);
+  const c = await startGame();
+  const ctx = await browser.newContext(PHONE);
+  await ctx.addInitScript(([s, terms]) => {
+    localStorage.setItem('hexlands.terms', JSON.stringify(terms));
+    localStorage.setItem('hexlands.session', JSON.stringify(s));
+    window.__buzz = [];
+    navigator.vibrate = p => { window.__buzz.push(p); return true; };
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => !!window.__hidden });
+  }, [c, legal.VERSION]);
+  const page = await ctx.newPage();
+  const errors = []; page.on('pageerror', e => errors.push(e.message));
+  await page.goto(base + '/room/' + c.code);
+  await page.evaluate(() => { window.__hidden = true; });   // as if the app were in the background
+  await toMainPhase(c);
+  await page.waitForFunction(() => window.__buzz.length > 0, null, { timeout: 10000 });
+  assert.deepEqual(await page.evaluate(() => window.__buzz[0]), [90, 60, 90]);
+  const flashed = await page.evaluate(() => new Promise(r => { const seen = new Set(); const end = Date.now() + 2800; (function poll() { seen.add(document.title); Date.now() < end ? setTimeout(poll, 100) : r([...seen]); })(); }));
+  assert.ok(flashed.some(x => /●/.test(x)), 'the tab title shows an alert: ' + flashed.join(' | '));
+  await page.evaluate(() => { window.__hidden = false; document.dispatchEvent(new Event('visibilitychange')); });
+  assert.ok(!/●/.test(await page.title()), 'the title goes back when the app is visible again');
+  await page.click('#infobtn', { force: true });
+  await page.waitForSelector('#vibsw');
+  assert.equal(await page.getAttribute('#vibsw', 'aria-checked'), 'true');
+  await page.click('#vibsw');
+  assert.equal(await page.getAttribute('#vibsw', 'aria-checked'), 'false');
+  assert.equal(await page.evaluate(() => localStorage.getItem('hexlands.vibrate')), 'false');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('share invite: one tap in the waiting room and in the game info window hands the link and code to the share sheet', async t => {
+  if (why) return t.skip(why);
+  const c = await post('/api/create', { name: 'Hana', map: { preset: 'classic' }, seed: 5, vpTarget: 10 });
+  const ctx = await browser.newContext(PHONE);
+  await ctx.addInitScript(([s, terms]) => {
+    localStorage.setItem('hexlands.terms', JSON.stringify(terms));
+    localStorage.setItem('hexlands.session', JSON.stringify(s));
+    window.__shared = [];
+    navigator.share = async d => { window.__shared.push(d); };
+  }, [c, legal.VERSION]);
+  const page = await ctx.newPage();
+  const errors = []; page.on('pageerror', e => errors.push(e.message));
+  await page.goto(base + '/room/' + c.code);
+  await page.click('#share');
+  const sent = await page.evaluate(() => window.__shared[0]);
+  assert.equal(sent.url, `${base}/room/${c.code}`);
+  assert.ok(sent.text.includes(c.code), 'the message carries the room code');
+  await post('/api/action', { code: c.code, token: c.token, action: { type: 'fillBots', level: 'easy' } });
+  await post('/api/action', { code: c.code, token: c.token, action: { type: 'start' } });
+  await page.click('#infobtn', { force: true });
+  await page.click('#ishare');
+  assert.equal(await page.evaluate(() => window.__shared.length), 2);
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('play again: the end screen offers Play again, and one tap takes everyone back to the waiting room of the same room', async t => {
+  if (why) return t.skip(why);
+  const c = await startGame();
+  const { ctx, page, errors } = await openPage(c);
+  const g = rooms.get(c.code).game, me = g.indexOf(c.token);
+  await page.waitForSelector('#hand');
+  g.phase = 'ended'; g.winner = me; g.subphase = null;   // the game is over
+  await post('/api/action', { code: c.code, token: c.token, action: { type: 'chat', text: 'gg' } });   // any action sends the new state
+  await page.waitForSelector('#again', { timeout: 10000 });
+  assert.equal(await page.locator('#res').count(), 1, 'Results is still there');
+  await page.waitForSelector('#modal:not([hidden]) #vagain', { timeout: 5000 });   // the results window offers it too
+  await page.click('#vagain');
+  await page.waitForSelector('.lobby', { timeout: 10000 });
+  assert.equal(await page.locator('#modal:not([hidden])').count(), 0, 'no window left open');
+  assert.match(await page.textContent('.lb-room'), new RegExp(c.code), 'the same room code');
+  assert.equal(await page.locator('.plist li').count(), 4, 'Hana and the three bots are all still seated');
+  assert.equal(rooms.get(c.code).game.phase, 'lobby');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
 // ---------- accessibility ----------
 let axePath = null;
 try { axePath = require.resolve('axe-core/axe.min.js'); } catch { /* axe-core is not installed */ }
@@ -244,6 +323,13 @@ test('leaderboard window with players: summary, your standing, podium, details o
   assert.equal(await page.locator('.lbbots').count(), 1);
   if (axePath) assert.deepEqual(await axeFindings(page), [], 'the All games list with the bot statistics');
   await page.click('[data-lbtab="ranked"]'); await page.waitForFunction(() => !document.querySelector('.lbbots'));
+  await page.click('#lbrecent');   // my recent games
+  await page.waitForSelector('.recentlist .recent');
+  assert.equal(await page.locator('.recent').count(), 10, 'the last ten games');
+  assert.match(await page.textContent('.recent >> nth=0'), /Won\s*10 of 10 points[\s\S]*You won[\s\S]*Japan · 66 turns · vs bots/, 'newest first: the game against bots');
+  assert.equal(await page.locator('.recent.lost').count() + await page.locator('.recent.won').count(), 10);
+  if (axePath) assert.deepEqual(await axeFindings(page), [], 'the recent games window');
+  await page.click('#rcback'); await page.waitForSelector('#lbbody');
   assert.deepEqual(errors, []);
   await ctx.close();
 });

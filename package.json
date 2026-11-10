@@ -5,6 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "screenshots": "node screenshots.js",
     "test": "node --test engine.test.js bots.test.js rules.test.js server.test.js matchmaking.test.js leaderboard.test.js persistence.test.js ui.test.js",
     "cap:sync": "cap sync android",
     "android:open": "cap open android",

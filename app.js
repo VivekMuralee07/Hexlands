@@ -213,6 +213,7 @@ function terrainCounts(tiles) {
 function go(screen) { S.screen = screen; S.shellReady = false; render(); }
 function render() {
   const app = $('#app');
+  if (S.screen !== 'game') setAlertTitle(false);
   if (S.screen === 'game') app.removeAttribute('role'); else app.setAttribute('role', 'main');   // the game has its own <main> (the map)
   if (S.screen === 'home') return renderHome(app);
   if (S.screen === 'create') return renderCreate(app);
@@ -529,6 +530,44 @@ function leaveToHome(msg) {
   history.replaceState(null, '', '/'); S.joinCode = ''; go('home');
 }
 
+// ---------- invite a friend ----------
+// One tap opens the phone's share sheet (WhatsApp, Messages, ...) with the link and the room code. Without a share sheet, the link is copied.
+async function shareInvite(code) {
+  const url = `${location.origin}/room/${code}`;
+  if (navigator.share) {
+    try { await navigator.share({ title: 'Join my Hexlands game', text: `Join my Hexlands game! Room code: ${code}`, url }); }
+    catch (e) { if (e && e.name !== 'AbortError') toast('Could not open sharing'); }
+    return;
+  }
+  try { await navigator.clipboard.writeText(url); toast('Invite link copied'); } catch { prompt('Copy this link', url); }
+}
+
+// ---------- alerts when it is your move ----------
+// A sound and a short buzz (switchable in the info window) whenever it becomes your move: your turn, your setup placement, or cards to discard.
+// If the app is in the background, the tab title flashes too, until you come back or the move passes.
+const DEFAULT_TITLE = document.title;
+const vibrateOn = () => !!navigator.vibrate && store.get('vibrate', true) !== false;
+function needsMe(st) {
+  return !!st && st.phase !== 'ended' && ((st.turn === st.you && (st.phase === 'setup' || st.phase === 'main')) || !!(st.pendingDiscards && st.pendingDiscards[st.you]) || !!(st.pendingDiamond && st.pendingDiamond[st.you]));
+}
+let titleTimer = null;
+function setAlertTitle(on, text) {
+  clearInterval(titleTimer); titleTimer = null;
+  if (!on) { document.title = DEFAULT_TITLE; return; }
+  let flip = false; const paint = () => { document.title = flip ? DEFAULT_TITLE : text; flip = !flip; };
+  paint(); titleTimer = setInterval(paint, 1200);
+}
+function turnAlert(prev, st) {
+  if (!needsMe(st)) { setAlertTitle(false); return; }
+  if (needsMe(prev)) return;   // it was already your move
+  const discard = st.pendingDiscards && st.pendingDiscards[st.you], pick = st.pendingDiamond && st.pendingDiamond[st.you];
+  const msg = discard ? `Discard ${discard} cards` : pick ? `Choose ${pick} cards` : 'Your turn';
+  toast(msg); Sound.play('turn');
+  if (vibrateOn()) navigator.vibrate([90, 60, 90]);
+  if (document.hidden) setAlertTitle(true, `● ${msg} · Hexlands`);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) setAlertTitle(false); });
+
 function onState(st) {
   const prev = S.state; S.state = st; S.stateAt = Date.now(); S.link = 'ok'; S.lostAt = 0;
   if (prev && prev.players[prev.you] && st.players[st.you]) {   // host hand-over, and bots standing in
@@ -540,7 +579,7 @@ function onState(st) {
   if (prev && prev.phase !== 'lobby' && st.phase !== 'lobby') checkAwards(prev, st);
   if (st.phase === 'lobby') {
     if (prev) st.players.forEach((p, i) => { const q = prev.players[i]; if (q && q.name === p.name && q.colorId !== p.colorId && i !== st.you) toast(`${p.name} selected color ${p.colorName}`); });
-    if (S.screen !== 'lobby') S.screen = 'lobby';
+    if (S.screen !== 'lobby') { S.screen = 'lobby'; S.mode = null; S.evSeq = null; S.logAt = null; S.tw = null; S.shellReady = false; if (S.modal) closeModal(); }   // a new game in the same room
     renderLobby($('#app')); return;
   }
   if (S.screen !== 'game') { S.screen = 'game'; S.shellReady = false; }
@@ -552,7 +591,7 @@ function onState(st) {
     if (s.to === me) toast(`${icon(s.card)} You took ${RES_LABEL[s.card]} from ${esc(st.players[s.from].name)}`, 'gain', true);
     else if (s.from === me) toast(`${icon(s.card)} ${esc(st.players[s.to].name)} took your ${RES_LABEL[s.card]}`, 'err', true);
   }
-  if (prev && prev.turn !== st.turn && st.turn === st.you && st.phase === 'main') { toast('Your turn'); Sound.play('turn'); if (navigator.vibrate) navigator.vibrate(50); }
+  if (prev) turnAlert(prev, st);
   if (prev && prev.phase === 'lobby' && st.phase === 'setup') Sound.theme('start');
   if (prev && prev.phase !== 'ended' && st.phase === 'ended') { Sound.theme('finish'); recordResult(st); setTimeout(openLeaderboard, 700); confetti(); }
   if (prev) soundReactions(prev, st);
@@ -612,7 +651,7 @@ function renderLobby(app) {
         <div><div class="muted">Room code</div><div class="room-code">${st.code}</div></div>
         ${host ? `<div class="row"><button class="btn small" id="togpub">${pub ? 'Make private' : 'Make public'}</button><span class="muted grow" style="font-size:.88em">${pub ? 'Anyone can find this room in the public list.' : 'Only people with the code can join.'}</span></div>` : ''}
         <button class="btn tutlink" id="tutlobby">▶ How to play: animated tutorial</button>
-        <div class="row"><button class="btn" id="copy">Copy invite link</button>${navigator.share ? '<button class="btn" id="share">Share</button>' : ''}</div>
+        <div class="row"><button class="btn${navigator.share ? '' : ' primary'}" id="copy">Copy invite link</button>${navigator.share ? '<button class="btn primary" id="share">Share invite</button>' : ''}</div>
         <ul class="plist">${st.players.map((p, i) => `<li>${swatch(p, i, me, host)}${p.bot ? icon('bot', 'boticon') : ''}<b class="grow">${esc(p.name)}${i === me ? ' (you)' : ''}</b>${p.host ? '<span class="badge">Host</span>' : ''}${needReady && !p.bot ? `<span class="badge rdy${p.ready ? ' on' : ''}">${p.ready ? 'Ready' : 'Not ready'}</span>` : ''}
           ${p.bot ? (host ? `<select class="lvlsel" data-seat="${i}" aria-label="Difficulty for ${esc(p.name)}">${['easy', 'medium', 'hard'].map(l => `<option value="${l}" ${p.bot === l ? 'selected' : ''}>${LEVEL_LABEL[l]}</option>`).join('')}</select><button class="btn small icon-only" data-rmbot="${i}" aria-label="Remove ${esc(p.name)}">✕</button>` : botTag(p)) : `<span class="dot ${p.connected ? '' : 'off'}" title="${p.connected ? 'Connected' : 'Offline'}"></span>`}</li>`).join('')}</ul>
         ${host && st.players.length < 4 ? `<div class="botadd"><b>Add a bot</b>
@@ -638,7 +677,7 @@ function renderLobby(app) {
   $('#info').onclick = openRules;
   $('#leave').onclick = async () => { try { await post('/api/leave', S.session); } catch {} leaveToHome(); };
   $('#copy').onclick = async () => { try { await navigator.clipboard.writeText(link); toast('Invite link copied'); } catch { prompt('Copy this link', link); } };
-  if ($('#share')) $('#share').onclick = () => navigator.share({ title: 'Join my Hexlands game', text: `Room code ${st.code}`, url: link }).catch(() => {});
+  if ($('#share')) $('#share').onclick = () => shareInvite(st.code);
   if ($('#start')) $('#start').onclick = () => act({ type: 'start' });
   if ($('#tutlobby')) $('#tutlobby').onclick = () => openTutorial();
   if ($('#ready')) $('#ready').onclick = () => act({ type: 'ready', value: !imReady });
@@ -1208,14 +1247,17 @@ function openInfo(tab = 'costs') {
       ? `<div class="devlist">${row('settlement', 'Settlement', 'Each one you keep.', pts(1))}${row('city', 'City', 'Replaces a settlement and pays double.', pts(2))}${row('road', 'Longest Road', `5 or more roads in a row, and you must beat the holder. ${lr ? `Held by ${name(lr.p)} (${lr.len} roads).` : 'Nobody has it yet.'}`, pts(2))}${row('knight', 'Largest Army', `3 or more Knights played, and you must beat the holder. ${la ? `Held by ${name(la.p)} (${la.size} Knights).` : 'Nobody has it yet.'}`, pts(2))}${row('vp', 'Victory Point card', 'Hidden until the game ends.', pts(1))}</div>`
       : `<div class="setlist">${set('Points to win', 'The first player to reach this on their own turn wins.', `${st.vpTarget} points`)}${set('Discard limit', 'On a 7, anyone holding more cards than this must discard.', `${o.discardLimit} cards`)}${set('Cards discarded', 'How many they must give up.', o.discardMode === 'four' ? '4 cards' : 'Half the hand, rounded down')}${set('Move timer', 'Time for each step of a turn.', o.timer ? `${o.timer} seconds` : 'Off')}${set('Friendly robber', 'The robber stays off players with 2 points or fewer.', o.friendlyRobber ? 'On' : 'Off')}${set('Balanced dice', 'Dice come from a deck of 36 rolls, with recent totals and 7s balanced between players.', o.balancedDice ? 'On' : 'Off')}</div>`;
   const code = st.code || (S.session && S.session.code) || '', pubRoom = !!(st.net && st.net.public), invite = `${location.origin}/room/${code}`;
-  const roomStrip = `<div class="roomstrip"><div><small>Room code</small><b class="rcode" id="rcode">${esc(code)}</b></div><span class="vischip${pubRoom ? ' pub' : ''}">${pubRoom ? 'Public' : 'Private'}</span><div class="rbtns"><button class="btn small" id="icopy">Copy code</button><button class="btn small" id="ilink">Copy invite link</button></div></div>`;
+  const roomStrip = `<div class="roomstrip"><div><small>Room code</small><b class="rcode" id="rcode">${esc(code)}</b></div><span class="vischip${pubRoom ? ' pub' : ''}">${pubRoom ? 'Public' : 'Private'}</span><div class="rbtns"><button class="btn small" id="icopy">Copy code</button><button class="btn small" id="ilink">Copy invite link</button>${navigator.share ? '<button class="btn small primary" id="ishare">Share invite</button>' : ''}</div></div>`;
   const bankLine = `<div class="bank" style="margin:.5rem 0;width:100%;box-sizing:border-box;justify-content:center" title="Cards left in the bank, and development cards left in the pile">${RES.map(k => `<span class="bk ${k}" title="${RES_LABEL[k]} left in the bank">${icon(k)}<b>${st.bank[k]}</b></span>`).join('')}<button class="bk dev" data-pile2 title="Development cards left in the pile. Tap to see what is still unseen.">${icon('dev')}<b>${st.devLeft}</b></button></div>`;
-  openModal('info', `<div class="infowin"><h3>Game info</h3>${roomStrip}${bankLine}<div class="maptabs" role="tablist">${tabs.map(([k, l]) => `<button class="maptab" role="tab" data-itab="${k}" aria-selected="${tab === k}">${l}</button>`).join('')}</div>${body}<div class="foot"><button class="btn primary" id="iclose">Close</button></div></div>`, layer => {
+  const vibRow = navigator.vibrate ? `<div class="vibrow"><span><b>Vibrate on my turn</b><small>A short buzz when it is your move</small></span><button class="switch" role="switch" id="vibsw" aria-checked="${vibrateOn()}" aria-label="Vibrate when it is my turn"></button></div>` : '';
+  openModal('info', `<div class="infowin"><h3>Game info</h3>${roomStrip}${bankLine}${vibRow}<div class="maptabs" role="tablist">${tabs.map(([k, l]) => `<button class="maptab" role="tab" data-itab="${k}" aria-selected="${tab === k}">${l}</button>`).join('')}</div>${body}<div class="foot"><button class="btn primary" id="iclose">Close</button></div></div>`, layer => {
     $('#iclose').onclick = closeModal;
     $('[data-pile2]').onclick = () => { closeModal(); openDevPile(); };
+    const vs = $('#vibsw'); if (vs) vs.onclick = () => { const on = store.get('vibrate', true) === false; store.set('vibrate', on); vs.setAttribute('aria-checked', String(on)); if (on && navigator.vibrate) navigator.vibrate(60); };
     const copy =async (text, done) => { try { await navigator.clipboard.writeText(text); toast(done); } catch { prompt('Copy this', text); } };
     $('#icopy').onclick = () => copy(code, 'Room code copied');
     $('#ilink').onclick = () => copy(invite, 'Invite link copied');
+    if ($('#ishare')) $('#ishare').onclick = () => shareInvite(code);
     layer.querySelectorAll('[data-itab]').forEach(b => b.onclick = () => openInfo(b.dataset.itab));
   });
 }
@@ -1236,7 +1278,7 @@ function costChips(c) { return `<span class="costchips">${Object.entries(c).map(
 function costIcons(c) { return `<span class="cost">${Object.entries(c).flatMap(([k, n]) => Array(n).fill(icon(k))).join('')}</span>`; }
 function drawActions() {
   const st = S.state, box = $('#actions'), mine = myTurn(), P = st.players[me()];
-  if (st.phase === 'ended') { box.innerHTML = `<button class="act go" id="res">${icon('vp')}Results</button><button class="act" id="home">${icon('settlement')}New game</button>`; $('#res').onclick = openLeaderboard; $('#home').onclick = () => leaveToHome(); return; }
+  if (st.phase === 'ended') { box.innerHTML = `<button class="act go" id="again">${icon('settlement')}Play again</button><button class="act" id="res">${icon('vp')}Results</button><button class="act" id="home">Leave</button>`; $('#again').onclick = playAgain; $('#res').onclick = openLeaderboard; $('#home').onclick = () => leaveToHome(); return; }
   if (st.phase === 'setup' || !mine) { box.innerHTML = ''; return; }
   if (st.subphase) { box.innerHTML = ''; return; }
   if (currentMode() === 'heist') {   // choosing the settlement to steal
@@ -1583,6 +1625,11 @@ function diceChart(counts) {
   }
   return `<svg viewBox="0 0 ${W} ${H}" class="dicechart" role="img" aria-label="Dice rolls this game">${bars}</svg>`;
 }
+// Everyone who is still in the room goes back to its waiting room, with the same options and a new map. Whoever taps first starts it for all.
+async function playAgain() {
+  const r = await act({ type: 'rematch' }); if (r.ok) closeModal();
+}
+
 function openLeaderboard() {
   const st = S.state; if (!st || st.phase !== 'ended') return;
   const w = st.players[st.winner], rows = standings(st), rec = store.get('record', { games: 0, wins: 0 });
@@ -1604,8 +1651,8 @@ function openLeaderboard() {
     <h4 class="lb-title">Leaderboard</h4><ol class="leaderboard">${list}</ol>
     <h4 class="lb-title">Dice this game</h4>${diceChart(st.diceCounts)}<p class="help">Bars show how often each number came up; dots show what fair dice would average.</p>
     <p class="record">${icon('trophy')} Your record on this device: ${plural(rec.wins, 'win')} in ${plural(rec.games, 'game')}.</p>
-    <div class="foot"><button class="btn" id="vclose">View board</button><button class="btn primary" id="vnew">New game</button></div>`, () => {
-    $('#vclose').onclick = closeModal; $('#vnew').onclick = () => leaveToHome();
+    <div class="foot"><button class="btn" id="vclose">View board</button><button class="btn" id="vnew">Leave</button><button class="btn primary" id="vagain">Play again</button></div>`, () => {
+    $('#vclose').onclick = closeModal; $('#vnew').onclick = () => leaveToHome(); $('#vagain').onclick = playAgain;
   });
 }
 
@@ -2100,6 +2147,27 @@ const lbBots = b => {
     <p class="muted lbnote">Win rate is wins out of bot seats played. With four players everyone wins about 25% by chance.</p></section>`;
 };
 
+// Your last ten finished games, newest first. Only games from this device count (the same anonymous player ID as the leaderboard).
+const recentRow = g => {
+  const who = g.won ? 'You won' : g.left ? 'You left' : g.winner ? `${g.winner.bot ? LEVEL_LABEL[g.winner.bot] + ' bot' : esc(g.winner.name)} won with ${g.winner.vp}` : 'Finished';
+  const others = g.humans > 1 ? `${g.humans} players` : g.seats > 1 ? 'vs bots' : 'solo';
+  return `<li class="recent ${g.won ? 'won' : 'lost'}"><span class="rbadge" aria-hidden="true">${g.won ? '★' : '·'}</span><div class="rmain"><b>${g.won ? 'Won' : 'Lost'} <span class="rvp">${g.vp} of ${g.target} points</span></b>
+    <span>${who}</span><span class="rmeta">${esc(g.map || 'Map')} · ${g.turns} turns · ${others}${g.ranked ? ' · Ranked' : ''}</span></div><time class="rwhen">${timeAgo(g.at)}</time></li>`;
+};
+function openRecent() {
+  openModal('recent', `<div class="infowin lbwin"><h3>My recent games</h3><div id="recentbody" aria-live="polite"><p class="muted">Loading…</p></div>
+    <div class="foot"><button class="btn" id="rcback">Leaderboard</button><button class="btn primary" id="rcclose">Close</button></div></div>`, () => {
+    $('#rcclose').onclick = closeModal;
+    $('#rcback').onclick = () => { closeModal(); openRankings(); };
+    fetch('/api/recent?pid=' + encodeURIComponent(playerId())).then(r => r.json()).then(j => {
+      const box = $('#recentbody'); if (!box || S.modal !== 'recent') return;
+      box.innerHTML = !j.enabled ? '<p class="muted">Game history is not switched on for this server yet.</p>'
+        : !j.games.length ? '<p class="muted">No finished games yet. Finish a game and it shows up here.</p>'
+        : `<ul class="recentlist">${j.games.map(recentRow).join('')}</ul>`;
+    }).catch(() => { const box = $('#recentbody'); if (box) box.innerHTML = '<p class="muted">Could not load your games. Try again in a moment.</p>'; });
+  });
+}
+
 function openRankings(mode) {
   if (mode) LB.mode = mode;
   const sel = (id, label, opts, cur) => `<label class="lbsel"><span>${label}</span><select id="${id}">${opts.map(([v, t]) => `<option value="${v}"${v === cur ? ' selected' : ''}>${t}</option>`).join('')}</select></label>`;
@@ -2107,8 +2175,9 @@ function openRankings(mode) {
     <div class="maptabs" role="tablist">${LB_MODES.map(([k, l]) => `<button class="maptab" role="tab" data-lbtab="${k}" aria-selected="${LB.mode === k}">${l}</button>`).join('')}</div>
     <p class="muted lbabout" id="lbabout">${LB_ABOUT[LB.mode]}</p>
     <div class="lbfilters">${sel('lbperiod', 'Period', [['all', 'All time'], ['30', 'Last 30 days'], ['7', 'Last 7 days']], LB.period)}${sel('lbsort', 'Sort by', [['wins', 'Most wins'], ['rate', 'Win rate'], ['vp', 'Average points']], LB.sort)}</div>
-    <div class="lbbody" id="lbbody" aria-live="polite"><p class="muted">Loading…</p></div><div class="foot"><button class="btn primary" id="lbclose">Close</button></div></div>`, layer => {
+    <div class="lbbody" id="lbbody" aria-live="polite"><p class="muted">Loading…</p></div><div class="foot"><button class="btn" id="lbrecent">My recent games</button><button class="btn primary" id="lbclose">Close</button></div></div>`, layer => {
     $('#lbclose').onclick = closeModal;
+    $('#lbrecent').onclick = () => { closeModal(); openRecent(); };
     layer.querySelectorAll('[data-lbtab]').forEach(b => b.onclick = () => {
       LB.mode = b.dataset.lbtab; $('#lbabout').textContent = LB_ABOUT[LB.mode];
       layer.querySelectorAll('[data-lbtab]').forEach(x => x.setAttribute('aria-selected', String(x === b))); load();

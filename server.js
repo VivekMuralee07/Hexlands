@@ -12,7 +12,7 @@ const db = require('./db');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC = __dirname;
-const PUBLIC_FILES = new Set(['/index.html', '/app.js', '/tutorial.js', '/art.js', '/sound.js', '/style.css', '/sw.js', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png', '/icon-maskable-512.png', '/apple-touch-icon.png', '/screenshot-home.png', '/screenshot-game.png', '/screenshot-game-wide.png']);
+const PUBLIC_FILES = new Set(['/index.html', '/app.js', '/tutorial.js', '/art.js', '/sound.js', '/style.css', '/sw.js', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png', '/icon-maskable-512.png', '/apple-touch-icon.png', '/screenshot-home.png', '/screenshot-game.png', '/screenshot-leaderboard.png', '/screenshot-game-wide.png']);
 const rooms = new Map(); // code -> { game, clients: Map<token, Set<res>>, touched }
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -218,6 +218,28 @@ function makeGame(code, spec, seed, vpTarget) {
   return { game, seed };
 }
 
+// "Play again": when a game has ended, any player can send everyone back to the waiting room of the same room. The people who stayed keep their seat,
+// name, colour and player ID; bots keep their difficulty; whoever left (and any seat a bot took over) is dropped. The map is a new one of the same
+// kind, and the points to win and the options stay as they were. The host stays the host. The result of the finished game was already saved.
+function rematch(room, now = Date.now()) {
+  const old = room.game;
+  if (old.phase !== 'ended') throw new GameError('The game is still going on.');
+  const { game } = makeGame(old.code, { preset: old.board.key }, undefined, old.vpTarget);
+  game.opts = { ...old.opts }; game.rng = Math.random;
+  for (const p of old.players) {
+    if (p.takenOver) continue;
+    const np = game.players[game.addPlayer(p.name, p.token)];
+    np.colorId = p.colorId; np.pid = p.pid;
+    if (p.bot) { np.bot = p.bot; np.connected = true; } else { const set = room.clients.get(p.token); np.connected = !!(set && set.size); np.offlineSince = np.connected ? null : now; }
+    game.assignColors();
+  }
+  if (game.indexOf(old.hostToken) >= 0) game.hostToken = old.hostToken;
+  game.addLog('A new game: pick the options and start when everyone is ready.');
+  room.game = game;
+  room.recorded = false; room.publicAtStart = undefined; room.boardSent = null;
+  room.countdownAt = null; room.fillShown = false; room.lastJoinAt = now; room.lastCount = game.players.length;
+}
+
 function broadcast(room, now = Date.now()) {
   room.touched = now;
   if (room.publicAtStart === undefined && room.game.phase !== 'lobby') room.publicAtStart = room.public;   // was it a public game when it began?
@@ -395,6 +417,11 @@ async function api(req, res, url) {
     if (!s) return sendJson(res, 200, { enabled: false, mode, period, sort, rows: [], me: null, bots: null, total: 0, minGames: MIN_GAMES(), summary: { games: 0, players: 0, avgTurns: 0, topMap: '' } });
     return sendJson(res, 200, { enabled: true, ...s.top({ mode, period, sort, limit: 25, pid: cleanPid(q('pid')), minGames: MIN_GAMES() }) });
   }
+  if (req.method === 'GET' && route === '/api/recent') {   // ?pid= : that player's last 10 finished games
+    guard(req, 'board', 60, 60e3, 'Too many requests. Please wait a moment.');
+    const store = getStore(), pid = cleanPid(url.searchParams.get('pid'));
+    return sendJson(res, 200, { enabled: !!store, games: store && pid ? store.recent(pid, 10) : [] });
+  }
   if (req.method === 'GET' && route === '/api/maps') return sendJson(res, 200, { maps: maps.presetList() });
 
   if (req.method === 'GET' && route === '/api/preview') {
@@ -459,6 +486,11 @@ async function api(req, res, url) {
       const preset = String(body.action.preset || '');
       if (!maps.PRESETS[preset]) throw new GameError('Unknown map.');
       g.setMap(maps.generatePreset(preset, crypto.randomInt(1, 2 ** 31)));
+      broadcast(room);
+      return sendJson(res, 200, { ok: true, result: null });
+    }
+    if (body.action && body.action.type === 'rematch') {   // play again with the same people
+      if (room.game.phase !== 'lobby') rematch(room);   // someone else was quicker: already in the new waiting room
       broadcast(room);
       return sendJson(res, 200, { ok: true, result: null });
     }
