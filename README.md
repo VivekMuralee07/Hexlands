@@ -157,7 +157,7 @@ The host chooses these in the waiting room, before pressing Start. Everyone can 
 | Cards discarded | Half, or 4 | Half of the hand rounded down (official: nine cards means discard four), or exactly 4 |
 | Move timer | Off, 15s, 30s, 60s | The clock restarts after each action. When it runs out, the game plays that step for the player: rolls the dice, moves the robber, discards, or ends the turn. Setup placements always get 60 seconds. Bots are never timed. |
 | Friendly robber | On / Off | The robber can't be placed next to a player with 2 points or fewer, and such players can't be robbed. If no tile qualifies, it goes to the desert. |
-| Balanced dice | On / Off | Rolls come from a shuffled deck of all 36 combinations, reshuffled when 12 are left, with a 30% chance of skipping a card that repeats the previous total |
+| Balanced dice | On / Off | The colonist.io method. Rolls come from a deck of all 36 combinations that is refilled when fewer than 13 are left. A total that came up in the last 5 rolls is held back (34% less likely for each time). 7s are also shared out between players: someone who just rolled 7s, or has rolled more than their share, gets fewer |
 
 ## Bots
 

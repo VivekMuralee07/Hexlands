@@ -153,23 +153,23 @@ test('without friendly robber the robber may go anywhere but where it already is
   assert.throws(() => g.act(r, { type: 'robber', tile: g.robber }), /different tile/);
 });
 
-test('balanced dice: 36-roll deck reshuffled at 12 left, fewer repeats, even totals', () => {
+test('balanced dice (colonist.io method): 36-roll deck refilled below 13 cards, fewer repeats, even totals', () => {
   const g = mk(2, 3); g.act(0, { type: 'setOptions', opts: { balancedDice: true } });
   const rolls = [];
-  for (let i = 0; i < 24 * 600; i++) rolls.push(g.rollDice());
+  for (let i = 0; i < 24 * 600; i++) rolls.push(g.rollDice(i % 2));
   for (let w = 0; w < 600; w++) {
     const keys = new Set(rolls.slice(w * 24, (w + 1) * 24).map(d => d.join(',')));
-    assert.equal(keys.size, 24, 'each deck gives 24 distinct rolls before it is reshuffled');
+    assert.equal(keys.size, 24, 'each deck gives 24 distinct rolls before it is refilled');
   }
   const sumOf = d => d[0] + d[1];
   const repeats = a => a.slice(1).filter((d, i) => sumOf(d) === sumOf(a[i])).length / (a.length - 1);
   const plain = mk(2, 3), pr = [];
-  for (let i = 0; i < 24 * 600; i++) pr.push(plain.rollDice());
+  for (let i = 0; i < 24 * 600; i++) pr.push(plain.rollDice(i % 2));
   assert.ok(repeats(pr) > 0.1, `random repeats ${repeats(pr)}`);
   assert.ok(repeats(rolls) < 0.1 && repeats(rolls) < repeats(pr), `balanced repeats ${repeats(rolls)}`);
   for (let n = 2; n <= 12; n++) {
     const expected = (6 - Math.abs(7 - n)) / 36 * rolls.length, got = rolls.filter(d => sumOf(d) === n).length;
-    assert.ok(Math.abs(got - expected) / expected < 0.1, `total ${n}: ${got} vs ${Math.round(expected)}`);
+    assert.ok(Math.abs(got - expected) / expected < 0.15, `total ${n}: ${got} vs ${Math.round(expected)}`);
   }
 });
 
@@ -1189,6 +1189,28 @@ test('US 2.0: bots of every level finish a game on it, and the bank stays balanc
     assert.equal(g.phase, 'ended', level);
     for (const k of ['wood', 'brick', 'sheep', 'wheat', 'ore']) assert.equal(g.bank[k] + g.players.reduce((a, p) => a + p.res[k], 0), 144, k);
   }
+});
+
+
+test('balanced dice: a total that just came up is held back (at most 3 of one total in any 6 rolls)', () => {
+  const g = mk(4, 5); g.act(0, { type: 'setOptions', opts: { balancedDice: true } });
+  const sums = []; for (let i = 0; i < 20000; i++) { const d = g.rollDice(i % 4); sums.push(d[0] + d[1]); }
+  let worst = 0;
+  for (let i = 0; i + 6 <= sums.length; i++) { const w = sums.slice(i, i + 6), c = {}; w.forEach(t => { c[t] = (c[t] || 0) + 1; }); worst = Math.max(worst, ...Object.values(c)); }
+  assert.ok(worst <= 3, 'most of one total in a window of 6: ' + worst);
+});
+
+test('balanced dice: 7s are shared out between the players and a streak by one player is cut short', () => {
+  const g = mk(4, 7); g.act(0, { type: 'setOptions', opts: { balancedDice: true } });
+  const sevens = [0, 0, 0, 0];
+  for (let i = 0; i < 40000; i++) { const p = i % 4, d = g.rollDice(p); if (d[0] + d[1] === 7) sevens[p]++; }
+  const mean = sevens.reduce((a, b) => a + b, 0) / 4;
+  sevens.forEach((n, p) => assert.ok(Math.abs(n - mean) / mean < 0.05, `player ${p} rolled ${n} sevens, mean ${mean}`));
+  // one player rolling all the time: after a 7 their next 7 is held back, so 7s come up less than the natural 1 in 6
+  const h = mk(3, 9); h.act(0, { type: 'setOptions', opts: { balancedDice: true } });
+  let after7 = 0, again = 0, prev = 0;
+  for (let i = 0; i < 30000; i++) { const t = (d => d[0] + d[1])(h.rollDice(0)); if (prev === 7) { after7++; if (t === 7) again++; } prev = t; }
+  assert.ok(again / after7 < 1 / 6 - 0.05, '7 right after the same player\'s 7: ' + (again / after7));
 });
 
 // ---------- dice ----------
