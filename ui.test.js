@@ -130,6 +130,38 @@ test('game on a phone: after rolling, tapping a resource card opens the trade wi
   await ctx.close();
 });
 
+test('turn alert: a buzz when it becomes your move, a flashing tab title while hidden, and a switch to turn the buzz off', async t => {
+  if (why) return t.skip(why);
+  const c = await startGame();
+  const ctx = await browser.newContext(PHONE);
+  await ctx.addInitScript(([s, terms]) => {
+    localStorage.setItem('hexlands.terms', JSON.stringify(terms));
+    localStorage.setItem('hexlands.session', JSON.stringify(s));
+    window.__buzz = [];
+    navigator.vibrate = p => { window.__buzz.push(p); return true; };
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => !!window.__hidden });
+  }, [c, legal.VERSION]);
+  const page = await ctx.newPage();
+  const errors = []; page.on('pageerror', e => errors.push(e.message));
+  await page.goto(base + '/room/' + c.code);
+  await page.evaluate(() => { window.__hidden = true; });   // as if the app were in the background
+  await toMainPhase(c);
+  await page.waitForFunction(() => window.__buzz.length > 0, null, { timeout: 10000 });
+  assert.deepEqual(await page.evaluate(() => window.__buzz[0]), [90, 60, 90]);
+  const flashed = await page.evaluate(() => new Promise(r => { const seen = new Set(); const end = Date.now() + 2800; (function poll() { seen.add(document.title); Date.now() < end ? setTimeout(poll, 100) : r([...seen]); })(); }));
+  assert.ok(flashed.some(x => /●/.test(x)), 'the tab title shows an alert: ' + flashed.join(' | '));
+  await page.evaluate(() => { window.__hidden = false; document.dispatchEvent(new Event('visibilitychange')); });
+  assert.ok(!/●/.test(await page.title()), 'the title goes back when the app is visible again');
+  await page.click('#infobtn', { force: true });
+  await page.waitForSelector('#vibsw');
+  assert.equal(await page.getAttribute('#vibsw', 'aria-checked'), 'true');
+  await page.click('#vibsw');
+  assert.equal(await page.getAttribute('#vibsw', 'aria-checked'), 'false');
+  assert.equal(await page.evaluate(() => localStorage.getItem('hexlands.vibrate')), 'false');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
 // ---------- accessibility ----------
 let axePath = null;
 try { axePath = require.resolve('axe-core/axe.min.js'); } catch { /* axe-core is not installed */ }

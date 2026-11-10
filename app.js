@@ -213,6 +213,7 @@ function terrainCounts(tiles) {
 function go(screen) { S.screen = screen; S.shellReady = false; render(); }
 function render() {
   const app = $('#app');
+  if (S.screen !== 'game') setAlertTitle(false);
   if (S.screen === 'game') app.removeAttribute('role'); else app.setAttribute('role', 'main');   // the game has its own <main> (the map)
   if (S.screen === 'home') return renderHome(app);
   if (S.screen === 'create') return renderCreate(app);
@@ -529,6 +530,32 @@ function leaveToHome(msg) {
   history.replaceState(null, '', '/'); S.joinCode = ''; go('home');
 }
 
+// ---------- alerts when it is your move ----------
+// A sound and a short buzz (switchable in the info window) whenever it becomes your move: your turn, your setup placement, or cards to discard.
+// If the app is in the background, the tab title flashes too, until you come back or the move passes.
+const DEFAULT_TITLE = document.title;
+const vibrateOn = () => !!navigator.vibrate && store.get('vibrate', true) !== false;
+function needsMe(st) {
+  return !!st && st.phase !== 'ended' && ((st.turn === st.you && (st.phase === 'setup' || st.phase === 'main')) || !!(st.pendingDiscards && st.pendingDiscards[st.you]) || !!(st.pendingDiamond && st.pendingDiamond[st.you]));
+}
+let titleTimer = null;
+function setAlertTitle(on, text) {
+  clearInterval(titleTimer); titleTimer = null;
+  if (!on) { document.title = DEFAULT_TITLE; return; }
+  let flip = false; const paint = () => { document.title = flip ? DEFAULT_TITLE : text; flip = !flip; };
+  paint(); titleTimer = setInterval(paint, 1200);
+}
+function turnAlert(prev, st) {
+  if (!needsMe(st)) { setAlertTitle(false); return; }
+  if (needsMe(prev)) return;   // it was already your move
+  const discard = st.pendingDiscards && st.pendingDiscards[st.you], pick = st.pendingDiamond && st.pendingDiamond[st.you];
+  const msg = discard ? `Discard ${discard} cards` : pick ? `Choose ${pick} cards` : 'Your turn';
+  toast(msg); Sound.play('turn');
+  if (vibrateOn()) navigator.vibrate([90, 60, 90]);
+  if (document.hidden) setAlertTitle(true, `● ${msg} · Hexlands`);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) setAlertTitle(false); });
+
 function onState(st) {
   const prev = S.state; S.state = st; S.stateAt = Date.now(); S.link = 'ok'; S.lostAt = 0;
   if (prev && prev.players[prev.you] && st.players[st.you]) {   // host hand-over, and bots standing in
@@ -552,7 +579,7 @@ function onState(st) {
     if (s.to === me) toast(`${icon(s.card)} You took ${RES_LABEL[s.card]} from ${esc(st.players[s.from].name)}`, 'gain', true);
     else if (s.from === me) toast(`${icon(s.card)} ${esc(st.players[s.to].name)} took your ${RES_LABEL[s.card]}`, 'err', true);
   }
-  if (prev && prev.turn !== st.turn && st.turn === st.you && st.phase === 'main') { toast('Your turn'); Sound.play('turn'); if (navigator.vibrate) navigator.vibrate(50); }
+  if (prev) turnAlert(prev, st);
   if (prev && prev.phase === 'lobby' && st.phase === 'setup') Sound.theme('start');
   if (prev && prev.phase !== 'ended' && st.phase === 'ended') { Sound.theme('finish'); recordResult(st); setTimeout(openLeaderboard, 700); confetti(); }
   if (prev) soundReactions(prev, st);
@@ -1210,9 +1237,11 @@ function openInfo(tab = 'costs') {
   const code = st.code || (S.session && S.session.code) || '', pubRoom = !!(st.net && st.net.public), invite = `${location.origin}/room/${code}`;
   const roomStrip = `<div class="roomstrip"><div><small>Room code</small><b class="rcode" id="rcode">${esc(code)}</b></div><span class="vischip${pubRoom ? ' pub' : ''}">${pubRoom ? 'Public' : 'Private'}</span><div class="rbtns"><button class="btn small" id="icopy">Copy code</button><button class="btn small" id="ilink">Copy invite link</button></div></div>`;
   const bankLine = `<div class="bank" style="margin:.5rem 0;width:100%;box-sizing:border-box;justify-content:center" title="Cards left in the bank, and development cards left in the pile">${RES.map(k => `<span class="bk ${k}" title="${RES_LABEL[k]} left in the bank">${icon(k)}<b>${st.bank[k]}</b></span>`).join('')}<button class="bk dev" data-pile2 title="Development cards left in the pile. Tap to see what is still unseen.">${icon('dev')}<b>${st.devLeft}</b></button></div>`;
-  openModal('info', `<div class="infowin"><h3>Game info</h3>${roomStrip}${bankLine}<div class="maptabs" role="tablist">${tabs.map(([k, l]) => `<button class="maptab" role="tab" data-itab="${k}" aria-selected="${tab === k}">${l}</button>`).join('')}</div>${body}<div class="foot"><button class="btn primary" id="iclose">Close</button></div></div>`, layer => {
+  const vibRow = navigator.vibrate ? `<div class="vibrow"><span><b>Vibrate on my turn</b><small>A short buzz when it is your move</small></span><button class="switch" role="switch" id="vibsw" aria-checked="${vibrateOn()}" aria-label="Vibrate when it is my turn"></button></div>` : '';
+  openModal('info', `<div class="infowin"><h3>Game info</h3>${roomStrip}${bankLine}${vibRow}<div class="maptabs" role="tablist">${tabs.map(([k, l]) => `<button class="maptab" role="tab" data-itab="${k}" aria-selected="${tab === k}">${l}</button>`).join('')}</div>${body}<div class="foot"><button class="btn primary" id="iclose">Close</button></div></div>`, layer => {
     $('#iclose').onclick = closeModal;
     $('[data-pile2]').onclick = () => { closeModal(); openDevPile(); };
+    const vs = $('#vibsw'); if (vs) vs.onclick = () => { const on = store.get('vibrate', true) === false; store.set('vibrate', on); vs.setAttribute('aria-checked', String(on)); if (on && navigator.vibrate) navigator.vibrate(60); };
     const copy =async (text, done) => { try { await navigator.clipboard.writeText(text); toast(done); } catch { prompt('Copy this', text); } };
     $('#icopy').onclick = () => copy(code, 'Room code copied');
     $('#ilink').onclick = () => copy(invite, 'Invite link copied');

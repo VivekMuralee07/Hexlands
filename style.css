@@ -1378,3 +1378,7 @@ button, [role=button], a, label, select, summary { touch-action: manipulation; }
   .home .trio .btn { white-space: nowrap; font-size: .85rem; padding-inline: .3em; }
   .home .divider { font-size: .75em; } .home .linkbtn { min-height: 28px; padding: .1rem .5rem; }
 }
+
+/* turn alerts: the vibrate switch in the info window */
+.vibrow { display: flex; align-items: center; justify-content: space-between; gap: .8rem; padding: .5rem .7rem; margin: .4rem 0; border-radius: 12px; background: rgba(255, 255, 255, .08); }
+.vibrow span { display: grid; } .vibrow small { color: #cfe0f5; font-size: .78rem; }
