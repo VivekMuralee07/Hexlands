@@ -1336,3 +1336,16 @@ button, [role=button], a, label, select, summary { touch-action: manipulation; }
   .tw-buy { min-height: 44px; }
   .bk.dev, button.bk { min-height: 38px; }
 }
+
+/* bot statistics (under "All games") */
+.lbbots { display: grid; gap: .45rem; padding-top: .3rem; border-top: 1px solid rgba(255, 255, 255, .15); }
+.lbbots h4 { margin: .2rem 0 0; font-family: var(--display); font-size: 1.15rem; color: #ffd36b; }
+.lbbotsum { margin: 0; font-size: .85rem; } .lbbotsum b { color: #fff; }
+.lbbotlist { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; }
+.lbbot { display: grid; justify-items: center; gap: .1rem; padding: .55rem .25rem; border-radius: 12px; background: rgba(255, 255, 255, .08); border: 2px solid; text-align: center; }
+.lbbot.lvl-easy { border-color: #6cc28a; } .lbbot.lvl-medium { border-color: #d9a441; } .lbbot.lvl-hard { border-color: #e0664f; }
+.lbbotname { display: inline-flex; align-items: center; gap: .25rem; font-size: .9rem; color: #fff; } .lbbotname .boticon { width: 18px; height: 18px; }
+.lbbotrate { font-family: var(--display); font-size: 1.7rem; line-height: 1.1; color: #fff; } .lbbotrate small { font-size: .55em; }
+.lbbotsub { font-size: .7rem; color: #cfe0f5; }
+.lbpodium.n1 { grid-template-columns: minmax(0, 150px); justify-content: center; }
+.lbpodium.n2 { grid-template-columns: repeat(2, minmax(0, 150px)); justify-content: center; }

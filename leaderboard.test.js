@@ -228,3 +228,53 @@ test('server: the leaderboard reply carries the extra fields and honours period 
   const row = (await get('/api/leaderboard?mode=all')).body.rows[0];
   if (row) for (const k of ['wins', 'losses', 'games', 'winRate', 'avgVp', 'bestVp', 'streak', 'form', 'lastPlayed', 'favMap']) assert.ok(k in row, 'row has ' + k);
 });
+
+// ---------- bot statistics under "All games" ----------
+const botRec = (code, at, levels, winnerSeat, pid = A) => ({ code, finishedAt: at, map: 'Japan', turns: 60, seats: 1 + levels.length, pub: false,
+  results: [{ pid, name: 'Pa', seat: 0, vp: winnerSeat === 0 ? 10 : 5, won: winnerSeat === 0 }],
+  bots: levels.map((level, i) => ({ level, seat: i + 1, vp: winnerSeat === i + 1 ? 10 : 6, won: winnerSeat === i + 1 })) });
+
+test('db: bot results are counted per difficulty, only under "All games", and the period applies', { skip }, () => {
+  const s = dbmod.open(':memory:');
+  s.recordGame(botRec('K1', NOW - 40 * DAY, ['easy', 'medium', 'hard'], 3));   // hard bot wins
+  s.recordGame(botRec('K2', NOW - 3 * DAY, ['easy', 'easy', 'hard'], 0));      // the person wins
+  s.recordGame(botRec('K3', NOW - 1 * DAY, ['medium', 'hard', 'hard'], 2));    // a hard bot wins
+  const all = s.top({ mode: 'all', now: NOW }).bots, by = b => Object.fromEntries(b.levels.map(l => [l.level, l]));
+  assert.deepEqual(all.levels.map(l => l.level), ['easy', 'medium', 'hard'], 'always the three difficulties, in order');
+  assert.deepEqual([by(all).easy.games, by(all).easy.wins, by(all).easy.winRate], [3, 0, 0]);
+  assert.deepEqual([by(all).medium.games, by(all).medium.wins], [2, 0]);
+  assert.deepEqual([by(all).hard.games, by(all).hard.wins, by(all).hard.winRate], [4, 2, 50]);
+  assert.equal(by(all).hard.bestVp, 10); assert.equal(by(all).hard.avgVp, Math.round(10 * (10 + 6 + 6 + 10) / 4) / 10);
+  assert.deepEqual([all.games, all.botWins], [3, 2], 'bots played in 3 games and won 2 of them');
+  const week = s.top({ mode: 'all', now: NOW, period: '7' }).bots;
+  assert.deepEqual([week.games, week.botWins, by(week).easy.games, by(week).hard.games], [2, 1, 2, 3]);
+  assert.equal(s.top({ mode: 'ranked', now: NOW }).bots, null); assert.equal(s.top({ mode: 'multi', now: NOW }).bots, null);
+  s.close();
+});
+
+test('db: with no bot games the levels are zero, and an unknown difficulty is ignored', { skip }, () => {
+  const s = dbmod.open(':memory:');
+  assert.deepEqual(s.top({ mode: 'all' }).bots.levels.map(l => l.games), [0, 0, 0]);
+  s.recordGame({ ...botRec('Z1', 1000, ['easy'], 1), bots: [{ level: 'impossible', seat: 1, vp: 10, won: true }] });
+  assert.deepEqual(s.top({ mode: 'all' }).bots.levels.map(l => l.games), [0, 0, 0]);
+  s.close();
+});
+
+test('server: bot seats are saved with their difficulty; a person\'s seat that a bot took over is not a bot', { skip }, async () => {
+  const c = (await post('/api/create', { name: 'Hana', pid: 'e1'.repeat(16), map: { preset: 'classic' }, seed: 9 })).body;
+  await post('/api/action', { code: c.code, token: c.token, action: { type: 'fillBots', level: 'hard' } });
+  const room = rooms.get(c.code), g = room.game;
+  const before = (await get('/api/leaderboard?mode=all')).body.bots.levels.find(l => l.level === 'hard').games;
+  g.players[2].bot = 'easy';   // one of the three bots is an easy one
+  g.phase = 'ended'; g.winner = 1; recordFinished(room);
+  const lv = Object.fromEntries((await get('/api/leaderboard?mode=all')).body.bots.levels.map(l => [l.level, l]));
+  assert.equal(lv.hard.games, before + 2, 'two hard bot seats were added');
+  assert.ok(lv.easy.games >= 1, 'and an easy one');
+
+  const d = (await post('/api/create', { name: 'Ivo', pid: 'e2'.repeat(16), map: { preset: 'classic' }, seed: 10 })).body;
+  const r2 = rooms.get(d.code), g2 = r2.game;
+  g2.players[0].takenOver = 'left'; g2.players[0].bot = 'medium';   // Ivo left, a bot plays his seat
+  const med = (await get('/api/leaderboard?mode=all')).body.bots.levels.find(l => l.level === 'medium').games;
+  g2.phase = 'ended'; g2.winner = 0; recordFinished(r2);
+  assert.equal((await get('/api/leaderboard?mode=all')).body.bots.levels.find(l => l.level === 'medium').games, med, 'his seat is not counted as a medium bot');
+});

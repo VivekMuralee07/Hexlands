@@ -1,10 +1,12 @@
 name: Tests
 
 # Runs the whole test suite on every pull request and on every push to main.
+# workflow_dispatch adds a "Run workflow" button (Actions tab) to start it by hand, for example when GitHub did not start a run.
 on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 # A newer push to the same branch or pull request cancels the run that is still going.
 concurrency:
