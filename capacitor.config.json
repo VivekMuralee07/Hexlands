@@ -3,7 +3,7 @@
   "appName": "Hexlands",
   "webDir": "www",
   "server": {
-    "url": "https://hexlands.onrender.com",
+    "url": "https://hexlands-r2fs.onrender.com",
     "androidScheme": "https",
     "errorPath": "index.html"
   },

@@ -231,7 +231,7 @@ Finished games are saved to a SQLite file so wins add up across games and surviv
 An alternative to PWABuilder: a native Android Studio project in `android/`, managed by [Capacitor](https://capacitorjs.com). Like the PWABuilder app it is a shell that loads the live site, so a push to GitHub updates the game without a new APK. Settings are in `capacitor.config.json`:
 
 - `appId`: the package ID. It is set to the existing PWABuilder one (`com.vivek.hexlands_r2fs.twa`) so a build with the same signing key replaces that app. Change it before the first Play upload if you want a different ID; it can never change afterwards.
-- `server.url`: your deployed HTTPS address (`https://hexlands.onrender.com`). Change it if the site moves.
+- `server.url`: your deployed HTTPS address (`https://hexlands-r2fs.onrender.com`). Change it if the site moves.
 - `www/index.html`: the page shown when the server cannot be reached.
 
 You need Node 18+, JDK 17+ and the Android SDK (Android Studio installs both the SDK and a JDK).
