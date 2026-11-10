@@ -1,0 +1,14 @@
+{
+  "appId": "com.vivek.hexlands_r2fs.twa",
+  "appName": "Hexlands",
+  "webDir": "www",
+  "server": {
+    "url": "https://hexlands.onrender.com",
+    "androidScheme": "https",
+    "errorPath": "index.html"
+  },
+  "android": {
+    "backgroundColor": "#0a68a6",
+    "allowMixedContent": false
+  }
+}

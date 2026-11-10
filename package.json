@@ -5,9 +5,20 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test engine.test.js bots.test.js rules.test.js server.test.js matchmaking.test.js"
+    "test": "node --test engine.test.js bots.test.js rules.test.js server.test.js matchmaking.test.js",
+    "cap:sync": "cap sync android",
+    "android:open": "cap open android",
+    "android:debug": "cap sync android && cd android && ./gradlew assembleDebug",
+    "android:release": "cap sync android && cd android && ./gradlew bundleRelease"
   },
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "license": "MIT",
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/cli": "^8.6.0",
+    "@capacitor/core": "^8.6.0"
+  }
 }
