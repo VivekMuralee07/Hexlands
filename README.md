@@ -212,6 +212,31 @@ Still seeing the address bar? Work through these in order:
 4. Android remembers a failed check. Uninstall the app and install the APK again (or clear Chrome's data), then open the app twice.
 5. On Render's free plan, wake the site first by opening it in a browser. If the server is asleep while the app launches, the check can time out.
 
+## Make an Android app with Capacitor
+
+An alternative to PWABuilder: a native Android Studio project in `android/`, managed by [Capacitor](https://capacitorjs.com). Like the PWABuilder app it is a shell that loads the live site, so a push to GitHub updates the game without a new APK. Settings are in `capacitor.config.json`:
+
+- `appId`: the package ID. It is set to the existing PWABuilder one (`com.vivek.hexlands_r2fs.twa`) so a build with the same signing key replaces that app. Change it before the first Play upload if you want a different ID; it can never change afterwards.
+- `server.url`: your deployed HTTPS address (`https://hexlands.onrender.com`). Change it if the site moves.
+- `www/index.html`: the page shown when the server cannot be reached.
+
+You need Node 18+, JDK 17+ and the Android SDK (Android Studio installs both the SDK and a JDK).
+
+```
+npm install
+npm run android:open      # opens the project in Android Studio; press Run to install on a phone
+npm run android:debug     # or build android/app/build/outputs/apk/debug/app-debug.apk from the command line
+npm run android:release   # builds the .aab for Google Play (needs a signing key, see below)
+```
+
+Run `npm run cap:sync` after changing `capacitor.config.json` or upgrading the Capacitor packages.
+
+**Signing a release.** In Android Studio choose Build, Generate Signed Bundle, create a keystore and keep it and its passwords safe (you need them for every update). Do not commit the keystore. With Play App Signing, add Google's certificate fingerprint to `assetlinks.json` as described above.
+
+Notes:
+- The launcher icon, splash screen and status bar colour are already set to the Hexlands icon and colours.
+- The same Render notes apply: a sleeping free server makes the first launch slow, and without internet the app shows the "could not reach the game server" page.
+
 ## Publish on Google Play
 
 You need: a Play Console developer account (one-time fee, identity checks), the live HTTPS site, and the signed `.aab` from PWABuilder (previous section).
@@ -288,6 +313,9 @@ sw.js             Service worker (offline shell; never touches game traffic)
 manifest.webmanifest  App name, colors, icons, screenshots and shortcuts
 icon*.png, icon.svg, apple-touch-icon.png, screenshot-*.png  App icons and store images
 assetlinks.json   Android app verification (replace with PWABuilder's file)
+capacitor.config.json  Capacitor settings for the native Android app
+android/          Capacitor Android Studio project
+www/              Offline page for the Capacitor app
 render.yaml       Render blueprint
 package.json
 ```
