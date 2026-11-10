@@ -1240,3 +1240,36 @@ span.pcardx { cursor: default; }
 @media (max-width: 480px) { .lbrow { grid-template-columns: 1.4rem minmax(0, 1fr) auto auto auto; gap: .3rem; padding: .4rem .45rem; font-size: .86rem; } .lbrow .lbnum { font-size: .7rem; } .lbrow .lbnum b { font-size: .9rem; } }
 .lbabout { font-size: .8rem; margin: .5rem 0 0; }
 .lbtag { opacity: .6; font-weight: 700; }
+
+/* ===== accessibility ===== */
+/* contrast: selected tabs, hints in the trade window, bank chips, and the turn pill (its text colour is chosen per player colour) */
+.maptab[aria-selected=true], .cpick[aria-pressed=true] { background: #0b63c4; }
+.thint { color: #55646f; } .thint.light { color: #d3e0f0; }
+.bk { color: #10202c; } .bk b { text-shadow: none; } .bk.dev { --c: #5b3d99; color: #fff; }
+.turnpill.mine { background: var(--pillbg, #7a2418); color: #fff; }
+.turnpill.mine .tp-dot { background: #fff; box-shadow: 0 0 0 2px rgba(0, 0, 0, .35); }
+/* the End and Roll labels sit on a solid chip, so they read well over the button's gradient */
+.zoom .endbtn span { background: #0b4d31; color: #fff; border-radius: 8px; padding: 1px 7px; margin-top: 2px; }
+/* phones: inputs at 16px or more, so the browser does not zoom the page when one is focused (page zoom itself is allowed) */
+@media (max-width: 760px) { input, select, textarea { font-size: max(16px, 1em); } }
+button, [role=button], a, label, select, summary { touch-action: manipulation; }   /* no double-tap zoom delay on controls */
+/* keyboard focus is easy to see, also on the map spots */
+:focus-visible { outline: 3px solid #ffd23f; outline-offset: 2px; }
+.hs:focus-visible, .rspot:focus-visible, .okbtn:focus-visible { outline: none; }
+.hs:focus-visible .hc { stroke: #ffd23f; stroke-width: 7; filter: drop-shadow(0 0 6px #ffd23f); }
+.rspot:focus-visible .rdisc { stroke: #ffd23f; stroke-width: 8; }
+.okbtn:focus-visible .okin rect { stroke: #ffd23f; stroke-width: 7; }
+/* people who ask for less motion get (almost) none */
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
+/* bigger touch targets on phones (about 44px where the layout allows) */
+@media (max-width: 760px) {
+  .gbtn { width: 42px; height: 42px; } .gbtns { gap: .5rem; }
+  .zoomreset { height: 42px; padding: 0 .75rem 0 .6rem; }
+  .infobtn { width: 44px; height: 44px; }
+  .linkbtn { min-height: 40px; padding: .5rem .6rem; }
+  .btn.small, .btn { min-height: 42px; }
+  .hsw { min-width: 42px; min-height: 42px; }
+  .tcard { width: 44px; height: 60px; } .tcard .ic { width: 24px; height: 24px; }
+  .tw-buy { min-height: 44px; }
+  .bk.dev, button.bk { min-height: 38px; }
+}
