@@ -1040,11 +1040,21 @@ const ARC = '<svg class="ic" viewBox="0 0 32 32" aria-hidden="true"><path d="M4,
 function drawPlayers() {
   const st = S.state, leader = Math.max(...st.players.map(p => p.vp));
   const bank = `<div class="bank" title="Cards left in the bank, and development cards left in the pile">${RES.map(k => `<span class="bk ${k}" title="${RES_LABEL[k]} left in the bank">${icon(k)}<b>${st.bank[k]}</b></span>`).join('')}<button class="bk dev" data-pile title="Development cards left in the pile. Tap to see what is still unseen.">${icon('dev')}<b>${st.devLeft}</b></button><button class="ibtn" data-info title="Game info: costs, points and settings" aria-label="Game info">i</button></div>`;
+  // Phones: every player's key numbers sit in one compact strip (the full cards below are hidden there), so nothing drops down over the map.
   const strip = `<div class="pstrip" role="group" aria-label="Players">${st.players.map((p, i) => {
-    const turn = st.turn === i && st.phase !== 'ended';
-    return `<button class="pchip ${turn ? 'turn' : ''} ${i === me() ? 'me' : ''}" style="--pc:${p.color}" data-pdrawer aria-label="${esc(p.name)}: ${p.vp} points, ${p.cards} cards. Tap for details"><span class="pc-dot"></span><span class="pc-nm">${esc(p.name)}</span><span class="pc-vp" title="Victory points">${p.vp}</span><span class="pc-cards" title="Resource cards">${icon('cards')}${p.cards}</span></button>`;
-  }).join('')}<button class="pchip pmore" data-pdrawer aria-expanded="${!!S.pdrawer}" aria-label="Player details" title="Player details">${S.pdrawer ? '▲' : '▼'}</button></div>`;
-  $('#players').innerHTML = strip + '<div class="pdrawer">' + bank + st.players.map((p, i) => {
+    const turn = st.turn === i && st.phase !== 'ended', lead = p.vp === leader && leader >= 3;
+    const skippable = st.players[me()].host && i !== me() && !p.bot && !p.connected && (st.turn === i || (st.subphase === 'discard' && st.pendingDiscards[i]) || (st.subphase === 'diamond' && st.pendingDiamond[i]));
+    const army = st.largestArmy && st.largestArmy.p === i, road = st.longestRoad && st.longestRoad.p === i;
+    const stat = (cls, ic, n, label) => `<span class="pc-s ${cls}" title="${label}">${ic}<b>${n}</b></span>`;
+    const pend = st.pendingDiscards[i] ? `Discarding ${st.pendingDiscards[i]}` : st.subphase === 'diamond' && st.pendingDiamond[i] ? `Choosing ${st.pendingDiamond[i]}` : '';
+    return `<div class="pchip ${turn ? 'turn' : ''} ${i === me() ? 'me' : ''}" style="--pc:${p.color}" aria-label="${esc(p.name)}: ${p.vp} points, ${p.cards} resource cards, ${p.devCount} development cards, ${p.knights} knights, longest road ${p.roadLen}">
+      <span class="pc-top">${p.bot ? icon('bot', 'boticon') : `<span class="dot ${p.connected ? '' : 'off'}"></span>`}<span class="pc-nm">${esc(p.name)}</span><span class="pc-vp ${lead ? 'lead' : ''}" title="Victory points (first to ${st.vpTarget})">${p.vp}</span></span>
+      <span class="pc-stats">${stat('', icon('cards'), p.cards, 'Resource cards in hand')}${stat('', '<i class="dv">?</i>', p.devCount, 'Development cards in hand')}${stat(army ? 'gold' : '', icon('knight'), p.knights, army ? 'Knights played (Largest Army)' : 'Knights played')}${stat(road ? 'gold' : '', ARC, p.roadLen, road ? 'Longest road (holds Longest Road)' : 'Longest road')}</span>
+      <span class="pc-pieces" style="color:${p.color}" title="Roads, settlements and cities left to build">${[['road', p.pieces.road], ['settlement', p.pieces.settlement], ['city', p.pieces.city]].map(([k, n]) => `<span class="pp">${icon(k)}<b>${n}</b></span>`).join('')}</span>
+      ${pend ? `<span class="pc-note">${pend}</span>` : ''}${skippable ? `<button class="pc-skip" data-skip>Skip</button>` : ''}
+    </div>`;
+  }).join('')}</div>`;
+  $('#players').innerHTML = strip + bank + st.players.map((p, i) => {
     const turn = st.turn === i && st.phase !== 'ended';
     const crown = p.vp === leader && leader >= 3 ? `<span class="crown">${icon('monopoly')}</span>` : '';
     const skippable = st.players[me()].host && i !== me() && !p.bot && !p.connected && (st.turn === i || (st.subphase === 'discard' && st.pendingDiscards[i]) || (st.subphase === 'diamond' && st.pendingDiamond[i]));
@@ -1068,10 +1078,8 @@ function drawPlayers() {
       ${skippable ? `<button class="btn small" style="margin-top:.4rem" data-skip>Skip offline player</button>` : ''}
       ${turn ? `<div class="yourturn">${i === me() ? 'Your turn' : esc(p.name) + "'s turn"}<span class="tm"></span></div>` : ''}
     </div>`;
-  }).join('') + '</div>';
-  $('#players').style.setProperty('--np', st.players.length);
-  $('#players').classList.toggle('open', !!S.pdrawer);
-  $$('[data-pdrawer]').forEach(b => b.onclick = () => { S.pdrawer = !S.pdrawer; drawPlayers(); });
+  }).join('');
+  $('#players').style.setProperty('--np', st.players.length); $('#players').dataset.np = st.players.length;
   $$('[data-skip]').forEach(b => b.onclick = () => act({ type: 'skip' }));
   $$('[data-pile]').forEach(b => b.onclick = openDevPile);
   $$('[data-info]').forEach(b => b.onclick = () => openInfo());
