@@ -661,7 +661,7 @@ function buildShell(app) {
         <g id="static"></g><g id="dyn"></g><g id="fx" pointer-events="none"></g>
       </svg>
       <div class="dice" id="dice"></div><div class="awards" id="awards"></div><div class="offer" id="offer"></div><div class="awaybar" id="awaybar" hidden></div><div class="reconnect" id="reconnect" hidden></div><div class="tradewin" id="tradewin" hidden></div>
-      <div class="modechip" id="modechip" hidden></div><div class="menubar" id="menubar" hidden></div><div class="buildmenu" id="buildmenu" hidden></div>
+      <div class="modechip" id="modechip" hidden></div>
       <button class="zoomreset" id="zoomreset" title="Reset zoom: fit the whole map" aria-label="Reset zoom"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4,9 V4 H9 M20,9 V4 H15 M4,15 V20 H9 M20,15 V20 H15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Fit</span></button>
       <div class="gbtns"><button class="gbtn drawer-toggle" id="logbtn" title="Messages" aria-label="Messages">${GB_ICON.msg}</button><button class="gbtn" id="quit" title="Leave game" aria-label="Leave game">${GB_ICON.exit}</button></div>
       <div class="zoom"><button class="btn rollbtn" id="rollbtn" hidden aria-label="Roll the dice">${twoDice()}<span>Roll</span></button><button class="btn endbtn" id="endbtn" hidden aria-label="End your turn">${endIcon()}<span>End</span></button></div>
@@ -690,7 +690,7 @@ function buildShell(app) {
 function updateGame() {
   validatePick();
   const st = S.state;
-  drawAway(); drawLink(); drawRollBtn(); { const n = $('#chatnote'); if (n) n.hidden = !(st.net && st.net.public); } drawDyn(); drawPlayers(); drawBanner(); drawHand(); drawActions(); drawLog(); drawOffer(); drawClock(); drawSetupStrip(); drawPlacing(); drawTrade(); drawDiamond(); drawTurnPill(); drawMenuBar(); drawModeChip();
+  drawAway(); drawLink(); drawRollBtn(); { const n = $('#chatnote'); if (n) n.hidden = !(st.net && st.net.public); } drawDyn(); drawPlayers(); drawBanner(); drawHand(); drawActions(); drawLog(); drawOffer(); drawClock(); drawSetupStrip(); drawPlacing(); drawTrade(); drawDiamond(); drawTurnPill(); drawModeChip();
   syncModals();
 }
 
@@ -1094,35 +1094,6 @@ function drawTurnPill() {
   el.innerHTML = `<span class="tp-dot"></span><b>${label}</b><span class="tm"></span>`;
   tickClock();
 }
-const BUILD_KINDS = [['road', 'Road', 'road'], ['settle', 'Settlement', 'settlement'], ['city', 'City', 'city']];
-// Floating Build and Trade buttons; each one expands a menu above the cards.
-function drawMenuBar() {
-  const bar = $('#menubar'), menu = $('#buildmenu'); if (!bar) return;
-  const st = S.state, live = myTurn() && st.phase === 'main' && st.rolled && !st.subphase && currentMode() !== 'heist';
-  $('.game').classList.toggle('has-menu', !!live);
-  if (!live) { bar.hidden = true; menu.hidden = true; S.buildOpen = false; return; }
-  bar.hidden = false;
-  const P = st.players[me()];
-  bar.innerHTML = `<button class="mbtn ${S.buildOpen || S.mode ? 'on' : ''}" id="mb-build" aria-expanded="${!!S.buildOpen}">${icon('settlement')}<span>Build</span><i>${S.buildOpen ? '▾' : '▴'}</i></button>`
-    + `<button class="mbtn ${S.tw ? 'on' : ''}" id="mb-trade" aria-expanded="${!!S.tw}">${icon('cards')}<span>Trade</span><i>${S.tw ? '▾' : '▴'}</i></button>`;
-  $('#mb-build').onclick = () => { S.buildOpen = !S.buildOpen; if (S.buildOpen) S.tw = null; updateGame(); };
-  $('#mb-trade').onclick = () => { if (S.tw) S.tw = null; else { S.mode = null; S.pick = null; S.buildOpen = false; S.tw = { give: {}, get: {} }; } updateGame(); };
-  menu.hidden = !S.buildOpen;
-  if (!S.buildOpen) { menu.innerHTML = ''; return; }
-  const left = { road: P.pieces.road, settle: P.pieces.settlement, city: P.pieces.city }, b = buildable();
-  const row = ([k, label, ck]) => {
-    const afford = canAfford(COST[ck]), spots = b[k].length, ok = afford && left[k] > 0 && spots > 0;
-    const why = !left[k] ? 'None left' : !afford ? 'Not enough cards' : !spots ? 'No free spot' : `${spots} spot${spots === 1 ? '' : 's'}`;
-    return `<button class="bm-row ${S.mode === k ? 'sel' : ''}" data-bm="${k}" ${ok ? '' : 'disabled'} aria-pressed="${S.mode === k}"><span class="bm-g">${cardGlyph(k, P.color)}</span><span class="bm-t"><b>${label}</b><small>${why}</small></span>${costIcons(COST[ck])}</button>`;
-  };
-  const devOk = canAfford(COST.dev) && st.devLeft > 0;
-  menu.innerHTML = `<div class="bm-head"><b>Build</b><button class="bm-x" id="bm-close" aria-label="Close build menu">✕</button></div>`
-    + BUILD_KINDS.map(row).join('')
-    + `<button class="bm-row" id="bm-dev" ${devOk ? '' : 'disabled'}><span class="bm-g">${icon('dev')}</span><span class="bm-t"><b>Dev card</b><small>${st.devLeft} left</small></span>${costIcons(COST.dev)}</button>`;
-  $('#bm-close').onclick = () => { S.buildOpen = false; updateGame(); };
-  menu.querySelectorAll('[data-bm]').forEach(x => x.onclick = () => { S.mode = S.mode === x.dataset.bm ? null : x.dataset.bm; S.pick = null; S.buildOpen = false; updateGame(); });
-  $('#bm-dev').onclick = async () => { const r = await act({ type: 'buyDev' }); if (r.ok && r.result) toast(`${icon(r.result.card)} You drew ${DEV[r.result.card].name}`, 'gain', true); updateGame(); };
-}
 // A chip over the map while a build action is chosen: what you are placing, and a way out.
 function drawModeChip() {
   const el = $('#modechip'), wrap = $('#wrap'); if (!el) return;
@@ -1179,8 +1150,8 @@ function handTap(k) {
   if (!myTurn()) return toast('You can trade on your turn.');
   if (!st.rolled) return toast('Roll the dice before trading.');
   if (st.subphase) return toast('Finish the current step before trading.');
+  if (!S.tw) { S.mode = null; S.pick = null; S.tw = { give: {}, get: {} }; if (!st.me.res[k]) return updateGame(); }   // the first tap just opens the window
   if (!st.me.res[k]) return toast(`You have no ${RES_LABEL[k]} to offer.`);
-  if (!S.tw) { S.mode = null; S.tw = { give: {}, get: {} }; }
   if (S.tw.get[k]) return toast('You are already asking for that.', 'err');
   if ((S.tw.give[k] || 0) < st.me.res[k]) S.tw.give[k] = (S.tw.give[k] || 0) + 1;
   updateGame();
