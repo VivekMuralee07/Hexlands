@@ -1117,7 +1117,6 @@ span.pcardx { cursor: default; }
 /* ---- shared pieces (all screen sizes) ---- */
 .pstrip { display: none; }
 .pdrawer { display: contents; }
-.menubar, .buildmenu { display: none; }
 
 .turnpill { display: inline-flex; align-items: center; gap: .4rem; padding: .18rem .7rem .18rem .45rem; border-radius: 999px; background: rgba(255, 255, 255, .1);
   border: 2px solid var(--pc, #fff); color: #fff; font-weight: 800; font-size: .92rem; white-space: nowrap; line-height: 1.2; }
@@ -1180,7 +1179,6 @@ span.pcardx { cursor: default; }
   .infobar .setupstrip { order: 3; }
   .infobar .placing { order: 4; }
   .infobar .banner { order: 5; flex: 1 1 100%; font-size: .9rem; padding: 0 .1rem; }
-  .game.has-menu .infobar .placing { display: none; }
 
   /* 3. the map takes the rest */
   .center .board-wrap { flex: 1 1 auto; min-height: 0; }
@@ -1193,26 +1191,9 @@ span.pcardx { cursor: default; }
   .zoom .rollbtn, .zoom .endbtn { min-width: 68px; min-height: 68px; border-radius: 50%; box-shadow: 0 8px 20px rgba(0, 0, 0, .5); }
   .zoom .rollbtn svg { width: 46px; height: 36px; }
   .zoom .endbtn svg { width: 38px; height: 38px; }
-  .board-wrap .dice { left: .6rem; bottom: 3.6rem; }
+  .board-wrap .dice { left: .6rem; bottom: .6rem; }
 
-  .menubar:not([hidden]) { display: flex; position: absolute; left: .6rem; bottom: .6rem; z-index: 13; gap: .4rem; }
-  .mbtn { display: inline-flex; align-items: center; gap: .35rem; min-height: 44px; padding: 0 .75rem; border-radius: 22px; border: 2px solid rgba(255, 255, 255, .55);
-    background: rgba(5, 25, 34, .9); color: #fff; font: 800 .9rem inherit; cursor: pointer; box-shadow: 0 4px 12px rgba(0, 0, 0, .4); }
-  .mbtn .ic { width: 22px; height: 22px; } .mbtn i { font-style: normal; font-size: .75rem; opacity: .8; }
-  .mbtn.on { background: #ffd23f; color: #2a1a00; border-color: #fff; }
-  .board-wrap.trading .menubar, .board-wrap.trading .zoom { display: none; }
-
-  .buildmenu:not([hidden]) { display: grid; position: absolute; left: .6rem; bottom: 3.7rem; z-index: 15; width: min(19rem, calc(100% - 5.4rem)); gap: .3rem; padding: .4rem;
-    border-radius: 14px; background: #06202e; border: 2px solid rgba(255, 255, 255, .4); box-shadow: 0 10px 28px rgba(0, 0, 0, .55); opacity: 1; }
-  .bm-head { display: flex; align-items: center; justify-content: space-between; color: #fff; padding: 0 .2rem; }
-  .bm-x { width: 30px; height: 30px; border-radius: 8px; border: 0; background: rgba(255, 255, 255, .15); color: #fff; cursor: pointer; }
-  .bm-row { display: flex; align-items: center; gap: .5rem; min-height: 44px; padding: .2rem .5rem; border-radius: 10px; border: 2px solid rgba(255, 255, 255, .25); background: #12384c;
-    color: #fff; font: inherit; text-align: left; cursor: pointer; }
-  .bm-row:disabled { opacity: .55; cursor: default; }
-  .bm-row.sel { border-color: #ffd23f; background: #5a4a14; }
-  .bm-g { width: 30px; height: 34px; flex: none; display: grid; place-items: center; } .bm-g svg, .bm-g .ic { width: 100%; height: 100%; }
-  .bm-t { display: grid; line-height: 1.15; flex: 1; } .bm-t small { opacity: .75; font-size: .72rem; }
-  .bm-row .cost { display: flex; gap: 1px; } .bm-row .cost .ic { width: 15px; height: 15px; }
+  .board-wrap.trading .zoom { display: none; }
 
   /* the trade window is the expanded trade menu: it sits above the cards, never over the top bars */
   .tradewin { max-height: 100%; overflow-y: auto; }
@@ -1228,4 +1209,4 @@ span.pcardx { cursor: default; }
   .hand .card { width: 50px; height: 62px; } .hand .card .ic { width: 26px; height: 26px; } .hand .card .lbl { font-size: .56em; }
   .hand .card .n { min-width: 20px; height: 20px; font-size: .8em; }
 }
-@media (max-width: 360px) { .hand .card { width: 44px; height: 56px; } .pchip { font-size: .7rem; } .mbtn span { display: none; } }
+@media (max-width: 360px) { .hand .card { width: 44px; height: 56px; } .pchip { font-size: .7rem; } }
