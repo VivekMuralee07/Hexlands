@@ -213,6 +213,7 @@ function terrainCounts(tiles) {
 function go(screen) { S.screen = screen; S.shellReady = false; render(); }
 function render() {
   const app = $('#app');
+  if (S.screen === 'game') app.removeAttribute('role'); else app.setAttribute('role', 'main');   // the game has its own <main> (the map)
   if (S.screen === 'home') return renderHome(app);
   if (S.screen === 'create') return renderCreate(app);
   if (S.screen === 'editor') return renderEditor(app);
@@ -232,6 +233,7 @@ async function checkSession() {
   if (S.screen === 'home') render();
 }
 function renderHome(app) {
+  app.setAttribute('role', 'main');
   if (S.session && Date.now() - (S.sessionAt || 0) > 5000) checkSession();
   app.innerHTML = `<button class="info-btn" id="info" aria-label="How to play" title="How to play">i</button><div class="home">
     <div class="hero-board" id="hero"></div>
@@ -302,10 +304,11 @@ async function loadPreview(reseed) {
 }
 
 function renderCreate(app) {
+  app.setAttribute('role', 'main');
   const custom = S.custom && S.custom.tiles.length;
   const cat = S.mapTab || ((S.maps.find(m => m.key === S.mapKey) || {}).category) || 'misc';
   app.innerHTML = `<div class="page">
-    <div class="page-head"><button class="btn" id="back">Back</button><h2>Choose your island</h2></div>
+    <div class="page-head"><button class="btn" id="back">Back</button><h2 role="heading" aria-level="1">Choose your island</h2></div>
     <div class="create-grid">
       <div class="map-col">${mapTabsHtml(cat, 'data-tab')}<div class="map-list" id="maplist">
         ${S.maps.filter(mp => mp.category === cat).map(mp => `<button class="map-opt" data-map="${mp.key}" aria-pressed="${S.mapKey === mp.key}"><b>${esc(mp.name)}</b><span>${esc(mp.blurb)}</span></button>`).join('')}
@@ -382,6 +385,7 @@ function autoNumbers(tiles) {
 function saveCustom() { store.set('custom', S.custom); }
 
 function renderEditor(app) {
+  app.setAttribute('role', 'main');
   if (!S.custom) S.custom = { tiles: [] };
   const sw = k => `<button class="swatch" data-tool="${k}" aria-pressed="${S.editor.tool === k}">`
     + (k === 'sea' ? `<svg viewBox="-60 -60 120 120"><polygon points="${ART.HEX}" fill="#1a5a6e" stroke="#bfe6ec" stroke-dasharray="6 5" stroke-width="3"/></svg>`
@@ -389,7 +393,7 @@ function renderEditor(app) {
     + `${TERRAIN_LABEL[k]}</button>`;
   const nums = [2, 3, 4, 5, 6, 8, 9, 10, 11, 12];
   app.innerHTML = `<div class="page">
-    <div class="page-head"><button class="btn" id="back">Back</button><h2>Map editor</h2></div>
+    <div class="page-head"><button class="btn" id="back">Back</button><h2 role="heading" aria-level="1">Map editor</h2></div>
     <div class="editor">
       <div class="editor-canvas" id="canvas"></div>
       <div class="stack">
@@ -593,6 +597,7 @@ function optionsHtml(st, host) {
 }
 
 function renderLobby(app) {
+  app.setAttribute('role', 'main');
   const st = S.state; if (!st) return;
   const me = st.you, host = st.players[me] && st.players[me].host;
   const net = st.net || {}, pub = !!net.public, imReady = !!(st.players[me] && st.players[me].ready);
@@ -601,9 +606,9 @@ function renderLobby(app) {
   const prevBox = $('#lobby-preview');
   const pk = `${st.code}:${S.boardRev || 0}`, keepPreview = prevBox && prevBox.dataset.code === pk && prevBox.innerHTML;
   app.innerHTML = `<div class="page">
-    <div class="page-head"><button class="btn" id="leave">Leave room</button><h2>Waiting room</h2><span class="vischip${pub ? ' pub' : ''}">${pub ? 'Public' : 'Private'}</span><button class="info-btn inline" id="info" aria-label="How to play" title="How to play">i</button></div>
+    <div class="page-head"><button class="btn" id="leave">Leave room</button><h2 role="heading" aria-level="1">Waiting room</h2><span class="vischip${pub ? ' pub' : ''}">${pub ? 'Public' : 'Private'}</span><button class="info-btn inline" id="info" aria-label="How to play" title="How to play">i</button></div>
     <div class="lobby">
-      <div class="panel stack optpanel lb-opts"><h3 class="panel-title">Game options${host ? '' : '<small>chosen by the host</small>'}</h3>${optionsHtml(st, host)}</div>
+      <div class="panel stack optpanel lb-opts"><h3 class="panel-title" role="heading" aria-level="2">Game options${host ? '' : '<small>chosen by the host</small>'}</h3>${optionsHtml(st, host)}</div>
       <div class="panel stack lb-room">
         <div><div class="muted">Room code</div><div class="room-code">${st.code}</div></div>
         ${host ? `<div class="row"><button class="btn small" id="togpub">${pub ? 'Make private' : 'Make public'}</button><span class="muted grow" style="font-size:.88em">${pub ? 'Anyone can find this room in the public list.' : 'Only people with the code can join.'}</span></div>` : ''}
@@ -662,28 +667,35 @@ const GB_ICON = {
   exit: '<svg class="ic" viewBox="0 0 32 32" aria-hidden="true"><path d="M13,4 H6 a2,2 0 0 0 -2,2 V26 a2,2 0 0 0 2,2 H13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><path d="M12,16 H28 M22,9 L29,16 L22,23" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
 };
 function buildShell(app) {
+  app.removeAttribute('role');
   app.innerHTML = `<div class="game">
-    <aside class="players" id="players"></aside>
-    <section class="center"><div class="infobar" id="infobar"><div class="turnpill" id="turnpill" aria-live="polite"></div><div class="banner" id="banner"></div><div class="placing" id="placing" hidden></div><div class="clock" id="clock" hidden></div><div class="setupstrip" id="setupstrip" hidden></div></div><main class="board-wrap" id="wrap">
+    <aside class="players" id="players" aria-label="Players"></aside>
+    <section class="center"><div class="infobar" id="infobar" role="region" aria-label="Game status"><div class="turnpill" id="turnpill" aria-live="polite"></div><div class="banner" id="banner" role="status" aria-live="polite"></div><div class="placing" id="placing" hidden></div><div class="clock" id="clock" hidden></div><div class="setupstrip" id="setupstrip" hidden></div></div><main class="board-wrap" id="wrap">
       <svg id="board" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMin meet">
         <rect x="-5000" y="-5000" width="10000" height="10000" fill="#0a68a6"/>
         <g id="static"></g><g id="dyn"></g><g id="fx" pointer-events="none"></g>
       </svg>
       <div class="dice" id="dice"></div><div class="awards" id="awards"></div><div class="offer" id="offer"></div><div class="awaybar" id="awaybar" hidden></div><div class="reconnect" id="reconnect" hidden></div><div class="tradewin" id="tradewin" hidden></div>
       <div class="modechip" id="modechip" hidden></div>
-      <button class="zoomreset" id="zoomreset" title="Reset zoom: fit the whole map" aria-label="Reset zoom"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4,9 V4 H9 M20,9 V4 H15 M4,15 V20 H9 M20,15 V20 H15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Fit</span></button>
+      <button class="zoomreset" id="zoomreset" title="Reset zoom: fit the whole map" aria-label="Fit: reset zoom"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4,9 V4 H9 M20,9 V4 H15 M4,15 V20 H9 M20,15 V20 H15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Fit</span></button>
       <button class="infobtn" id="infobtn" title="Game info: costs, points, bank and settings" aria-label="Game info">i</button>
       <div class="gbtns"><button class="gbtn drawer-toggle" id="logbtn" title="Messages" aria-label="Messages">${GB_ICON.msg}</button><button class="gbtn" id="quit" title="Leave game" aria-label="Leave game">${GB_ICON.exit}</button></div>
       <div class="zoom"><button class="btn rollbtn" id="rollbtn" hidden aria-label="Roll the dice">${twoDice()}<span>Roll</span></button><button class="btn endbtn" id="endbtn" hidden aria-label="End your turn">${endIcon()}<span>End</span></button></div>
     </main></section>
-    <aside class="side" id="side"><div class="panel"><h3>Ship's log</h3><div class="mutebar" id="mutebar" hidden></div><div class="log" id="log"></div>
+    <aside class="side" id="side" aria-label="Ship's log and chat"><div class="panel"><h3>Ship's log</h3><div class="mutebar" id="mutebar" hidden></div><div class="log" id="log"></div>
       <form class="chatform" id="chat"><input id="chatin" maxlength="200" placeholder="Message the table" autocomplete="off" aria-label="Chat message"><button class="btn small">Send</button></form><p class="chatnote" id="chatnote" hidden>Public room: be kind and no links. Tap ⋯ on a message to report or mute.</p></div></aside>
-    <footer class="dock"><div class="hand" id="hand"></div><div class="actions" id="actions"></div></footer>
+    <footer class="dock" aria-label="Your cards"><div class="hand" id="hand"></div><div class="actions" id="actions"></div></footer>
   </div>`;
   S.shellReady = true;
   $('#static').innerHTML = staticLayer(S.board);
   applyVB();
   setupPanZoom($('#board'));
+  $('#board').addEventListener('keydown', e => {   // Enter or Space on a glowing spot does what a tap does
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const t = e.target.closest && e.target.closest('[data-v],[data-e],[data-t],[data-confirm]'); if (!t) return;
+    e.preventDefault(); S.kbd = true; onBoardTap(t);
+  });
+  $('#board').addEventListener('pointerdown', () => { S.kbd = false; });
   $('#logbtn').onclick = () => $('#side').classList.toggle('open');
   $('#zoomreset').onclick = resetZoom;
   $('#infobtn').onclick = () => openInfo();
@@ -792,6 +804,7 @@ function drawDyn() {
   s += `<use href="#ic-robber" x="${rt.x * U - 58}" y="${rt.y * U - 42}" width="44" height="44" pointer-events="none" filter="url(#f-shadow)"/>`;
   s += highlights();
   $('#dyn').innerHTML = s;
+  if (S.kbd && S.pick) { const ok = $('#dyn [data-confirm]'); if (ok) ok.focus({ preventScroll: true }); }   // a keyboard user carries on from the green tick
 }
 // Barn-style pieces: lighter left roof, darker right roof, ridge line, dark door, thick dark outline.
 function houseSvg(col, halo) {
@@ -812,19 +825,19 @@ function pieceGlyph(kind, col) { return kind === 'city' ? cityHouseSvg(col) : ho
 function highlights() {
   const mode = currentMode(); if (!mode) { S.pick = null; return ''; }
   const V = S.board.vertices, st = S.state, col = st.players[me()].color;
-  if (mode === 'robber') return (st.robberOptions || []).map(id => S.board.tiles[id]).map(t => `<g class="rspot" data-t="${t.id}" transform="translate(${t.x * U} ${t.y * U})"><polygon points="${ART.HEX}" transform="scale(.92)" fill="transparent"/><circle class="rdisc" r="39"/><circle class="rdot" r="8"/></g>`).join('');
+  if (mode === 'robber') return (st.robberOptions || []).map(id => S.board.tiles[id]).map(t => `<g class="rspot" data-t="${t.id}" tabindex="0" role="button" aria-label="Move the robber to the ${TERRAIN_LABEL[t.terrain]} tile${t.number ? ' ' + t.number : ''}" transform="translate(${t.x * U} ${t.y * U})"><polygon points="${ART.HEX}" transform="scale(.92)" fill="transparent"/><circle class="rdisc" r="39"/><circle class="rdot" r="8"/></g>`).join('');
   const sets = modeSets(mode);
   const kinds = Object.values(sets).filter(a => a.length).length, big = kinds === 1, mixed = kinds > 1;
   const road = e => {
     const [a, c] = S.board.edges[e].v.map(i => V[i]), mx = (a.x + c.x) / 2 * U, my = (a.y + c.y) / 2 * U, ang = Math.atan2(c.y - a.y, c.x - a.x) * 180 / Math.PI;
     const r = big ? 20 : 12, xy = `x1="${a.x * U}" y1="${a.y * U}" x2="${c.x * U}" y2="${c.y * U}"`;
-    return `<line class="ehit" ${xy} data-e="${e}"/><g class="hs" data-e="${e}" transform="translate(${mx} ${my})"><circle class="hc" r="${r}"/><circle r="${big ? 25 : 21}" fill="transparent"/>`
+    return `<line class="ehit" ${xy} data-e="${e}"/><g class="hs" data-e="${e}" tabindex="0" role="button" aria-label="Build a road here" transform="translate(${mx} ${my})"><circle class="hc" r="${r}"/><circle r="${big ? 25 : 21}" fill="transparent"/>`
       + (mixed ? `<g class="hg" transform="rotate(${ang}) scale(${r / 27})"><rect x="-17" y="-6" width="34" height="12" rx="6" fill="${col}" stroke="#1b1b1b" stroke-width="2.5"/></g>` : '') + `</g>`;
   };
-  const heistSpot = v => `<g class="hs heist" data-v="${v}" data-k="heist" transform="translate(${V[v].x * U} ${V[v].y * U})"><circle class="hc heist" r="${big ? 38 : 32}"/><circle r="${big ? 38 : 32}" fill="transparent"/></g>`;
+  const heistSpot = v => `<g class="hs heist" data-v="${v}" data-k="heist" tabindex="0" role="button" aria-label="Steal this settlement" transform="translate(${V[v].x * U} ${V[v].y * U})"><circle class="hc heist" r="${big ? 38 : 32}"/><circle r="${big ? 38 : 32}" fill="transparent"/></g>`;
   const spot = (v, kind) => {
     const city = kind === 'city', r = city ? (big ? 26 : 17) : (big ? 22 : 14), hit = city ? (big ? 32 : 23) : (big ? 27 : 23), k = city ? r / 30 : r / 22;
-    return `<g class="hs" data-v="${v}" data-k="${kind}" transform="translate(${V[v].x * U} ${V[v].y * U})"><circle class="hc ${city ? 'city' : ''}" r="${r}"/><circle r="${hit}" fill="transparent"/>`
+    return `<g class="hs" data-v="${v}" data-k="${kind}" tabindex="0" role="button" aria-label="${city ? 'Upgrade to a city here' : 'Build a settlement here'}" transform="translate(${V[v].x * U} ${V[v].y * U})"><circle class="hc ${city ? 'city' : ''}" r="${r}"/><circle r="${hit}" fill="transparent"/>`
       + (mixed ? `<g class="hg" transform="scale(${k}) translate(0 ${city ? 6 : 2})">${pieceGlyph(city ? 'city' : 'settle', col)}</g>` : '') + `</g>`;
   };
   const P = S.pick, not = (type, id) => !(P && P.type === type && P.id === id);
@@ -850,7 +863,7 @@ function okButton(P) {
   else { x = V[P.id].x * U; y = V[P.id].y * U; gap = P.type === 'city' ? 76 : 70; }
   const by = y - gap < b.y + 26 ? y + gap : y - gap;   // below the spot when there is no room above it
   const label = P.type === 'heist' ? 'Steal it' : 'Place it';
-  return `<g class="okbtn" data-confirm="1" role="button" aria-label="${label}" transform="translate(${x} ${by})"><rect x="-34" y="-34" width="68" height="68" fill="transparent"/>`
+  return `<g class="okbtn" data-confirm="1" tabindex="0" role="button" aria-label="${label}" transform="translate(${x} ${by})"><rect x="-34" y="-34" width="68" height="68" fill="transparent"/>`
     + `<g class="okin"><rect x="-21" y="-21" width="42" height="42" rx="9" fill="#1f9d45" stroke="#fff" stroke-width="4" filter="url(#f-shadow)"/>`
     + `<path d="M-10,1 L-3,8 L11,-7" stroke="#fff" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g></g>`;
 }
@@ -1102,13 +1115,19 @@ function resetZoom() {
   const [W, H, T] = boardPx(svg); S.vb = W && H ? fitVB(W, H) : { ...S.base }; S.boardPx = [W, H, T]; applyVB();
 }
 // Always-visible "whose turn is it" pill with the move timer inside it.
+// A player's colour, darkened until white text on it reads well (contrast of at least 4.6).
+function readableOn(hex) {
+  const lum = h => { const c = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255).map(v => (v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4)); return .2126 * c[0] + .7152 * c[1] + .0722 * c[2]; };
+  let c = hex; for (let i = 0; i < 12 && 1.05 / (lum(c) + .05) < 4.6; i++) c = shade(c, -.1);
+  return c;
+}
 function drawTurnPill() {
   const el = $('#turnpill'); if (!el) return;
   const st = S.state, p = st.players[st.turn];
   if (st.phase === 'ended') { el.className = 'turnpill'; el.innerHTML = '<b>Game over</b>'; return; }
   const mine = st.turn === me(), pend = st.subphase === 'discard' ? st.pendingDiscards : st.subphase === 'diamond' ? st.pendingDiamond : null;
   const label = pend && pend[me()] ? (st.subphase === 'diamond' ? 'Your pick' : 'Discard now') : mine ? 'Your turn' : `${esc(p.name)}'s turn`;
-  el.style.setProperty('--pc', p.color);
+  el.style.setProperty('--pc', p.color); el.style.setProperty('--pillbg', readableOn(p.color));
   el.className = 'turnpill' + (mine ? ' mine' : '');
   el.innerHTML = `<span class="tp-dot"></span><b>${label}</b><span class="tm"></span>`;
   tickClock();
@@ -1214,7 +1233,7 @@ function openDevPile() {
 }
 
 // Costs for the rules page: one chip per resource, "×2" instead of the same icon twice.
-function costChips(c) { return `<span class="costchips">${Object.entries(c).map(([k, n]) => `<span class="costchip" title="${n} ${RES_LABEL[k]}" aria-label="${n} ${RES_LABEL[k]}">${icon(k)}${n > 1 ? `<b>×${n}</b>` : ''}</span>`).join('')}</span>`; }
+function costChips(c) { return `<span class="costchips">${Object.entries(c).map(([k, n]) => `<span class="costchip" role="img" title="${n} ${RES_LABEL[k]}" aria-label="${n} ${RES_LABEL[k]}">${icon(k)}${n > 1 ? `<b>×${n}</b>` : ''}</span>`).join('')}</span>`; }
 function costIcons(c) { return `<span class="cost">${Object.entries(c).flatMap(([k, n]) => Array(n).fill(icon(k))).join('')}</span>`; }
 function drawActions() {
   const st = S.state, box = $('#actions'), mine = myTurn(), P = st.players[me()];
@@ -1299,15 +1318,38 @@ function drawOffer() {
 
 // ---------- modals ----------
 function openModal(kind, html, bind) {
-  S.modal = kind;
   const layer = $('#modal');
+  if (layer.hidden) S.modalOpener = document.activeElement;   // focus goes back here when the window closes
+  S.modal = kind;
   layer.innerHTML = `<div class="modal" role="dialog" aria-modal="true">${html}</div>`;
   layer.hidden = false;
+  const dlg = layer.firstElementChild, head = dlg.querySelector('h3, h2');
+  dlg.querySelectorAll('h4').forEach(h => h.setAttribute('aria-level', '3'));
+  if (head) { head.id = 'modaltitle'; head.setAttribute('aria-level', '2'); dlg.setAttribute('aria-labelledby', 'modaltitle'); } else dlg.setAttribute('aria-label', kind);
+  $('#app').inert = true;   // everything behind the window is out of reach of the keyboard and of screen readers
   layer.onclick = e => { if (e.target === layer && !['discard', 'consent'].includes(kind)) closeModal(); };
   if (bind) bind(layer);
   const f = layer.querySelector('button, input'); if (f) f.focus({ preventScroll: true });
 }
-function closeModal() { S.modal = null; const l = $('#modal'); l.hidden = true; l.innerHTML = ''; }
+function closeModal() {
+  S.modal = null; const l = $('#modal'); l.hidden = true; l.innerHTML = '';
+  $('#app').inert = false;
+  const o = S.modalOpener; S.modalOpener = null;
+  if (o && o.isConnected && o.focus) o.focus({ preventScroll: true });
+}
+// Escape closes a window (not the ones that must be answered); Tab stays inside the open window.
+document.addEventListener('keydown', e => {
+  if (!S.modal) return;
+  if (e.key === 'Escape' && !['discard', 'consent'].includes(S.modal)) { e.preventDefault(); closeModal(); return; }
+  if (e.key !== 'Tab') return;
+  const dlg = $('#modal .modal'); if (!dlg) return;
+  const items = [...dlg.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')].filter(x => !x.disabled && x.offsetParent !== null);
+  if (!items.length) return;
+  const first = items[0], last = items[items.length - 1];
+  if (!dlg.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+  else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+});
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && S.modal && !['discard', 'consent'].includes(S.modal)) closeModal(); });
 
 function syncModals() {
@@ -1406,7 +1448,7 @@ function drawTrade() {
   if (!ok) { if (S.tw) S.tw = null; el.hidden = true; el.innerHTML = ''; return; }
   const T = S.tw, hand = st.me.res, ratios = st.me.ratios, col = st.players[me()].color;
   RES.forEach(k => { T.give[k] = Math.min(T.give[k] || 0, hand[k]); T.get[k] = T.get[k] || 0; });
-  const card = (k, n, attr, extra = '', dim = false) => `<button class="tcard ${k} ${dim ? 'dim' : ''}" ${attr} aria-label="${RES_LABEL[k]}">${icon(k)}${n ? `<b class="cnt">${n}</b>` : ''}${extra}</button>`;
+  const card = (k, n, attr, extra = '', dim = false) => `<button class="tcard ${k} ${dim ? 'dim' : ''}" ${attr} aria-label="${RES_LABEL[k]}${n || extra ? ', ' + [n, extra.replace(/<[^>]*>/g, '')].filter(Boolean).join(' ') : ''}">${icon(k)}${n ? `<b class="cnt">${n}</b>` : ''} ${extra}</button>`;
   const want = RES.map(k => card(k, T.get[k], `data-want="${k}"`)).join('');
   const getSel = RES.filter(k => T.get[k]).map(k => card(k, T.get[k], `data-unwant="${k}"`)).join('') || '<span class="thint">Tap what you want above</span>';
   const giveSel = RES.filter(k => T.give[k]).map(k => card(k, T.give[k], `data-ungive="${k}"`)).join('') || '<span class="thint">Tap cards in your hand to offer</span>';

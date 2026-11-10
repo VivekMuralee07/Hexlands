@@ -49,7 +49,7 @@ Requires Node.js 18 or newer.
 
 ```bash
 npm start            # http://localhost:3000
-npm test             # 141 tests, including full simulated games, matchmaking and the leaderboard (about a minute)
+npm test             # 158 tests: rules, full simulated games, matchmaking, leaderboard, saved games, and browser screen tests (about a minute)
 ```
 
 GitHub Actions (`.github/workflows/test.yml`) runs `npm test` on Node 22 for every pull request and every push to `main`, and a newer push cancels an older run. To stop a failing run from being merged, turn on branch protection for `main` (Settings, Branches) and require the **npm test** check.
@@ -316,6 +316,20 @@ You need: a Play Console developer account (one-time fee, identity checks), the 
 - IP addresses are used in memory for rate limits (up to an hour) and are in the hosting provider's logs. If Google's form treats that as collected data, declare it too rather than leave it out.
 
 **Updates:** the app loads your live site, so a normal `git push` updates the game for everyone. Upload a new `.aab` only when you change the package itself (icon, name, colors, target level). If the Console says the target API level is too old, build a fresh package in PWABuilder, keep the same signing key, and upload it as a new version.
+
+## Accessibility
+
+What is in place (checked by `ui.test.js`, which runs the axe rules for WCAG 2.2 AA on the home screen, the Leaderboard window, the game, the trade window and the info window, and fails on any finding):
+
+- **Zoom:** the page can be pinch-zoomed (the old `maximum-scale=1` was removed). Inputs are at least 16px on phones, so the browser does not zoom by itself when one is focused.
+- **Keyboard:** Tab reaches every button. On the map, every glowing spot is a button (Tab to it, Enter or Space to choose; focus then moves to the green tick, and Enter builds). The robber's targets work the same way. A yellow outline shows where the focus is.
+- **Windows:** each has a name (its title), Escape closes it (except the ones that must be answered), Tab stays inside, the page behind is made inert, and focus goes back to the button that opened it.
+- **Screen readers:** the status line under the top bar and the turn pill are announced when they change; the dice result has a text label; icons and buttons have names that start with the text shown on them (for example "Fit: reset zoom"); the page has one main area and a level 1 heading on every screen.
+- **Contrast:** text meets 4.5:1. The "your turn" pill darkens the player's colour until white text reads well.
+- **Touch targets:** the main controls on phones are about 42 to 44px; nothing is below 30px.
+- **Motion:** with "reduce motion" switched on in the device, animations are cut to almost nothing.
+
+Not covered: the map is read as a picture, so a screen-reader user hears what can be chosen but not the layout of the board; the animated tutorial and the map editor have not been checked; and this has been tested with automatic rules and a keyboard, not yet with a real screen reader (VoiceOver or TalkBack). A pass with one of those is the next step.
 
 ## Project layout
 

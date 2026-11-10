@@ -129,3 +129,75 @@ test('game on a phone: after rolling, tapping a resource card opens the trade wi
   assert.deepEqual(errors, []);
   await ctx.close();
 });
+
+// ---------- accessibility ----------
+let axePath = null;
+try { axePath = require.resolve('axe-core/axe.min.js'); } catch { /* axe-core is not installed */ }
+// Runs axe (WCAG 2.2 AA and best practice rules) on the page and returns what it found. The pop-up messages are left out: they fade in and out, so their colours are never steady.
+async function axeFindings(page) {
+  await page.addScriptTag({ path: axePath });
+  return page.evaluate(async () => (await axe.run({ exclude: [['#toasts']] }, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'] } }))
+    .violations.map(v => v.id + ' (' + v.impact + '): ' + v.nodes.slice(0, 3).map(n => n.target.join(' ')).join(' ; ')));
+}
+
+test('accessibility: no automatic (axe) findings on the home screen, the Leaderboard and info windows, the game, and the trade window', async t => {
+  if (why) return t.skip(why);
+  if (!axePath) return t.skip('axe-core is not installed');
+  let { ctx, page } = await openPage(null);
+  await page.waitForSelector('#rankings');
+  assert.deepEqual(await axeFindings(page), [], 'home');
+  await page.click('#rankings'); await page.waitForFunction(() => !/Loading/.test(document.querySelector('.lblist').textContent));
+  assert.deepEqual(await axeFindings(page), [], 'Leaderboard window');
+  await ctx.close();
+
+  const c = await startGame();
+  ({ ctx, page } = await openPage(c));
+  const g = await toMainPhase(c);
+  g.forcedDice = [[2, 3]];
+  await page.waitForSelector('#rollbtn:not([hidden])');
+  assert.deepEqual(await axeFindings(page), [], 'game, your turn');
+  await page.click('#rollbtn', { force: true }); await page.waitForSelector('#endbtn:not([hidden])');
+  await page.click('#hand .card >> nth=0', { force: true }); await page.waitForSelector('#tradewin:not([hidden])');
+  assert.deepEqual(await axeFindings(page), [], 'trade window');
+  await page.click('#tw-close'); await page.click('#infobtn'); await page.waitForSelector('.infowin');
+  assert.deepEqual(await axeFindings(page), [], 'game info window');
+  await ctx.close();
+});
+
+test('accessibility: windows have a name, Escape closes them, focus stays inside and goes back, the page behind is inert', async t => {
+  if (why) return t.skip(why);
+  const { ctx, page } = await openPage(null);
+  await page.waitForSelector('#rankings');
+  await page.focus('#rankings'); await page.keyboard.press('Enter');
+  await page.waitForSelector('#modal .modal');
+  assert.equal(await page.getAttribute('#modal .modal', 'aria-labelledby'), 'modaltitle');
+  assert.match(await page.textContent('#modaltitle'), /Leaderboard/);
+  assert.equal(await page.evaluate(() => document.querySelector('#app').inert), true, 'the page behind the window is inert');
+  for (let i = 0; i < 12; i++) { await page.keyboard.press('Tab'); assert.equal(await page.evaluate(() => !!document.activeElement.closest('#modal')), true, 'Tab stays in the window'); }
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('#modal', { state: 'hidden' });
+  assert.equal(await page.evaluate(() => document.querySelector('#app').inert), false);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'rankings', 'focus goes back to the button that opened the window');
+  await ctx.close();
+});
+
+test('accessibility: the map can be played with the keyboard (Tab to a glowing corner, Enter, then Enter on the tick)', async t => {
+  if (why) return t.skip(why);
+  const c = await startGame();
+  const g = rooms.get(c.code).game, me = g.indexOf(c.token);
+  const { ctx, page } = await openPage(c);
+  const until = Date.now() + 15000;
+  while (!(g.phase === 'setup' && g.turn === me) && Date.now() < until) await new Promise(r => setTimeout(r, 40));
+  await page.waitForSelector('#board .hs[data-v]');
+  assert.equal(await page.getAttribute('#board .hs[data-v]', 'role'), 'button');
+  assert.match(await page.getAttribute('#board .hs[data-v]', 'aria-label'), /settlement/i);
+  await page.focus('#board .hs[data-v]');
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('#board .okbtn');
+  assert.equal(await page.evaluate(() => !!document.activeElement.closest('.okbtn')), true, 'focus moves to the confirm tick');
+  await page.keyboard.press('Enter');
+  const placed = Date.now() + 5000;
+  while (!Object.values(g.buildings).some(b => b.p === me) && Date.now() < placed) await new Promise(r => setTimeout(r, 40));
+  assert.ok(Object.values(g.buildings).some(b => b.p === me), 'the settlement was built by keyboard alone');
+  await ctx.close();
+});
