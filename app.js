@@ -530,6 +530,18 @@ function leaveToHome(msg) {
   history.replaceState(null, '', '/'); S.joinCode = ''; go('home');
 }
 
+// ---------- invite a friend ----------
+// One tap opens the phone's share sheet (WhatsApp, Messages, ...) with the link and the room code. Without a share sheet, the link is copied.
+async function shareInvite(code) {
+  const url = `${location.origin}/room/${code}`;
+  if (navigator.share) {
+    try { await navigator.share({ title: 'Join my Hexlands game', text: `Join my Hexlands game! Room code: ${code}`, url }); }
+    catch (e) { if (e && e.name !== 'AbortError') toast('Could not open sharing'); }
+    return;
+  }
+  try { await navigator.clipboard.writeText(url); toast('Invite link copied'); } catch { prompt('Copy this link', url); }
+}
+
 // ---------- alerts when it is your move ----------
 // A sound and a short buzz (switchable in the info window) whenever it becomes your move: your turn, your setup placement, or cards to discard.
 // If the app is in the background, the tab title flashes too, until you come back or the move passes.
@@ -639,7 +651,7 @@ function renderLobby(app) {
         <div><div class="muted">Room code</div><div class="room-code">${st.code}</div></div>
         ${host ? `<div class="row"><button class="btn small" id="togpub">${pub ? 'Make private' : 'Make public'}</button><span class="muted grow" style="font-size:.88em">${pub ? 'Anyone can find this room in the public list.' : 'Only people with the code can join.'}</span></div>` : ''}
         <button class="btn tutlink" id="tutlobby">▶ How to play: animated tutorial</button>
-        <div class="row"><button class="btn" id="copy">Copy invite link</button>${navigator.share ? '<button class="btn" id="share">Share</button>' : ''}</div>
+        <div class="row"><button class="btn${navigator.share ? '' : ' primary'}" id="copy">Copy invite link</button>${navigator.share ? '<button class="btn primary" id="share">Share invite</button>' : ''}</div>
         <ul class="plist">${st.players.map((p, i) => `<li>${swatch(p, i, me, host)}${p.bot ? icon('bot', 'boticon') : ''}<b class="grow">${esc(p.name)}${i === me ? ' (you)' : ''}</b>${p.host ? '<span class="badge">Host</span>' : ''}${needReady && !p.bot ? `<span class="badge rdy${p.ready ? ' on' : ''}">${p.ready ? 'Ready' : 'Not ready'}</span>` : ''}
           ${p.bot ? (host ? `<select class="lvlsel" data-seat="${i}" aria-label="Difficulty for ${esc(p.name)}">${['easy', 'medium', 'hard'].map(l => `<option value="${l}" ${p.bot === l ? 'selected' : ''}>${LEVEL_LABEL[l]}</option>`).join('')}</select><button class="btn small icon-only" data-rmbot="${i}" aria-label="Remove ${esc(p.name)}">✕</button>` : botTag(p)) : `<span class="dot ${p.connected ? '' : 'off'}" title="${p.connected ? 'Connected' : 'Offline'}"></span>`}</li>`).join('')}</ul>
         ${host && st.players.length < 4 ? `<div class="botadd"><b>Add a bot</b>
@@ -665,7 +677,7 @@ function renderLobby(app) {
   $('#info').onclick = openRules;
   $('#leave').onclick = async () => { try { await post('/api/leave', S.session); } catch {} leaveToHome(); };
   $('#copy').onclick = async () => { try { await navigator.clipboard.writeText(link); toast('Invite link copied'); } catch { prompt('Copy this link', link); } };
-  if ($('#share')) $('#share').onclick = () => navigator.share({ title: 'Join my Hexlands game', text: `Room code ${st.code}`, url: link }).catch(() => {});
+  if ($('#share')) $('#share').onclick = () => shareInvite(st.code);
   if ($('#start')) $('#start').onclick = () => act({ type: 'start' });
   if ($('#tutlobby')) $('#tutlobby').onclick = () => openTutorial();
   if ($('#ready')) $('#ready').onclick = () => act({ type: 'ready', value: !imReady });
@@ -1235,7 +1247,7 @@ function openInfo(tab = 'costs') {
       ? `<div class="devlist">${row('settlement', 'Settlement', 'Each one you keep.', pts(1))}${row('city', 'City', 'Replaces a settlement and pays double.', pts(2))}${row('road', 'Longest Road', `5 or more roads in a row, and you must beat the holder. ${lr ? `Held by ${name(lr.p)} (${lr.len} roads).` : 'Nobody has it yet.'}`, pts(2))}${row('knight', 'Largest Army', `3 or more Knights played, and you must beat the holder. ${la ? `Held by ${name(la.p)} (${la.size} Knights).` : 'Nobody has it yet.'}`, pts(2))}${row('vp', 'Victory Point card', 'Hidden until the game ends.', pts(1))}</div>`
       : `<div class="setlist">${set('Points to win', 'The first player to reach this on their own turn wins.', `${st.vpTarget} points`)}${set('Discard limit', 'On a 7, anyone holding more cards than this must discard.', `${o.discardLimit} cards`)}${set('Cards discarded', 'How many they must give up.', o.discardMode === 'four' ? '4 cards' : 'Half the hand, rounded down')}${set('Move timer', 'Time for each step of a turn.', o.timer ? `${o.timer} seconds` : 'Off')}${set('Friendly robber', 'The robber stays off players with 2 points or fewer.', o.friendlyRobber ? 'On' : 'Off')}${set('Balanced dice', 'Dice come from a deck of 36 rolls, with recent totals and 7s balanced between players.', o.balancedDice ? 'On' : 'Off')}</div>`;
   const code = st.code || (S.session && S.session.code) || '', pubRoom = !!(st.net && st.net.public), invite = `${location.origin}/room/${code}`;
-  const roomStrip = `<div class="roomstrip"><div><small>Room code</small><b class="rcode" id="rcode">${esc(code)}</b></div><span class="vischip${pubRoom ? ' pub' : ''}">${pubRoom ? 'Public' : 'Private'}</span><div class="rbtns"><button class="btn small" id="icopy">Copy code</button><button class="btn small" id="ilink">Copy invite link</button></div></div>`;
+  const roomStrip = `<div class="roomstrip"><div><small>Room code</small><b class="rcode" id="rcode">${esc(code)}</b></div><span class="vischip${pubRoom ? ' pub' : ''}">${pubRoom ? 'Public' : 'Private'}</span><div class="rbtns"><button class="btn small" id="icopy">Copy code</button><button class="btn small" id="ilink">Copy invite link</button>${navigator.share ? '<button class="btn small primary" id="ishare">Share invite</button>' : ''}</div></div>`;
   const bankLine = `<div class="bank" style="margin:.5rem 0;width:100%;box-sizing:border-box;justify-content:center" title="Cards left in the bank, and development cards left in the pile">${RES.map(k => `<span class="bk ${k}" title="${RES_LABEL[k]} left in the bank">${icon(k)}<b>${st.bank[k]}</b></span>`).join('')}<button class="bk dev" data-pile2 title="Development cards left in the pile. Tap to see what is still unseen.">${icon('dev')}<b>${st.devLeft}</b></button></div>`;
   const vibRow = navigator.vibrate ? `<div class="vibrow"><span><b>Vibrate on my turn</b><small>A short buzz when it is your move</small></span><button class="switch" role="switch" id="vibsw" aria-checked="${vibrateOn()}" aria-label="Vibrate when it is my turn"></button></div>` : '';
   openModal('info', `<div class="infowin"><h3>Game info</h3>${roomStrip}${bankLine}${vibRow}<div class="maptabs" role="tablist">${tabs.map(([k, l]) => `<button class="maptab" role="tab" data-itab="${k}" aria-selected="${tab === k}">${l}</button>`).join('')}</div>${body}<div class="foot"><button class="btn primary" id="iclose">Close</button></div></div>`, layer => {
@@ -1245,6 +1257,7 @@ function openInfo(tab = 'costs') {
     const copy =async (text, done) => { try { await navigator.clipboard.writeText(text); toast(done); } catch { prompt('Copy this', text); } };
     $('#icopy').onclick = () => copy(code, 'Room code copied');
     $('#ilink').onclick = () => copy(invite, 'Invite link copied');
+    if ($('#ishare')) $('#ishare').onclick = () => shareInvite(code);
     layer.querySelectorAll('[data-itab]').forEach(b => b.onclick = () => openInfo(b.dataset.itab));
   });
 }

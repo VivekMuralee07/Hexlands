@@ -162,6 +162,32 @@ test('turn alert: a buzz when it becomes your move, a flashing tab title while h
   await ctx.close();
 });
 
+test('share invite: one tap in the waiting room and in the game info window hands the link and code to the share sheet', async t => {
+  if (why) return t.skip(why);
+  const c = await post('/api/create', { name: 'Hana', map: { preset: 'classic' }, seed: 5, vpTarget: 10 });
+  const ctx = await browser.newContext(PHONE);
+  await ctx.addInitScript(([s, terms]) => {
+    localStorage.setItem('hexlands.terms', JSON.stringify(terms));
+    localStorage.setItem('hexlands.session', JSON.stringify(s));
+    window.__shared = [];
+    navigator.share = async d => { window.__shared.push(d); };
+  }, [c, legal.VERSION]);
+  const page = await ctx.newPage();
+  const errors = []; page.on('pageerror', e => errors.push(e.message));
+  await page.goto(base + '/room/' + c.code);
+  await page.click('#share');
+  const sent = await page.evaluate(() => window.__shared[0]);
+  assert.equal(sent.url, `${base}/room/${c.code}`);
+  assert.ok(sent.text.includes(c.code), 'the message carries the room code');
+  await post('/api/action', { code: c.code, token: c.token, action: { type: 'fillBots', level: 'easy' } });
+  await post('/api/action', { code: c.code, token: c.token, action: { type: 'start' } });
+  await page.click('#infobtn', { force: true });
+  await page.click('#ishare');
+  assert.equal(await page.evaluate(() => window.__shared.length), 2);
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
 // ---------- accessibility ----------
 let axePath = null;
 try { axePath = require.resolve('axe-core/axe.min.js'); } catch { /* axe-core is not installed */ }
