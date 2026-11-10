@@ -226,7 +226,7 @@ Each list has a **period** (all time, last 30 days, last 7 days) and a **sort** 
 
 - **Totals** for the list: games played, players ranked, turns per game, and the most played map.
 - **Your standing**: rank, win rate ring, wins and games, a win streak, and your last five results (green won, red lost).
-- **A podium** for the top three, then everyone else with their record (for example 5W 7L) and a win-rate bar.
+- **One ranked list**: every player is a row with a rank (gold, silver and bronze badges for the top three), initial avatar, record (for example 5W 7L), the figure the list is sorted by (wins, win rate or average points) and a win-rate bar. Under "All games", the bots are rows of the same kind (one per difficulty).
 - **Details on tap** for any player: win rate, average points, best game, current win streak, favourite map, when they last played, and their last five results.
 
 A player is listed in a tab only after **3 finished games** in it (`LEADERBOARD_MIN_GAMES` changes that number). Until then they see "Play N more games to be ranked". Two listed players with the same name get a short tag from their ID (for example `Ann #a3f9`), so nobody can pass as someone else. A game against bots or one person alone never counts as ranked. Databases made by the first version are upgraded automatically when the server starts; their old games count under Multiplayer and All games.
