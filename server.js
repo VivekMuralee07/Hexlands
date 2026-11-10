@@ -395,6 +395,11 @@ async function api(req, res, url) {
     if (!s) return sendJson(res, 200, { enabled: false, mode, period, sort, rows: [], me: null, bots: null, total: 0, minGames: MIN_GAMES(), summary: { games: 0, players: 0, avgTurns: 0, topMap: '' } });
     return sendJson(res, 200, { enabled: true, ...s.top({ mode, period, sort, limit: 25, pid: cleanPid(q('pid')), minGames: MIN_GAMES() }) });
   }
+  if (req.method === 'GET' && route === '/api/recent') {   // ?pid= : that player's last 10 finished games
+    guard(req, 'board', 60, 60e3, 'Too many requests. Please wait a moment.');
+    const store = getStore(), pid = cleanPid(url.searchParams.get('pid'));
+    return sendJson(res, 200, { enabled: !!store, games: store && pid ? store.recent(pid, 10) : [] });
+  }
   if (req.method === 'GET' && route === '/api/maps') return sendJson(res, 200, { maps: maps.presetList() });
 
   if (req.method === 'GET' && route === '/api/preview') {

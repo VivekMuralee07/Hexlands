@@ -2142,6 +2142,27 @@ const lbBots = b => {
     <p class="muted lbnote">Win rate is wins out of bot seats played. With four players everyone wins about 25% by chance.</p></section>`;
 };
 
+// Your last ten finished games, newest first. Only games from this device count (the same anonymous player ID as the leaderboard).
+const recentRow = g => {
+  const who = g.won ? 'You won' : g.left ? 'You left' : g.winner ? `${g.winner.bot ? LEVEL_LABEL[g.winner.bot] + ' bot' : esc(g.winner.name)} won with ${g.winner.vp}` : 'Finished';
+  const others = g.humans > 1 ? `${g.humans} players` : g.seats > 1 ? 'vs bots' : 'solo';
+  return `<li class="recent ${g.won ? 'won' : 'lost'}"><span class="rbadge" aria-hidden="true">${g.won ? '★' : '·'}</span><div class="rmain"><b>${g.won ? 'Won' : 'Lost'} <span class="rvp">${g.vp} of ${g.target} points</span></b>
+    <span>${who}</span><span class="rmeta">${esc(g.map || 'Map')} · ${g.turns} turns · ${others}${g.ranked ? ' · Ranked' : ''}</span></div><time class="rwhen">${timeAgo(g.at)}</time></li>`;
+};
+function openRecent() {
+  openModal('recent', `<div class="infowin lbwin"><h3>My recent games</h3><div id="recentbody" aria-live="polite"><p class="muted">Loading…</p></div>
+    <div class="foot"><button class="btn" id="rcback">Leaderboard</button><button class="btn primary" id="rcclose">Close</button></div></div>`, () => {
+    $('#rcclose').onclick = closeModal;
+    $('#rcback').onclick = () => { closeModal(); openRankings(); };
+    fetch('/api/recent?pid=' + encodeURIComponent(playerId())).then(r => r.json()).then(j => {
+      const box = $('#recentbody'); if (!box || S.modal !== 'recent') return;
+      box.innerHTML = !j.enabled ? '<p class="muted">Game history is not switched on for this server yet.</p>'
+        : !j.games.length ? '<p class="muted">No finished games yet. Finish a game and it shows up here.</p>'
+        : `<ul class="recentlist">${j.games.map(recentRow).join('')}</ul>`;
+    }).catch(() => { const box = $('#recentbody'); if (box) box.innerHTML = '<p class="muted">Could not load your games. Try again in a moment.</p>'; });
+  });
+}
+
 function openRankings(mode) {
   if (mode) LB.mode = mode;
   const sel = (id, label, opts, cur) => `<label class="lbsel"><span>${label}</span><select id="${id}">${opts.map(([v, t]) => `<option value="${v}"${v === cur ? ' selected' : ''}>${t}</option>`).join('')}</select></label>`;
@@ -2149,8 +2170,9 @@ function openRankings(mode) {
     <div class="maptabs" role="tablist">${LB_MODES.map(([k, l]) => `<button class="maptab" role="tab" data-lbtab="${k}" aria-selected="${LB.mode === k}">${l}</button>`).join('')}</div>
     <p class="muted lbabout" id="lbabout">${LB_ABOUT[LB.mode]}</p>
     <div class="lbfilters">${sel('lbperiod', 'Period', [['all', 'All time'], ['30', 'Last 30 days'], ['7', 'Last 7 days']], LB.period)}${sel('lbsort', 'Sort by', [['wins', 'Most wins'], ['rate', 'Win rate'], ['vp', 'Average points']], LB.sort)}</div>
-    <div class="lbbody" id="lbbody" aria-live="polite"><p class="muted">Loading…</p></div><div class="foot"><button class="btn primary" id="lbclose">Close</button></div></div>`, layer => {
+    <div class="lbbody" id="lbbody" aria-live="polite"><p class="muted">Loading…</p></div><div class="foot"><button class="btn" id="lbrecent">My recent games</button><button class="btn primary" id="lbclose">Close</button></div></div>`, layer => {
     $('#lbclose').onclick = closeModal;
+    $('#lbrecent').onclick = () => { closeModal(); openRecent(); };
     layer.querySelectorAll('[data-lbtab]').forEach(b => b.onclick = () => {
       LB.mode = b.dataset.lbtab; $('#lbabout').textContent = LB_ABOUT[LB.mode];
       layer.querySelectorAll('[data-lbtab]').forEach(x => x.setAttribute('aria-selected', String(x === b))); load();

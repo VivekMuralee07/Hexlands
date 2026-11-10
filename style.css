@@ -1382,3 +1382,15 @@ button, [role=button], a, label, select, summary { touch-action: manipulation; }
 /* turn alerts: the vibrate switch in the info window */
 .vibrow { display: flex; align-items: center; justify-content: space-between; gap: .8rem; padding: .5rem .7rem; margin: .4rem 0; border-radius: 12px; background: rgba(255, 255, 255, .08); }
 .vibrow span { display: grid; } .vibrow small { color: #cfe0f5; font-size: .78rem; }
+
+/* recent games */
+.recentlist { list-style: none; margin: 0; padding: 0; display: grid; gap: .45rem; }
+.recent { display: flex; align-items: center; gap: .7rem; padding: .55rem .7rem; border-radius: 12px; background: rgba(255, 255, 255, .08); border-left: 4px solid #7a8ea8; }
+.recent.won { border-left-color: #4cd964; background: rgba(76, 217, 100, .12); }
+.recent.lost { border-left-color: #ff6b6b; }
+.recent .rbadge { font-size: 1.3rem; width: 1.6rem; text-align: center; color: #ffd23f; }
+.recent .rmain { display: grid; flex: 1; min-width: 0; gap: .1rem; }
+.recent .rmain > span { font-size: .85rem; color: #d6e4f7; }
+.recent .rmeta { color: #cfe0f5; font-size: .78rem; }
+.recent .rvp { font-weight: 500; color: #e8f1fb; }
+.recent .rwhen { font-size: .78rem; color: #cfe0f5; white-space: nowrap; }

@@ -118,6 +118,22 @@ function makeStore(db) {
         return id;
       } catch (e) { try { db.exec('ROLLBACK'); } catch { /* already closed */ } throw e; }
     },
+    // The last games one player took part in, newest first: when, map, their points, whether they won, who won, and whether it counted as ranked.
+    recent(pid, limit = 10) {
+      const rows = db.prepare(`SELECT g.id AS id, g.finished_at AS at, g.map AS map, g.turns AS turns, g.vp_target AS target, g.seats AS seats, g.humans AS humans, g.ranked AS ranked,
+          r.vp AS vp, r.won AS won, r.left_game AS left
+        FROM results r JOIN games g ON g.id = r.game_id WHERE r.pid = ? ORDER BY g.finished_at DESC, g.id DESC LIMIT ?`).all(String(pid), Math.max(1, Math.min(50, limit | 0)));
+      const winnerHuman = db.prepare('SELECT p.name AS name, r.vp AS vp FROM results r JOIN players p ON p.pid = r.pid WHERE r.game_id = ? AND r.won = 1 LIMIT 1');
+      const winnerBot = db.prepare('SELECT level, vp FROM bot_results WHERE game_id = ? AND won = 1 LIMIT 1');
+      return rows.map(r => {
+        const h = winnerHuman.get(r.id), b = h ? null : winnerBot.get(r.id);
+        return {
+          id: Number(r.id), at: Number(r.at), map: r.map || '', turns: Number(r.turns), target: Number(r.target), seats: Number(r.seats), humans: Number(r.humans),
+          ranked: !!r.ranked, vp: Number(r.vp), won: !!r.won, left: !!r.left,
+          winner: h ? { name: h.name, vp: Number(h.vp), bot: null } : b ? { name: 'A bot', vp: Number(b.vp), bot: b.level } : null,
+        };
+      });
+    },
     // The leaderboard for one mode ('ranked' | 'multi' | 'all') and period ('all' | '30' | '7' days), sorted by 'wins' (default), 'rate' or 'vp'.
     // Only players with at least `minGames` games there are ranked. Each row has the record, win rate, average and best points, the last
     // five results (newest first), the current win streak, the favourite map and when they last played. `me` is the caller's own row when they

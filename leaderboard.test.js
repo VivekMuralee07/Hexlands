@@ -278,3 +278,29 @@ test('server: bot seats are saved with their difficulty; a person\'s seat that a
   g2.phase = 'ended'; g2.winner = 0; recordFinished(r2);
   assert.equal((await get('/api/leaderboard?mode=all')).body.bots.levels.find(l => l.level === 'medium').games, med, 'his seat is not counted as a medium bot');
 });
+
+test('db: recent games list your last games newest first, with who won (a person or a bot)', { skip }, () => {
+  const s = dbmod.open(':memory:');
+  s.recordGame({ ...game('R1', [{ pid: A, name: 'Ann', seat: 0, vp: 10, won: true }, { pid: B, name: 'Bob', seat: 1, vp: 6, won: false }]), finishedAt: 1000, pub: true });
+  s.recordGame({ ...game('R2', [{ pid: A, name: 'Ann', seat: 0, vp: 7, won: false }]), finishedAt: 2000, bots: [{ seat: 1, level: 'hard', vp: 10, won: true }] });
+  s.recordGame({ ...game('R3', [{ pid: B, name: 'Bob', seat: 0, vp: 10, won: true }]), finishedAt: 3000 });
+  const r = s.recent(A);
+  assert.equal(r.length, 2, 'only games Ann played in');
+  assert.deepEqual(r.map(g => [g.won, g.vp]), [[false, 7], [true, 10]], 'newest first');
+  assert.deepEqual(r[0].winner, { name: 'A bot', vp: 10, bot: 'hard' });
+  assert.deepEqual(r[1].winner, { name: 'Ann', vp: 10, bot: null });
+  assert.equal(r[1].humans, 2); assert.equal(r[1].map, 'Classic Island');
+  assert.deepEqual(s.recent('f'.repeat(32)), [], 'someone who never played has none');
+  s.close();
+});
+
+test('GET /api/recent: returns your games, and nothing without a valid player ID', { skip }, async () => {
+  {
+    const D = '9'.repeat(32);
+    getStore().recordGame(game('RX', [{ pid: D, name: 'Dee', seat: 0, vp: 10, won: true }, { pid: B, name: 'Bob', seat: 1, vp: 5, won: false }]));
+    const mine = await (await fetch(base + '/api/recent?pid=' + D)).json();
+    assert.equal(mine.enabled, true); assert.equal(mine.games.length, 1); assert.equal(mine.games[0].won, true);
+    assert.deepEqual((await (await fetch(base + '/api/recent?pid=nope')).json()).games, []);
+    assert.deepEqual((await (await fetch(base + '/api/recent')).json()).games, []);
+  }
+});

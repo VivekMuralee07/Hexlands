@@ -302,6 +302,13 @@ test('leaderboard window with players: summary, your standing, podium, details o
   assert.equal(await page.locator('.lbbots').count(), 1);
   if (axePath) assert.deepEqual(await axeFindings(page), [], 'the All games list with the bot statistics');
   await page.click('[data-lbtab="ranked"]'); await page.waitForFunction(() => !document.querySelector('.lbbots'));
+  await page.click('#lbrecent');   // my recent games
+  await page.waitForSelector('.recentlist .recent');
+  assert.equal(await page.locator('.recent').count(), 10, 'the last ten games');
+  assert.match(await page.textContent('.recent >> nth=0'), /Won\s*10 of 10 points[\s\S]*You won[\s\S]*Japan · 66 turns · vs bots/, 'newest first: the game against bots');
+  assert.equal(await page.locator('.recent.lost').count() + await page.locator('.recent.won').count(), 10);
+  if (axePath) assert.deepEqual(await axeFindings(page), [], 'the recent games window');
+  await page.click('#rcback'); await page.waitForSelector('#lbbody');
   assert.deepEqual(errors, []);
   await ctx.close();
 });
