@@ -1116,6 +1116,7 @@ span.pcardx { cursor: default; }
 
 /* ---- shared pieces (all screen sizes) ---- */
 .pstrip { display: none; }
+.infobtn { display: none; }
 
 .turnpill { display: inline-flex; align-items: center; gap: .4rem; padding: .18rem .7rem .18rem .45rem; border-radius: 999px; background: rgba(255, 255, 255, .1);
   border: 2px solid var(--pc, #fff); color: #fff; font-weight: 800; font-size: .92rem; white-space: nowrap; line-height: 1.2; }
@@ -1180,10 +1181,9 @@ span.pcardx { cursor: default; }
   .players[data-np="2"] .pc-pieces .ic, .players[data-np="3"] .pc-pieces .ic { width: 12px; height: 12px; }
   .pchip.turn { border-color: #fff; background: color-mix(in srgb, var(--pc) 45%, #0b2a5a); box-shadow: 0 0 10px var(--pc); }
   .pchip.me .pc-nm { text-decoration: underline; text-underline-offset: 2px; }
-  /* bank counts and the info button: one slim row */
-  .players > .bank { display: flex; flex-wrap: nowrap; width: auto; gap: 3px; margin: 0 .3rem .25rem; padding: 2px 3px; justify-content: center; }
-  .players > .bank .bk { font-size: 11px; padding: 1px 3px 1px 2px; } .players > .bank .bk .ic { width: 14px; height: 14px; }
-  .players > .bank .ibtn { width: 20px; height: 20px; font-size: 12px; }
+  /* the bank row is gone from the top; its counts are in the info window, opened by the round "i" button on the map */
+  .players > .bank { display: none; }
+  .pstrip { padding-bottom: .3rem; }
 
   /* 2. status line: turn pill, timer, then the hint */
   .infobar { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .45rem; padding: .3rem .5rem; }
@@ -1201,7 +1201,10 @@ span.pcardx { cursor: default; }
   .gbtns { top: .5rem; left: .5rem; bottom: auto; right: auto; flex-direction: row; }
   .zoomreset { top: .5rem; right: .5rem; }
   .modechip { top: 3.3rem; max-width: calc(100% - 1.2rem); }
-  .zoom { right: .6rem; bottom: .6rem; z-index: 14; }
+  .zoom { right: .6rem; bottom: 3.5rem; z-index: 14; }
+  .infobtn { display: grid; place-items: center; position: absolute; right: .75rem; bottom: .6rem; z-index: 14; width: 38px; height: 38px; padding: 0; border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, .7); background: rgba(5, 25, 34, .88); color: #fff; font: italic 800 1.2rem Georgia, serif; cursor: pointer; box-shadow: 0 4px 12px rgba(0, 0, 0, .4); }
+  .board-wrap.trading .infobtn { display: none; }
   .zoom .rollbtn, .zoom .endbtn { min-width: 68px; min-height: 68px; border-radius: 50%; box-shadow: 0 8px 20px rgba(0, 0, 0, .5); }
   .zoom .rollbtn svg { width: 46px; height: 36px; }
   .zoom .endbtn svg { width: 38px; height: 38px; }
