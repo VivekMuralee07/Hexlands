@@ -1116,7 +1116,6 @@ span.pcardx { cursor: default; }
 
 /* ---- shared pieces (all screen sizes) ---- */
 .pstrip { display: none; }
-.pdrawer { display: contents; }
 
 .turnpill { display: inline-flex; align-items: center; gap: .4rem; padding: .18rem .7rem .18rem .45rem; border-radius: 999px; background: rgba(255, 255, 255, .1);
   border: 2px solid var(--pc, #fff); color: #fff; font-weight: 800; font-size: .92rem; white-space: nowrap; line-height: 1.2; }
@@ -1152,24 +1151,39 @@ span.pcardx { cursor: default; }
 @media (max-width: 760px) {
   .game { grid-template-rows: auto minmax(0, 1fr) auto; grid-template-areas: "players" "board" "dock"; }
 
-  /* 1. compact player strip; the full cards live in a drawer that opens over the map */
+  /* 1. one compact strip with every player's key numbers; the big player cards are hidden, so nothing drops down over the map */
   .players { position: relative; z-index: 60; display: block; padding: 0; overflow: visible; background: rgba(5, 30, 66, .96); border-bottom: 1px solid rgba(255, 255, 255, .14); }
-  .pstrip { display: flex; gap: .25rem; padding: .25rem .35rem; align-items: stretch; }
-  .pchip { flex: 1 1 0; min-width: 0; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: .15rem .3rem; padding: .2rem .35rem; border-radius: 9px; border: 2px solid transparent;
-    background: rgba(255, 255, 255, .08); color: #fff; font: 700 .76rem/1.1 inherit; cursor: pointer; border-left: 5px solid var(--pc, #fff); text-align: left; }
-  .pchip .pc-dot { display: none; }
-  .pchip .pc-nm { grid-column: 1 / -1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .pchip .pc-vp { min-width: 1.35rem; height: 1.35rem; display: grid; place-items: center; border-radius: 50%; background: #fff; color: #10202c; font-weight: 900; }
-  .pchip .pc-cards { display: inline-flex; align-items: center; gap: 2px; opacity: .9; } .pchip .pc-cards .ic { width: 12px; height: 12px; }
+  .players > .pcard { display: none; }
+  .pstrip { display: flex; gap: .25rem; padding: .25rem .3rem; align-items: stretch; }
+  .pchip { flex: 1 1 0; min-width: 0; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; padding: 3px 4px 3px 6px; border-radius: 9px; border: 2px solid transparent; position: relative;
+    background: rgba(255, 255, 255, .08); color: #fff; font: 700 11px/1.15 inherit; border-left: 5px solid var(--pc, #fff); text-align: left; }
+  .pc-top { display: flex; align-items: center; gap: 3px; min-width: 0; }
+  .pc-top .dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: #6cf08a; } .pc-top .dot.off { background: #888; }
+  .pc-top .boticon { flex: none; width: 11px; height: 11px; }
+  .pc-nm { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pc-vp { flex: none; min-width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: #fff; color: #10202c; font-weight: 900; font-size: 11px; }
+  .pc-vp.lead { background: #ffd23f; box-shadow: 0 0 0 2px #fff; }
+  .pc-stats, .pc-pieces { display: flex; gap: 2px; justify-content: space-between; min-width: 0; }
+  .pc-s { display: inline-flex; align-items: center; gap: 1px; padding: 0 1px; border-radius: 4px; font-size: 10px; } .pc-s b { font-weight: 800; }
+  .pc-s .ic { width: 10px; height: 10px; }
+  .pc-s .dv { font-style: normal; font-weight: 900; font-size: 8px; width: 9px; height: 12px; display: grid; place-items: center; border-radius: 2px; background: #2f6fe0; color: #fff; }
+  .pc-s.gold { background: #ffd23f; color: #2a1a00; }
+  .pc-pieces { font-size: 9px; opacity: .9; } .pc-pieces .pp { display: inline-flex; align-items: center; gap: 1px; } .pc-pieces .ic { width: 9px; height: 9px; } .pc-pieces b { color: #fff; font-weight: 700; }
+  .pc-note { font-size: 9px; color: #ffd23f; }
+  .pc-skip { justify-self: start; min-height: 20px; padding: 0 6px; border-radius: 6px; border: 0; background: #ffd23f; color: #2a1a00; font: 800 10px inherit; }
+  /* two or three players get more room, so the numbers can be bigger */
+  .players[data-np="2"] .pchip, .players[data-np="3"] .pchip { font-size: 13px; gap: 3px; padding: 4px 6px 4px 8px; }
+  .players[data-np="2"] .pc-vp, .players[data-np="3"] .pc-vp { min-width: 22px; height: 22px; font-size: 13px; }
+  .players[data-np="2"] .pc-s, .players[data-np="3"] .pc-s { font-size: 12px; }
+  .players[data-np="2"] .pc-s .ic, .players[data-np="3"] .pc-s .ic { width: 13px; height: 13px; }
+  .players[data-np="2"] .pc-pieces, .players[data-np="3"] .pc-pieces { font-size: 11px; }
+  .players[data-np="2"] .pc-pieces .ic, .players[data-np="3"] .pc-pieces .ic { width: 12px; height: 12px; }
   .pchip.turn { border-color: #fff; background: color-mix(in srgb, var(--pc) 45%, #0b2a5a); box-shadow: 0 0 10px var(--pc); }
   .pchip.me .pc-nm { text-decoration: underline; text-underline-offset: 2px; }
-  .pchip.pmore { flex: 0 0 30px; justify-content: center; border-left-width: 2px; border-color: rgba(255, 255, 255, .25); font-size: .8rem; }
-  .pdrawer { display: none; position: absolute; top: 100%; left: 0; right: 0; max-height: min(70vh, 30rem); overflow-y: auto; overscroll-behavior: contain;
-    padding: 1.4rem .4rem .5rem; gap: 1.5rem .4rem; grid-template-columns: repeat(2, minmax(0, 1fr)); background: rgba(5, 30, 66, .98);
-    border-bottom: 2px solid rgba(255, 255, 255, .25); box-shadow: 0 14px 24px rgba(0, 0, 0, .5); }
-  .players.open .pdrawer { display: grid; }
-  .pdrawer .bank { grid-column: 1 / -1; flex-wrap: wrap; }
-  .pdrawer .pcard .badges { display: flex; }
+  /* bank counts and the info button: one slim row */
+  .players > .bank { display: flex; flex-wrap: nowrap; width: auto; gap: 3px; margin: 0 .3rem .25rem; padding: 2px 3px; justify-content: center; }
+  .players > .bank .bk { font-size: 11px; padding: 1px 3px 1px 2px; } .players > .bank .bk .ic { width: 14px; height: 14px; }
+  .players > .bank .ibtn { width: 20px; height: 20px; font-size: 12px; }
 
   /* 2. status line: turn pill, timer, then the hint */
   .infobar { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .45rem; padding: .3rem .5rem; }
