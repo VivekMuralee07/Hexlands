@@ -3,7 +3,7 @@ process.env.BOT_DELAY_MS = '0';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('http');
-const { server, rooms, reports, limits } = require('./server');
+const { server, rooms, reports, limits, tick } = require('./server');
 limits.enabled = false;   // these tests share one address; matchmaking.test.js covers the limits
 
 let base;
@@ -425,4 +425,75 @@ test('spectators: can watch a running game with the room code, see public inform
   assert.equal(second.status, 200, 'a finished game can be watched too');
   for (let i = 0; i < 12; i++) await post('/api/watch', { code });
   assert.equal((await post('/api/watch', { code })).status, 400, 'at most ten watchers');
+});
+
+// Starts a game: Hana (and Ivo, if asked) with bots in the other seats.
+async function runningGame({ pub = false, two = false } = {}) {
+  const c = await post('/api/create', { name: 'Hana', map: { preset: 'classic' }, seed: 3, public: pub });
+  const code = c.body.code, hana = { token: c.body.token };
+  const act = (who, action) => post('/api/action', { code, token: who.token, action });
+  let ivo = null;
+  if (two) { const j = await post('/api/join', { code, name: 'Ivo' }); ivo = { token: j.body.token }; }
+  await act(hana, { type: 'fillBots', level: 'easy' });
+  for (const w of [hana, ivo].filter(Boolean)) await act(w, { type: 'ready', value: true });   // two people (or a public room) must tap ready
+  const started = await act(hana, { type: 'start' });
+  assert.equal(started.status, 200, JSON.stringify(started.body));
+  return { code, hana, ivo, act };
+}
+const leave = (code, who) => post('/api/leave', { code, token: who.token });
+
+test('watching: running public games are listed with a Watch route; private and waiting rooms are not', async () => {
+  const pubGame = await runningGame({ pub: true });
+  const privGame = await runningGame({ pub: false });
+  const waiting = await post('/api/create', { name: 'Zed', map: { preset: 'classic' }, public: true });
+  { const g = rooms.get(pubGame.code).game; g.players[g.indexOf(pubGame.hana.token)].connected = true; }   // a person is online
+  const list = (await (await fetch(base + '/api/rooms')).json());
+  const codes = (list.live || []).map(r => r.code);
+  assert.ok(codes.includes(pubGame.code), 'the running public game is listed');
+  assert.ok(!codes.includes(privGame.code), 'a private game is never listed');
+  assert.ok(!codes.includes(waiting.body.code), 'a waiting room is not a live game');
+  const card = list.live.find(r => r.code === pubGame.code);
+  assert.equal(card.players.length, 4); assert.ok(card.players.some(p => p.name === 'Hana' && !p.bot)); assert.equal(typeof card.turn, 'number');
+  assert.equal((await post('/api/watch', { code: card.code })).status, 200, 'the code from the list is all a spectator needs');
+  { const g = rooms.get(pubGame.code).game; g.players[g.indexOf(pubGame.hana.token)].connected = false; }   // nobody is really there: stop the bots
+});
+
+test('the last person leaving ends the game: no bot takes over, and spectators are told and cannot watch any more', async () => {
+  const gm = await runningGame({ pub: false });
+  const w = await post('/api/watch', { code: gm.code });
+  const spec = listen(gm.code, w.body.token);
+  await spec.waitFor(s => s.spectator);
+  await leave(gm.code, gm.hana);
+  assert.equal(rooms.has(gm.code), false, 'the room is gone');
+  await new Promise(r => setTimeout(r, 100));
+  assert.deepEqual(spec.events.filter(e => e.type === 'closed').map(e => e.data.reason), ['empty'], 'the spectator was told why');
+  assert.equal((await post('/api/watch', { code: gm.code })).status, 400, 'nothing left to watch');
+  spec.close();
+});
+
+test('two people: the first to leave is replaced by a bot, the last to leave ends the game', async () => {
+  const gm = await runningGame({ two: true });
+  await leave(gm.code, gm.ivo);
+  const g = rooms.get(gm.code).game;
+  assert.equal(g.players[g.indexOf(gm.ivo.token)].takenOver, 'left', 'a bot plays Ivo\'s seat while Hana is still there');
+  await leave(gm.code, gm.hana);
+  assert.equal(rooms.has(gm.code), false, 'Hana was the last: the game ends instead of bots playing on');
+});
+
+test('a finished game ends when the last person leaves, and someone who left is not in the rematch', async () => {
+  const gm = await runningGame({ two: true });
+  const g = rooms.get(gm.code).game;
+  g.phase = 'ended'; g.winner = 0;
+  await leave(gm.code, gm.ivo);
+  assert.equal(rooms.has(gm.code), true, 'Hana is still on the results');
+  assert.equal((await gm.act(gm.hana, { type: 'rematch' })).status, 200);
+  assert.deepEqual(rooms.get(gm.code).game.players.filter(p => !p.bot).map(p => p.name), ['Hana'], 'Ivo left, so he is not in the new waiting room');
+});
+
+test('everybody offline for ten minutes ends a running game, with no bot taking over', async () => {
+  const gm = await runningGame({ two: true });
+  tick(Date.now() + 5 * 60e3);
+  assert.equal(rooms.has(gm.code), true, 'five minutes away: still there, they may come back');
+  tick(Date.now() + 11 * 60e3);
+  assert.equal(rooms.has(gm.code), false, 'nobody came back: the game is over');
 });

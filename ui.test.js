@@ -274,6 +274,29 @@ test('end of game: the results window names who stood out (highlights), ties sho
   await ctx.close();
 });
 
+test('watching without a code: the Public rooms window lists live public games with Watch, and when the last player leaves the spectator is sent home with a message', async t => {
+  if (why) return t.skip(why);
+  const c = await post('/api/create', { name: 'Hana', map: { preset: 'classic' }, seed: 5, vpTarget: 10, public: true });
+  await post('/api/action', { code: c.code, token: c.token, action: { type: 'fillBots', level: 'easy' } });
+  await post('/api/action', { code: c.code, token: c.token, action: { type: 'ready', value: true } });
+  const player = await openPage(c);   // Hana is online, so the room counts as live
+  await post('/api/action', { code: c.code, token: c.token, action: { type: 'start' } });
+  const { ctx, page, errors } = await openPage(null);
+  await page.click('#browse');
+  await page.waitForSelector(`[data-watch="${c.code}"]`, { timeout: 10000 });
+  assert.match(await page.textContent('#roomlist'), /Live games you can watch[\s\S]*Hana/, 'the live game names its players');
+  if (axePath) assert.deepEqual(await axeFindings(page), [], 'the Public rooms window with a live game');
+  await page.click(`[data-watch="${c.code}"]`);
+  await page.waitForSelector('.game.spectator #board', { timeout: 10000 });
+  await post('/api/leave', { code: c.code, token: c.token });   // the only person leaves: the game ends
+  await page.waitForSelector('.notice', { timeout: 10000 });
+  assert.match(await page.textContent('.notice'), /all the players left/);
+  assert.equal(await page.locator('.game').count(), 0, 'the game is no longer shown');
+  assert.equal(rooms.has(c.code), false);
+  assert.deepEqual(errors, []);
+  await ctx.close(); await player.ctx.close();
+});
+
 // ---------- accessibility ----------
 let axePath = null;
 try { axePath = require.resolve('axe-core/axe.min.js'); } catch { /* axe-core is not installed */ }
