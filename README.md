@@ -49,7 +49,7 @@ Requires Node.js 18 or newer.
 
 ```bash
 npm start            # http://localhost:3000
-npm test             # 182 tests: rules, full simulated games, matchmaking, leaderboard, saved games, and browser screen tests (about a minute)
+npm test             # 192 tests: rules, full simulated games, matchmaking, leaderboard, saved games, and browser screen tests (about a minute)
 ```
 
 GitHub Actions (`.github/workflows/test.yml`) runs `npm test` on Node 22 for every pull request and every push to `main`, and a newer push cancels an older run. To stop a failing run from being merged, turn on branch protection for `main` (Settings, Branches) and require the **npm test** check.
@@ -108,6 +108,9 @@ Anyone in the world can open your Render address. Public play is **on by default
 - **Turn alerts:** when it becomes your move (your turn, your setup placement, or cards you must discard or pick) you get a sound, a short buzz (phones; the switch is in the info window) and, if the app is in the background, a flashing tab title until you come back.
 - **Watching a game (spectators):** running **public** games are listed under **Public rooms → Live games you can watch**, one tap on **Watch** and no code is needed. Private games can be watched by typing their room code on the home screen and tapping **Watch**. Watching works once the game has started. A spectator sees the board, the log and every player's public information (card counts, points, pieces; never the hands), cannot act or chat, and is not a seat. Up to 10 watchers per room; the players see "N watching" in the info window. A watched game does not count in your record. `POST /api/watch {code}` returns a spectator token; the same `/api/events` stream carries a spectator view.
 - **End-of-game highlights:** the results window names who stood out (final margin, biggest harvest, busiest trader, boldest thief, lucky sevens, knights, roads, development cards); ties show every name, and categories nobody scored in are left out.
+- **Undo in the opening turns:** a settlement or road placed by mistake during setup can be taken back with the **Undo** button (bottom of the screen) by the player who placed it, until anyone else does anything; for the very last road, until the first roll. Each player has 3 undos per game. Taking back a settlement returns the cards it paid out and covers fog a road had uncovered. Bots never undo.
+- **Counter-offers:** besides Accept and Decline, a player answering a trade offer from another person can tap **Counter** and propose their own cards (it starts as the offer turned around). The person who made the offer sees each counter under their offer and can **Accept** it (the trade happens at once) or say **No thanks**. One counter per player; a new offer clears them. Bots make and take offers as before but do not take counters, so the Counter button is hidden on a bot's offer.
+- **Progress to the points target:** every player has a thin bar under their name showing points out of the target. It turns amber and pulses when two points or fewer are missing, and a message tells everyone when someone gets that close (only public points count; hidden victory cards are not shown). Longest Road and Largest Army holders keep their gold badges.
 - **Play again:** when a game ends, *Play again* (on the end screen and in the results window) sends everyone who stayed back to the waiting room of the same room: same people, bots, points target and options, a new map of the same kind. Players who left are dropped. The finished game's result was already saved.
 - **Chat in public rooms** is free text, with a basic filter: links are refused, bad words are starred out, six messages per ten seconds. Report and mute work as before.
 

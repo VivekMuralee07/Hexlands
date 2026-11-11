@@ -150,6 +150,8 @@ function placePorts(geo, rng, map) {
   return ports;
 }
 
+const MAX_UNDOS = 3;
+
 class Game {
   constructor({ code, map, vpTarget = 10, rng = Math.random }) {
     this.code = code;
@@ -695,11 +697,38 @@ class Game {
     if (opts.human && this.players[pi].takenOver && !['reclaim', 'chat'].includes(a.type)) fail('A bot is playing for you. Tap Take back control to play again.');
     if (a.type !== 'chat' && a.type !== 'ready') this.players[pi].idle = 0;
     const sigBefore = this.clockSig();
+    const undoable = this.phase === 'setup' && (a.type === 'settle' || a.type === 'road') ? this.captureUndo(pi) : null;
     const out = fn.call(this, pi, a);
+    if (undoable) { undoable.sig = this.clockSig(); this.setupUndo = undoable; }   // the latest placement can be taken back, until something else happens
+    else if (!['chat', 'ready', 'undo'].includes(a.type)) this.setupUndo = null;
     this.checkWin();
-    if (this.clockSig() !== sigBefore || (pi === this.turn && !['chat', 'offer', 'cancelTrade', 'respond'].includes(a.type))) this.clockAt = Date.now();
+    if (this.clockSig() !== sigBefore || (pi === this.turn && !['chat', 'offer', 'cancelTrade', 'respond', 'declineCounter'].includes(a.type))) this.clockAt = Date.now();
     this.version++;
     return out;
+  }
+  // ----- taking back the last setup placement -----
+  // A settlement or road placed by mistake in the opening turns can be taken back, by the player who placed it, until anyone else does anything.
+  // Each player has MAX_UNDOS of them per game. Only what a placement changes is saved: the pieces, the fog, the cards from the bank, whose turn it is.
+  captureUndo(pi) {
+    const copy = o => (o === undefined ? undefined : JSON.parse(JSON.stringify(o)));
+    return { pi, buildings: copy(this.buildings), roads: copy(this.roads), bank: copy(this.bank), revealed: [...this.revealed], setup: copy(this.setup),
+      phase: this.phase, turn: this.turn, turnNumber: this.turnNumber, rolled: this.rolled,
+      players: this.players.map(p => ({ res: copy(p.res), pieces: copy(p.pieces) })) };
+  }
+  do_undo(pi) {
+    const u = this.setupUndo;
+    if (u && u.sig !== this.clockSig()) this.setupUndo = null;   // the game moved on (a timer, say) since that placement
+    if (!u || u.pi !== pi || !this.setupUndo) fail('There is nothing to take back.');   // and someone else's attempt changes nothing
+    const used = this.undoUsed || (this.undoUsed = {});
+    if ((used[pi] || 0) >= MAX_UNDOS) fail('You have used all your undos for this game.');
+    used[pi] = (used[pi] || 0) + 1;
+    this.buildings = u.buildings; this.roads = u.roads; this.bank = u.bank; this.revealed = new Set(u.revealed); this.setup = u.setup;
+    this.phase = u.phase; this.turn = u.turn; this.turnNumber = u.turnNumber; this.rolled = u.rolled;
+    this.players.forEach((p, i) => { p.res = u.players[i].res; p.pieces = u.players[i].pieces; });
+    this.updateLongestRoad();
+    this.boardVersion++;   // fog that was uncovered is covered again
+    this.setupUndo = null;
+    this.addLog(`${this.players[pi].name} took back their last placement.`);
   }
   mustBeTurn(pi) { if (this.turn !== pi) fail('It is not your turn.'); }
   mustMain(pi, { needRoll = true, allowSub = false } = {}) {
@@ -1043,7 +1072,7 @@ class Game {
     if (!total(give) || !total(get)) fail('A trade needs cards on both sides.');
     if (RES.some(k => give[k] && get[k])) fail('Do not offer and ask for the same resource.');
     if (!this.has(pi, give)) fail('You do not have the cards you are offering.');
-    this.trade = { from: pi, give, get, accepted: [], declined: [], id: (this.trade ? this.trade.id : 0) + 1 };
+    this.trade = { from: pi, give, get, accepted: [], declined: [], counters: {}, id: (this.trade ? this.trade.id : 0) + 1 };
     this.addLog(`${this.players[pi].name} proposed a trade.`);
   }
   do_respond(pi, a) {
@@ -1056,13 +1085,37 @@ class Game {
       this.trade.accepted.push(pi);
     } else this.trade.declined.push(pi);
   }
+  // A counter-offer: instead of accepting or declining, a player answers with their own terms. `give` is what the player gives, `get` what they want
+  // in return. The player who made the offer can take it up (confirm with `counter: true`) or turn it down. One counter per player; a new one replaces it.
+  do_counter(pi, a) {
+    const t = this.trade;
+    if (!t || this.phase !== 'main') fail('There is no open trade.');
+    if (pi === t.from) fail('You made this offer.');
+    if (this.players[t.from].bot) fail('Bots do not take counter-offers.');
+    const give = this.cleanRes(a.give), get = this.cleanRes(a.get);
+    if (!total(give) || !total(get)) fail('A counter-offer needs cards on both sides.');
+    if (RES.some(k => give[k] && get[k])) fail('Do not offer and ask for the same resource.');
+    if (!this.has(pi, give)) fail('You do not have the cards you are offering.');
+    if (!this.has(t.from, get)) fail(`${this.players[t.from].name} does not have the cards you are asking for.`);
+    t.accepted = t.accepted.filter(i => i !== pi); t.declined = t.declined.filter(i => i !== pi);
+    (t.counters || (t.counters = {}))[pi] = { give, get };
+    this.addLog(`${this.players[pi].name} made a counter-offer to ${this.players[t.from].name}.`);
+  }
+  do_declineCounter(pi, a) {
+    const t = this.trade;
+    if (!t || t.from !== pi) fail('There is no offer of yours.');
+    const w = a.with;
+    if (!t.counters || !t.counters[w]) fail('That player has no counter-offer.');
+    delete t.counters[w]; if (!t.declined.includes(w)) t.declined.push(w);
+  }
   do_confirm(pi, a) {
     if (!this.trade || this.trade.from !== pi) fail('There is no offer of yours to confirm.');
-    const w = a.with;
-    if (!this.trade.accepted.includes(w)) fail('That player has not accepted.');
-    const { give, get } = this.trade;
+    const w = a.with, c = a.counter ? (this.trade.counters || {})[w] : null;
+    if (a.counter && !c) fail('That player has no counter-offer.');
+    if (!c && !this.trade.accepted.includes(w)) fail('That player has not accepted.');
+    const { give, get } = c ? { give: c.get, get: c.give } : this.trade;   // a counter-offer swaps the sides: what they give is what you get
     if (!this.has(pi, give)) fail('You no longer have the offered cards.');
-    if (!this.has(w, get)) { this.trade.accepted = this.trade.accepted.filter(i => i !== w); fail('That player no longer has the cards.'); }
+    if (!this.has(w, get)) { this.trade.accepted = this.trade.accepted.filter(i => i !== w); if (this.trade.counters) delete this.trade.counters[w]; fail('That player no longer has the cards.'); }
     const A = this.players[pi].res, B = this.players[w].res;
     RES.forEach(k => { A[k] += get[k] - give[k]; B[k] += give[k] - get[k]; });
     this.players[pi].stats.playerTrades++; this.players[w].stats.playerTrades++;
@@ -1151,6 +1204,7 @@ class Game {
     return {
       code: this.code, phase: this.phase, you: pi, version: this.version, vpTarget: this.vpTarget, mapName: this.board.name,
       opts: this.opts, timer: this.timerView(), palette: PALETTE, events: this.events, devPile: { total: this.devTotal, played: this.devPlayedCount }, heist: { cost: COST.heist, need: this.heistNeed() }, cutRoads: this.cutOffRoads(),
+      undo: this.setupUndo && this.setupUndo.pi === pi && this.setupUndo.sig === this.clockSig() && ((this.undoUsed || {})[pi] || 0) < MAX_UNDOS ? { left: MAX_UNDOS - ((this.undoUsed || {})[pi] || 0) } : null,
       robberOptions: this.subphase === 'robber' && pi === this.turn ? this.legalRobberTiles(pi) : null,
       players: this.players.map((p, i) => ({
         name: p.name, host: p.token === this.hostToken, bot: p.bot, takenOver: p.takenOver, ready: p.bot ? true : !!p.ready, stats: p.stats, colorId: p.colorId, color: p.color, colorName: p.colorName, connected: p.connected,
