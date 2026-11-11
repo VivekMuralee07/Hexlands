@@ -397,3 +397,32 @@ test('play again: after a game ends, the same room goes back to its waiting room
   assert.equal(rooms.get(c.body.code).game, n);
   assert.equal((await act(ivo, { type: 'rematch' })).status, 400, 'someone who left cannot act');
 });
+
+test('spectators: can watch a running game with the room code, see public information only, cannot act, and are counted', async () => {
+  const c = await post('/api/create', { name: 'Hana', map: { preset: 'classic' }, seed: 3 });
+  const code = c.body.code, me = { token: c.body.token };
+  const act = (who, action) => post('/api/action', { code, token: who.token, action });
+  assert.equal((await post('/api/watch', { code })).status, 400, 'nothing to watch in the waiting room');
+  assert.equal((await post('/api/watch', { code: 'NOPE1' })).status, 400, 'unknown room');
+  await act(me, { type: 'fillBots', level: 'easy' });
+  await act(me, { type: 'start' });
+  const w = await post('/api/watch', { code });
+  assert.equal(w.status, 200); assert.equal(w.body.spectator, true); assert.match(w.body.token, /^w/);
+  assert.equal((await post('/api/watch', { code, token: w.body.token })).body.token, w.body.token, 'the same token when coming back');
+  const spec = listen(code, w.body.token), player = listen(code, me.token);
+  const st = await spec.waitFor(s => s.spectator);
+  assert.equal(st.you, -1); assert.equal(st.me, null, 'no hand');
+  assert.ok(st.players.every(p => p.res === undefined && typeof p.cards === 'number'), 'card counts, never the cards');
+  assert.ok(spec.last('board'), 'the board is sent');
+  const seen = await player.waitFor(s => s.net && s.net.watching === 1);
+  assert.equal(seen.net.watching, 1, 'players are told someone is watching');
+  assert.equal((await act({ token: w.body.token }, { type: 'chat', text: 'hi' })).status, 400, 'a spectator cannot act or chat');
+  spec.close();
+  await player.waitFor(s => s.net && s.net.watching === 0);
+  player.close();
+  rooms.get(code).game.phase = 'ended';
+  const second = await post('/api/watch', { code });
+  assert.equal(second.status, 200, 'a finished game can be watched too');
+  for (let i = 0; i < 12; i++) await post('/api/watch', { code });
+  assert.equal((await post('/api/watch', { code })).status, 400, 'at most ten watchers');
+});

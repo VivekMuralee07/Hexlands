@@ -209,6 +209,71 @@ test('play again: the end screen offers Play again, and one tap takes everyone b
   await ctx.close();
 });
 
+test('spectator: watching a running game from the home screen shows the board and players, no hand or buttons, no errors, and the players see a watcher', async t => {
+  if (why) return t.skip(why);
+  const c = await startGame();
+  const player = await openPage(c);
+  await toMainPhase(c);
+  const { ctx, page, errors } = await openPage(null);
+  await page.fill('#code', c.code);
+  await page.click('#go-watch');
+  await page.waitForSelector('.game.spectator #board', { timeout: 10000 });
+  assert.equal(await page.locator('#players .pcard').count(), 4, 'all four players are shown');
+  assert.equal(await page.isVisible('#hand'), false, 'no hand to show');
+  assert.equal(await page.isVisible('#rollbtn'), false);
+  assert.equal(await page.isVisible('#chat'), false, 'a spectator cannot chat');
+  assert.ok(await page.isVisible('#watchbar'), 'a bar says you are watching');
+  assert.equal(await page.locator('#board [data-v], #board [data-e]').count(), 0, 'no corner or road to tap');
+  if (axePath) assert.deepEqual(await axeFindings(page), [], 'the spectator view');
+  // the game moves on while the spectator watches: Hana rolls and ends her turn, the bots play
+  const g = rooms.get(c.code).game, me = g.indexOf(c.token);
+  g.forcedDice = [[2, 3]];
+  await player.page.waitForSelector('#rollbtn:not([hidden])', { timeout: 10000 });
+  await player.page.click('#rollbtn', { force: true });
+  await player.page.waitForSelector('#endbtn:not([hidden])');
+  await player.page.click('#endbtn', { force: true });
+  await page.waitForFunction(() => /rolled/i.test(document.querySelector('#log').textContent), null, { timeout: 15000 });
+  await player.page.click('#infobtn', { force: true });
+  await player.page.waitForSelector('#watchchip');
+  assert.match(await player.page.textContent('#watchchip'), /1 watching/);
+  // the game ends: the results open, without Play again
+  g.phase = 'ended'; g.winner = (me + 1) % 4;
+  await post('/api/action', { code: c.code, token: c.token, action: { type: 'chat', text: 'gg' } });
+  await page.waitForSelector('#vclose', { timeout: 10000 });
+  assert.equal(await page.locator('#vagain').count(), 0, 'a spectator cannot start a new game');
+  await page.click('#vclose');
+  assert.equal(await page.locator('#again').count(), 0);
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('hexlands.record') || '{"games":0}').games), 0, 'a watched game is not in your record');
+  await page.click('#home'); await page.waitForSelector('#go-watch');
+  assert.deepEqual(errors, []);
+  assert.deepEqual(player.errors, []);
+  await ctx.close(); await player.ctx.close();
+});
+
+test('end of game: the results window names who stood out (highlights), ties show both names, and nothing sticks out sideways', async t => {
+  if (why) return t.skip(why);
+  const c = await startGame();
+  const { ctx, page, errors } = await openPage(c);
+  const g = rooms.get(c.code).game, me = g.indexOf(c.token);
+  await page.waitForSelector('#hand');
+  g.players.forEach((p, i) => { p.stats = { collected: 10 + i, stolen: 0, lostToRobber: 0, discarded: 0, bankTrades: 2, playerTrades: 1, devBought: 0, devPlayed: 0, sevens: 0, robberOn: 0 }; });
+  g.players[me].stats.stolen = 3; g.players[me].stats.sevens = 2;
+  g.players[(me + 1) % 4].stats.sevens = 2;   // a tie for the sevens
+  g.phase = 'ended'; g.winner = me; g.subphase = null;
+  await post('/api/action', { code: c.code, token: c.token, action: { type: 'chat', text: 'gg' } });
+  await page.waitForSelector('.highlights li', { timeout: 10000 });
+  const text = await page.textContent('.highlights');
+  assert.match(text, /Biggest harvest[\s\S]*13 cards collected/, 'the top harvester');
+  assert.match(text, /Busiest trader[\s\S]*&[\s\S]*3 trades/, 'everyone traded the same: a tie lists all names');
+  assert.match(text, /Boldest thief[\s\S]*Hana · stole 3 cards/);
+  assert.match(text, /Lucky sevens[\s\S]*&[\s\S]*rolled 2 sevens/);
+  assert.doesNotMatch(text, /Robber magnet|Card collector/, 'categories nobody scored in are left out');
+  assert.equal(await page.evaluate(() => { const m = document.querySelector('#modal .modal'); return m.scrollWidth - m.clientWidth; }) <= 1, true, 'nothing sticks out sideways');
+  if (axePath) assert.deepEqual(await axeFindings(page), [], 'the results window with highlights');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
 // ---------- accessibility ----------
 let axePath = null;
 try { axePath = require.resolve('axe-core/axe.min.js'); } catch { /* axe-core is not installed */ }

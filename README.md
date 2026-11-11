@@ -49,7 +49,7 @@ Requires Node.js 18 or newer.
 
 ```bash
 npm start            # http://localhost:3000
-npm test             # 173 tests: rules, full simulated games, matchmaking, leaderboard, saved games, and browser screen tests (about a minute)
+npm test             # 176 tests: rules, full simulated games, matchmaking, leaderboard, saved games, and browser screen tests (about a minute)
 ```
 
 GitHub Actions (`.github/workflows/test.yml`) runs `npm test` on Node 22 for every pull request and every push to `main`, and a newer push cancels an older run. To stop a failing run from being merged, turn on branch protection for `main` (Settings, Branches) and require the **npm test** check.
@@ -105,6 +105,8 @@ Anyone in the world can open your Render address. Public play is **on by default
 - **In-game info button:** shows the room code, Public or Private, buttons to copy the code or the invite link, a **Share invite** button (opens the phone's share sheet, where the browser supports it) and the *Vibrate on my turn* switch.
 - **Share invite:** one tap in the waiting room or the info window hands the link and the room code to WhatsApp, Messages and so on. Where there is no share sheet (most desktop browsers), the link is copied instead.
 - **Turn alerts:** when it becomes your move (your turn, your setup placement, or cards you must discard or pick) you get a sound, a short buzz (phones; the switch is in the info window) and, if the app is in the background, a flashing tab title until you come back.
+- **Watching a game (spectators):** anyone with the room code can type it on the home screen and tap **Watch** once the game has started. A spectator sees the board, the log and every player's public information (card counts, points, pieces; never the hands), cannot act or chat, and is not a seat. Up to 10 watchers per room; the players see "N watching" in the info window. A watched game does not count in your record. `POST /api/watch {code}` returns a spectator token; the same `/api/events` stream carries a spectator view.
+- **End-of-game highlights:** the results window names who stood out (final margin, biggest harvest, busiest trader, boldest thief, lucky sevens, knights, roads, development cards); ties show every name, and categories nobody scored in are left out.
 - **Play again:** when a game ends, *Play again* (on the end screen and in the results window) sends everyone who stayed back to the waiting room of the same room: same people, bots, points target and options, a new map of the same kind. Players who left are dropped. The finished game's result was already saved.
 - **Chat in public rooms** is free text, with a basic filter: links are refused, bad words are starred out, six messages per ten seconds. Report and mute work as before.
 

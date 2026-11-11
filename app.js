@@ -247,7 +247,7 @@ function renderHome(app) {
         ${S.publicOn ? `<button class="btn primary quick" id="quick"><b>Quick play</b><small>Join a public game with players from anywhere</small></button>
         <div class="row trio"><button class="btn grow" id="browse">Public rooms</button><button class="btn grow" id="go-create">Create a room</button><button class="btn grow" id="rankings">Leaderboard</button></div>` : '<div class="row trio"><button class="btn primary grow" id="go-create">Create a room</button><button class="btn grow" id="rankings">Leaderboard</button></div>'}
         <div class="divider">or join a friend</div>
-        <div class="row"><input id="code" class="code-input grow" maxlength="5" placeholder="CODE" autocomplete="off" value="${esc(S.joinCode)}" aria-label="Room code"><button class="btn" id="go-join">Join room</button></div>
+        <div class="row"><input id="code" class="code-input grow" maxlength="5" placeholder="CODE" autocomplete="off" value="${esc(S.joinCode)}" aria-label="Room code"><button class="btn" id="go-join">Join</button><button class="btn" id="go-watch" title="Watch a game that is already running, without a seat">Watch</button></div>
         ${S.session && S.sessionOk === S.session.code ? `<button class="btn primary" id="resume">Reconnect to your game (${esc(S.session.code)})</button>` : ''}
         <p class="legalfoot"><button class="linkbtn" data-legal="terms">Terms of Use</button><span>·</span><button class="linkbtn" data-legal="privacy">Privacy Policy</button></p>
       </div>
@@ -281,6 +281,12 @@ function renderHome(app) {
     } catch (e) { toast(e.message, 'err'); }
   };
   $('#go-join').onclick = join;
+  $('#go-watch').onclick = async () => {   // watch a running game without a seat
+    const code = $('#code').value.trim().toUpperCase();
+    if (code.length !== 5) { toast('Room codes have 5 characters.', 'err'); return; }
+    try { const j = await post('/api/watch', { code }); startSession({ code: j.code, token: j.token, spectator: true }); }
+    catch (e) { toast(e.message, 'err'); }
+  };
   $('#code').addEventListener('keydown', e => { if (e.key === 'Enter') join(); });
   $('#code').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); });
   if ($('#resume')) $('#resume').onclick = () => startSession(S.session);
@@ -481,7 +487,7 @@ function renderEditor(app) {
 
 // ---------- session / networking ----------
 function startSession(sess, soft = false) {   // soft: reconnect without clearing the screen
-  S.session = sess; store.set('session', sess);
+  S.session = sess; if (!sess.spectator) store.set('session', sess);
   history.replaceState(null, '', '/room/' + sess.code);
   if (S.es) S.es.close();
   if (!soft) { S.board = null; S.state = null; S.shellReady = false; S.mode = null; S.boardFor = null; S.evSeq = null; S.logAt = null; S.tw = null; S.link = 'ok'; S.lostAt = 0; }
@@ -503,6 +509,7 @@ function startSession(sess, soft = false) {   // soft: reconnect without clearin
     }
     es.close(); if (S.es === es) S.es = null;
     // The stream was refused. Check whether our seat still exists before giving up.
+    if (sess.spectator) { setTimeout(() => { if (!S.unloading && S.session === sess) leaveToHome('That game has ended or the room has closed.'); }, 300); return; }
     setTimeout(async () => {
       if (S.unloading || S.session !== sess) return;
       try { await post('/api/join', { code: sess.code, token: sess.token, name: S.name }); startSession(sess); }
@@ -542,6 +549,15 @@ async function shareInvite(code) {
   try { await navigator.clipboard.writeText(url); toast('Invite link copied'); } catch { prompt('Copy this link', url); }
 }
 
+// A spectator whose room went back to its waiting room (Play again): wait for the next game to begin.
+function renderWatchWait(app) {
+  app.setAttribute('role', 'main');
+  app.innerHTML = `<div class="home"><div class="card-panel"><h2 role="heading" aria-level="1">Waiting for the next game</h2>
+    <p class="muted">The players are back in the waiting room of ${esc(S.state.code)}. The board appears here as soon as they start.</p>
+    <button class="btn" id="wleave">Stop watching</button></div></div>`;
+  $('#wleave').onclick = () => leaveToHome();
+}
+
 // ---------- alerts when it is your move ----------
 // A sound and a short buzz (switchable in the info window) whenever it becomes your move: your turn, your setup placement, or cards to discard.
 // If the app is in the background, the tab title flashes too, until you come back or the move passes.
@@ -568,7 +584,15 @@ function turnAlert(prev, st) {
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) setAlertTitle(false); });
 
+const NO_HAND = () => ({ res: Object.fromEntries(RES.map(k => [k, 0])), heistBought: true, dev: [], ratios: Object.fromEntries(RES.map(k => [k, 4])) });
+const watching = () => !!(S.session && S.session.spectator);
 function onState(st) {
+  if (st.spectator && !st.me) {   // no seat and no hand: stand-ins, so the drawing code that looks up "my" seat finds an empty one
+    st.me = NO_HAND();
+    st.players[-1] = { name: 'Spectator', host: false, bot: null, color: '#8a9bb0', cards: 0, pieces: { road: 0, settlement: 0, city: 0 }, stats: {} };
+  }
+  if (st.spectator && st.phase === 'lobby') { S.state = st; S.screen = 'watchwait'; if (S.modal) closeModal(); renderWatchWait($('#app')); return; }
+  if (S.screen === 'watchwait') { S.screen = 'game'; S.shellReady = false; S.evSeq = null; S.logAt = null; }
   const prev = S.state; S.state = st; S.stateAt = Date.now(); S.link = 'ok'; S.lostAt = 0;
   if (prev && prev.players[prev.you] && st.players[st.you]) {   // host hand-over, and bots standing in
     if (!prev.players[prev.you].host && st.players[st.you].host) toast('You are now the host');
@@ -593,7 +617,7 @@ function onState(st) {
   }
   if (prev) turnAlert(prev, st);
   if (prev && prev.phase === 'lobby' && st.phase === 'setup') Sound.theme('start');
-  if (prev && prev.phase !== 'ended' && st.phase === 'ended') { Sound.theme('finish'); recordResult(st); setTimeout(openLeaderboard, 700); confetti(); }
+  if (prev && prev.phase !== 'ended' && st.phase === 'ended') { Sound.theme('finish'); if (!st.spectator) recordResult(st); setTimeout(openLeaderboard, 700); confetti(); }
   if (prev) soundReactions(prev, st);
   if (st.turn !== st.you || st.subphase || !st.rolled || (S.mode && !modePossible(S.mode))) S.mode = null;
   renderGame($('#app'));
@@ -706,7 +730,7 @@ const GB_ICON = {
 };
 function buildShell(app) {
   app.removeAttribute('role');
-  app.innerHTML = `<div class="game">
+  app.innerHTML = `<div class="game${watching() ? ' spectator' : ''}">
     <aside class="players" id="players" aria-label="Players"></aside>
     <section class="center"><div class="infobar" id="infobar" role="region" aria-label="Game status"><div class="turnpill" id="turnpill" aria-live="polite"></div><div class="banner" id="banner" role="status" aria-live="polite"></div><div class="placing" id="placing" hidden></div><div class="clock" id="clock" hidden></div><div class="setupstrip" id="setupstrip" hidden></div></div><main class="board-wrap" id="wrap">
       <svg id="board" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMin meet">
@@ -722,7 +746,7 @@ function buildShell(app) {
     </main></section>
     <aside class="side" id="side" aria-label="Ship's log and chat"><div class="panel"><h3>Ship's log</h3><div class="mutebar" id="mutebar" hidden></div><div class="log" id="log"></div>
       <form class="chatform" id="chat"><input id="chatin" maxlength="200" placeholder="Message the table" autocomplete="off" aria-label="Chat message"><button class="btn small">Send</button></form><p class="chatnote" id="chatnote" hidden>Public room: be kind and no links. Tap ⋯ on a message to report or mute.</p></div></aside>
-    <footer class="dock" aria-label="Your cards"><div class="hand" id="hand"></div><div class="actions" id="actions"></div></footer>
+    <footer class="dock" aria-label="${watching() ? 'Watching' : 'Your cards'}"><div class="hand" id="hand"></div><div class="actions" id="actions"></div>${watching() ? '<div class="watchbar" id="watchbar"><span>You are watching. You see what every player sees.</span><button class="btn small" id="stopwatch">Stop watching</button></div>' : ''}</footer>
   </div>`;
   S.shellReady = true;
   $('#static').innerHTML = staticLayer(S.board);
@@ -738,7 +762,9 @@ function buildShell(app) {
   $('#zoomreset').onclick = resetZoom;
   $('#infobtn').onclick = () => openInfo();
   bindSoundButtons();
+  if ($('#stopwatch')) $('#stopwatch').onclick = () => leaveToHome();
   $('#quit').onclick = async () => {
+    if (watching()) return leaveToHome();
     const running = S.state.phase !== 'ended';
     if (!confirm(running ? 'Leave this game? A bot will take your seat for the rest of the game, and you will not be able to come back.' : 'Leave this game?')) return;
     if (running) { try { await post('/api/leave', S.session); } catch {} }   // the server hands your seat to a bot
@@ -1247,7 +1273,7 @@ function openInfo(tab = 'costs') {
       ? `<div class="devlist">${row('settlement', 'Settlement', 'Each one you keep.', pts(1))}${row('city', 'City', 'Replaces a settlement and pays double.', pts(2))}${row('road', 'Longest Road', `5 or more roads in a row, and you must beat the holder. ${lr ? `Held by ${name(lr.p)} (${lr.len} roads).` : 'Nobody has it yet.'}`, pts(2))}${row('knight', 'Largest Army', `3 or more Knights played, and you must beat the holder. ${la ? `Held by ${name(la.p)} (${la.size} Knights).` : 'Nobody has it yet.'}`, pts(2))}${row('vp', 'Victory Point card', 'Hidden until the game ends.', pts(1))}</div>`
       : `<div class="setlist">${set('Points to win', 'The first player to reach this on their own turn wins.', `${st.vpTarget} points`)}${set('Discard limit', 'On a 7, anyone holding more cards than this must discard.', `${o.discardLimit} cards`)}${set('Cards discarded', 'How many they must give up.', o.discardMode === 'four' ? '4 cards' : 'Half the hand, rounded down')}${set('Move timer', 'Time for each step of a turn.', o.timer ? `${o.timer} seconds` : 'Off')}${set('Friendly robber', 'The robber stays off players with 2 points or fewer.', o.friendlyRobber ? 'On' : 'Off')}${set('Balanced dice', 'Dice come from a deck of 36 rolls, with recent totals and 7s balanced between players.', o.balancedDice ? 'On' : 'Off')}</div>`;
   const code = st.code || (S.session && S.session.code) || '', pubRoom = !!(st.net && st.net.public), invite = `${location.origin}/room/${code}`;
-  const roomStrip = `<div class="roomstrip"><div><small>Room code</small><b class="rcode" id="rcode">${esc(code)}</b></div><span class="vischip${pubRoom ? ' pub' : ''}">${pubRoom ? 'Public' : 'Private'}</span><div class="rbtns"><button class="btn small" id="icopy">Copy code</button><button class="btn small" id="ilink">Copy invite link</button>${navigator.share ? '<button class="btn small primary" id="ishare">Share invite</button>' : ''}</div></div>`;
+  const roomStrip = `<div class="roomstrip"><div><small>Room code</small><b class="rcode" id="rcode">${esc(code)}</b></div><span class="vischip${pubRoom ? ' pub' : ''}">${pubRoom ? 'Public' : 'Private'}</span>${st.net && st.net.watching ? `<span class="vischip" id="watchchip">${st.net.watching} watching</span>` : ''}<div class="rbtns"><button class="btn small" id="icopy">Copy code</button><button class="btn small" id="ilink">Copy invite link</button>${navigator.share ? '<button class="btn small primary" id="ishare">Share invite</button>' : ''}</div></div>`;
   const bankLine = `<div class="bank" style="margin:.5rem 0;width:100%;box-sizing:border-box;justify-content:center" title="Cards left in the bank, and development cards left in the pile">${RES.map(k => `<span class="bk ${k}" title="${RES_LABEL[k]} left in the bank">${icon(k)}<b>${st.bank[k]}</b></span>`).join('')}<button class="bk dev" data-pile2 title="Development cards left in the pile. Tap to see what is still unseen.">${icon('dev')}<b>${st.devLeft}</b></button></div>`;
   const vibRow = navigator.vibrate ? `<div class="vibrow"><span><b>Vibrate on my turn</b><small>A short buzz when it is your move</small></span><button class="switch" role="switch" id="vibsw" aria-checked="${vibrateOn()}" aria-label="Vibrate when it is my turn"></button></div>` : '';
   openModal('info', `<div class="infowin"><h3>Game info</h3>${roomStrip}${bankLine}${vibRow}<div class="maptabs" role="tablist">${tabs.map(([k, l]) => `<button class="maptab" role="tab" data-itab="${k}" aria-selected="${tab === k}">${l}</button>`).join('')}</div>${body}<div class="foot"><button class="btn primary" id="iclose">Close</button></div></div>`, layer => {
@@ -1278,7 +1304,7 @@ function costChips(c) { return `<span class="costchips">${Object.entries(c).map(
 function costIcons(c) { return `<span class="cost">${Object.entries(c).flatMap(([k, n]) => Array(n).fill(icon(k))).join('')}</span>`; }
 function drawActions() {
   const st = S.state, box = $('#actions'), mine = myTurn(), P = st.players[me()];
-  if (st.phase === 'ended') { box.innerHTML = `<button class="act go" id="again">${icon('settlement')}Play again</button><button class="act" id="res">${icon('vp')}Results</button><button class="act" id="home">Leave</button>`; $('#again').onclick = playAgain; $('#res').onclick = openLeaderboard; $('#home').onclick = () => leaveToHome(); return; }
+  if (st.phase === 'ended') { box.innerHTML = `${watching() ? '' : `<button class="act go" id="again">${icon('settlement')}Play again</button>`}<button class="act${watching() ? ' go' : ''}" id="res">${icon('vp')}Results</button><button class="act" id="home">Leave</button>`; if ($('#again')) $('#again').onclick = playAgain; $('#res').onclick = openLeaderboard; $('#home').onclick = () => leaveToHome(); return; }
   if (st.phase === 'setup' || !mine) { box.innerHTML = ''; return; }
   if (st.subphase) { box.innerHTML = ''; return; }
   if (currentMode() === 'heist') {   // choosing the settlement to steal
@@ -1611,6 +1637,31 @@ function standings(st) {
     road: st.longestRoad && st.longestRoad.p === i, army: st.largestArmy && st.largestArmy.p === i,
   })).sort((a, b) => (b.i === st.winner) - (a.i === st.winner) || b.p.vp - a.p.vp || b.cities - a.cities || b.p.stats.collected - a.p.stats.collected);
 }
+// Who stood out in a finished game: the top player (or players, on a tie) in a handful of categories, and how close the finish was.
+// A category is left out when nobody scored in it.
+function gameHighlights(st) {
+  const ps = st.players.map((p, i) => ({ p, i }));
+  const top = (title, ic, val, say) => {
+    const vals = ps.map(x => val(x.p)), best = Math.max(...vals);
+    if (!(best > 0)) return null;
+    return { title, ic, names: ps.filter((x, j) => vals[j] === best).map(x => x.p.name), text: say(best) };
+  };
+  const out = [
+    top('Biggest harvest', 'cards', p => p.stats.collected, n => `${n} cards collected`),
+    top('Busiest trader', 'any', p => p.stats.bankTrades + p.stats.playerTrades, n => plural(n, 'trade')),
+    top('Boldest thief', 'robber', p => p.stats.stolen, n => `stole ${plural(n, 'card')}`),
+    top('Robber magnet', 'robber', p => p.stats.robberOn || 0, n => `the robber sat on them ${plural(n, 'time')}`),
+    top('Lucky sevens', 'robber', p => p.stats.sevens, n => `rolled ${plural(n, 'seven')}`),
+    top('Knight commander', 'knight', p => p.knights, n => `${plural(n, 'knight')} played`),
+    top('Road builder', 'road', p => 15 - p.pieces.road, n => `${plural(n, 'road')} built`),
+    top('Card collector', 'dev', p => p.stats.devBought, n => `bought ${plural(n, 'development card')}`),
+  ].filter(Boolean);
+  const pts = ps.map(x => x.p.vp).sort((a, b) => b - a);
+  if (pts.length > 1) { const m = pts[0] - pts[1]; out.unshift({ title: m <= 1 ? 'Photo finish' : 'Final margin', ic: 'trophy', names: [st.players[st.winner].name], text: m === 0 ? 'won on the tiebreak' : `won by ${plural(m, 'point')}` }); }
+  return out.slice(0, 7);
+}
+const highlightList = st => { const h = gameHighlights(st); return h.length ? `<h4 class="lb-title">Highlights</h4><ul class="highlights">${h.map(x => `<li><span class="hlic" aria-hidden="true">${icon(x.ic)}</span><div><b>${x.title}</b><span>${x.names.map(esc).join(' & ')} · ${x.text}</span></div></li>`).join('')}</ul>` : ''; };
+
 function diceChart(counts) {
   const rolls = counts.reduce((a, b) => a + b, 0) || 1, max = Math.max(...counts.slice(2), 1);
   const W = 300, H = 110, bw = W / 11;
@@ -1649,10 +1700,11 @@ function openLeaderboard() {
     <h3 style="color:${w.color}">${esc(w.name)} wins${w.bot ? ` <span class="muted" style="font-size:.6em">${LEVEL_LABEL[w.bot]} bot</span>` : ''}</h3>
     <p>${st.winner === me() ? 'Your island, your victory.' : w.bot ? 'The bot takes it this time. Rematch?' : 'Well played. Rematch?'} ${plural(st.turnNumber, 'turn')} on ${esc(st.mapName)}.</p></div>
     <h4 class="lb-title">Leaderboard</h4><ol class="leaderboard">${list}</ol>
+    ${highlightList(st)}
     <h4 class="lb-title">Dice this game</h4>${diceChart(st.diceCounts)}<p class="help">Bars show how often each number came up; dots show what fair dice would average.</p>
-    <p class="record">${icon('trophy')} Your record on this device: ${plural(rec.wins, 'win')} in ${plural(rec.games, 'game')}.</p>
-    <div class="foot"><button class="btn" id="vclose">View board</button><button class="btn" id="vnew">Leave</button><button class="btn primary" id="vagain">Play again</button></div>`, () => {
-    $('#vclose').onclick = closeModal; $('#vnew').onclick = () => leaveToHome(); $('#vagain').onclick = playAgain;
+    ${watching() ? '' : `<p class="record">${icon('trophy')} Your record on this device: ${plural(rec.wins, 'win')} in ${plural(rec.games, 'game')}.</p>`}
+    <div class="foot"><button class="btn" id="vclose">View board</button><button class="btn" id="vnew">Leave</button>${watching() ? '' : '<button class="btn primary" id="vagain">Play again</button>'}</div>`, () => {
+    $('#vclose').onclick = closeModal; $('#vnew').onclick = () => leaveToHome(); if ($('#vagain')) $('#vagain').onclick = playAgain;
   });
 }
 
@@ -1764,7 +1816,7 @@ function flyGains(st) {
 
 function confetti() {
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  const cv = document.createElement('canvas'); cv.className = 'confetti'; document.body.append(cv);
+  const cv = document.createElement('canvas'); cv.className = 'confetti'; cv.setAttribute('aria-hidden', 'true'); document.body.append(cv);
   const ctx = cv.getContext('2d'), W = cv.width = innerWidth, H = cv.height = innerHeight;
   const cols = ['#ffd23f', '#ff5a5f', '#3bceac', '#4cc9f0', '#b388ff', '#ff9f1c', '#8ceb8c'];
   const ps = Array.from({ length: 170 }, () => ({ x: Math.random() * W, y: -20 - Math.random() * H * .7, w: 6 + Math.random() * 6, h: 8 + Math.random() * 8, vx: -1.2 + Math.random() * 2.4, vy: 2 + Math.random() * 3.6, r: Math.random() * 6, vr: -.25 + Math.random() * .5, c: cols[Math.floor(Math.random() * cols.length)] }));

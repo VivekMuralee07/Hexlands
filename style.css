@@ -1394,3 +1394,16 @@ button, [role=button], a, label, select, summary { touch-action: manipulation; }
 .recent .rmeta { color: #cfe0f5; font-size: .78rem; }
 .recent .rvp { font-weight: 500; color: #e8f1fb; }
 .recent .rwhen { font-size: .78rem; color: #cfe0f5; white-space: nowrap; }
+
+/* spectators: no hand, no buttons, no chat; a bar says so */
+.spectator #hand, .spectator .rollbtn, .spectator .endbtn, .spectator .chatform, .spectator #chatnote, .spectator #awaybar { display: none !important; }
+.watchbar { display: flex; align-items: center; justify-content: center; gap: .8rem; flex-wrap: wrap; padding: .4rem .8rem; width: 100%; color: #e8f1fb; font-size: .9rem; }
+.spectator .dock { min-height: 0; }
+
+/* end of game: highlights */
+.highlights { list-style: none; margin: 0 0 .6rem; padding: 0; display: grid; gap: .4rem; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.highlights li { display: flex; align-items: center; gap: .6rem; padding: .45rem .6rem; border-radius: 12px; background: rgba(255, 255, 255, .08); }
+.highlights .hlic { width: 2rem; height: 2rem; display: grid; place-items: center; flex: none; border-radius: 50%; background: rgba(255, 210, 63, .16); color: #ffd23f; }
+.highlights .hlic svg { width: 1.2rem; height: 1.2rem; }
+.highlights div { display: grid; min-width: 0; }
+.highlights div span { font-size: .82rem; color: #d6e4f7; overflow-wrap: anywhere; }
