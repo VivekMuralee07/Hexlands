@@ -19,7 +19,7 @@ permissions:
 jobs:
   test:
     name: npm test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # pinned: a newer ubuntu-latest image can change what is preinstalled
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
@@ -28,10 +28,19 @@ jobs:
           node-version: 22   # the leaderboard needs the built-in node:sqlite (Node 22.5 or later)
       # The game itself has no dependencies. Playwright (for the screen tests in ui.test.js) is a dev dependency, and it needs a browser.
       - run: npm ci
-      # Installing the browser downloads packages (apt) from the internet. GitHub's network now and then fails to resolve their servers, and apt
-      # can hang for minutes. So: apt retries each download, and the whole install gets up to 3 tries of 3 minutes each (it normally takes about one).
-      - name: Install the browser for the screen tests
+      # The screen tests need a browser. GitHub's Ubuntu runners already have Chrome installed, so use that: nothing to download, and no apt, which is
+      # the step that fails when GitHub's network cannot reach the Ubuntu package servers (the tests read the browser's location from CHROMIUM_PATH).
+      # Only if there is no Chrome is Playwright's own Chromium installed, with retries (up to 3 tries of 3 minutes; it normally takes about one).
+      - name: Find or install a browser for the screen tests
         run: |
+          for name in google-chrome google-chrome-stable chromium chromium-browser; do
+            if path=$(command -v "$name"); then
+              echo "Using $path"; "$path" --version
+              echo "CHROMIUM_PATH=$path" >> "$GITHUB_ENV"
+              exit 0
+            fi
+          done
+          echo "No browser found: installing Playwright's Chromium."
           echo 'Acquire::Retries "3";' | sudo tee /etc/apt/apt.conf.d/80-retries > /dev/null
           for attempt in 1 2 3; do
             timeout 180 npx playwright install --with-deps chromium && exit 0
