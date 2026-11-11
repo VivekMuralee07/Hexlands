@@ -20,7 +20,7 @@ jobs:
   test:
     name: npm test
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -28,5 +28,16 @@ jobs:
           node-version: 22   # the leaderboard needs the built-in node:sqlite (Node 22.5 or later)
       # The game itself has no dependencies. Playwright (for the screen tests in ui.test.js) is a dev dependency, and it needs a browser.
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      # Installing the browser downloads packages (apt) from the internet. GitHub's network now and then fails to resolve their servers, and apt
+      # can hang for minutes. So: apt retries each download, and the whole install gets up to 3 tries of 3 minutes each (it normally takes about one).
+      - name: Install the browser for the screen tests
+        run: |
+          echo 'Acquire::Retries "3";' | sudo tee /etc/apt/apt.conf.d/80-retries > /dev/null
+          for attempt in 1 2 3; do
+            timeout 180 npx playwright install --with-deps chromium && exit 0
+            echo "Browser install failed (attempt $attempt of 3)."
+            sleep 10
+          done
+          echo "The browser could not be installed. This is a problem with GitHub's network or the package servers, not with the code."
+          exit 1
       - run: npm test
