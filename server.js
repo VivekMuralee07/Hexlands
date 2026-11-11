@@ -158,7 +158,8 @@ function recordFinished(room) {
 function newRoom(game, { pub = false, ip = '' } = {}) {
   const now = Date.now();
   return { game, clients: new Map(), touched: now, boardSent: game.boardVersion, public: !!pub, ownerIp: ip, createdAt: now,
-    lastJoinAt: now, lastCount: game.players.length, countdownAt: null, fillShown: false };
+    lastJoinAt: now, lastCount: game.players.length, countdownAt: null, fillShown: false,
+    watchers: new Map() /* token -> { seen }: people watching without a seat */, watchClients: new Map() /* token -> open streams */ };
 }
 function checkCapacity(req) {
   if (rooms.size >= MAX_ROOMS) throw tooMany('The server is very busy right now. Please try again in a minute.');
@@ -170,7 +171,8 @@ function checkCapacity(req) {
 function destroyRoom(room) {
   clearTimeout(room.botTimer); clearTimeout(room.clockTimer);
   for (const set of room.clients.values()) for (const r of set) r.end();
-  room.clients.clear(); rooms.delete(room.game.code);
+  room.clients.clear(); for (const set of room.watchClients.values()) for (const r of set) r.end();
+  room.watchClients.clear(); rooms.delete(room.game.code);
   if (persistOn) { try { const s = getStore(); if (s) s.deleteRoom(room.game.code); } catch (e) { console.error('Could not delete room', e.message); } }
 }
 const hostOf = g => g.players.find(p => p.token === g.hostToken);
@@ -182,9 +184,13 @@ function roomCard(r) {
   const g = r.game, h = hostOf(g);
   return { code: g.code, host: h ? h.name : '', map: g.board.name, vp: g.vpTarget, timer: g.opts.timer, players: g.players.length, max: MAX_PLAYERS, bots: g.players.filter(p => p.bot).length };
 }
+// Spectators: people with the room code can watch a running game without a seat. They see the board and the public information (card counts, not
+// hands), cannot act or chat, and are not counted as players. A watcher counts while a stream of theirs is open.
+const MAX_WATCHERS = 10, WATCHER_IDLE_MS = 60e3;
+const watcherCount = room => { let n = 0; for (const set of room.watchClients.values()) if (set.size) n++; return n; };
 function netInfo(room, now = Date.now()) {   // what the waiting room needs besides the game itself
   const g = room.game, lobby = g.phase === 'lobby';
-  return { public: room.public, countdown: room.countdownAt ? Math.max(0, room.countdownAt - now) : null,
+  return { watching: watcherCount(room), public: room.public, countdown: room.countdownAt ? Math.max(0, room.countdownAt - now) : null,
     fillIn: room.public && lobby && g.players.length < MAX_PLAYERS ? Math.max(0, room.lastJoinAt + FILL_AFTER_MS - now) : null };
 }
 
@@ -255,6 +261,10 @@ function broadcast(room, now = Date.now()) {
     if (boardMsg) for (const r of set) r.write(boardMsg);
     const msg = `event: state\ndata: ${JSON.stringify({ ...room.game.view(pi), net: netInfo(room, now) })}\n\n`;
     for (const r of set) r.write(msg);
+  }
+  if (room.watchClients.size) {
+    const msg = `event: state\ndata: ${JSON.stringify({ ...room.game.view(-1), spectator: true, net: netInfo(room, now) })}\n\n`;
+    for (const set of room.watchClients.values()) for (const r of set) { if (boardMsg) r.write(boardMsg); r.write(msg); }
   }
   scheduleBots(room);
   scheduleClock(room);
@@ -327,6 +337,7 @@ function lobbyAuto(room, now) {
 function tick(now = Date.now()) {
   for (const room of [...rooms.values()]) {
     const g = room.game; let changed = false;
+    for (const [t, w] of [...room.watchers]) if (!room.watchClients.has(t) && now - w.seen >= WATCHER_IDLE_MS) { room.watchers.delete(t); changed = true; }
     if (g.phase === 'lobby' && room.public) {
       for (let i = g.players.length - 1; i >= 0; i--) {
         const p = g.players[i];
@@ -461,6 +472,19 @@ async function api(req, res, url) {
     broadcast(room);
     return sendJson(res, 200, { code, token });
   }
+  if (req.method === 'POST' && route === '/api/watch') {   // { code }: a spectator token for a game that has started
+    const body = await readBody(req);
+    const code = String(body.code || '').trim().toUpperCase();
+    guard(req, 'join', 40, 60e3, 'Too many attempts. Please wait a moment.');
+    const room = rooms.get(code);
+    if (!room) throw new GameError('No room with that code. Check the code and try again.');
+    if (body.token && room.watchers.has(body.token)) return sendJson(res, 200, { code, token: body.token });   // coming back
+    if (room.game.phase === 'lobby') throw new GameError('That game has not started yet. You can watch once it begins.');
+    if (room.watchers.size >= MAX_WATCHERS) throw new GameError('This game already has the most watchers it allows.');
+    const token = 'w' + newToken();
+    room.watchers.set(token, { seen: Date.now() });
+    return sendJson(res, 200, { code, token, spectator: true });
+  }
   if (req.method === 'POST' && route === '/api/leave') {
     const body = await readBody(req);
     const room = rooms.get(String(body.code || '').toUpperCase());
@@ -524,6 +548,23 @@ async function api(req, res, url) {
   if (req.method === 'GET' && route === '/api/events') {
     const room = rooms.get(String(url.searchParams.get('code') || '').toUpperCase());
     const token = url.searchParams.get('token');
+    if (room && room.watchers.has(token)) {   // a spectator
+      res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
+      res.write('retry: 2000\n\n');
+      res.write(`event: board\ndata: ${JSON.stringify(room.game.boardView())}\n\n`);
+      if (!room.watchClients.has(token)) room.watchClients.set(token, new Set());
+      room.watchClients.get(token).add(res); room.watchers.get(token).seen = Date.now();
+      broadcast(room);
+      const ping = setInterval(() => res.write(': ping\n\n'), 20000);
+      req.on('close', () => {
+        clearInterval(ping);
+        const set = room.watchClients.get(token);
+        if (set) { set.delete(res); if (!set.size) room.watchClients.delete(token); }
+        const w = room.watchers.get(token); if (w) w.seen = Date.now();
+        if (rooms.has(room.game.code)) broadcast(room);
+      });
+      return;
+    }
     if (!room || room.game.indexOf(token) < 0) return sendJson(res, 404, { error: 'Room not found.' });
     if (room.game.players[room.game.indexOf(token)].takenOver === 'left') return sendJson(res, 410, { error: 'A bot has taken this seat.' });
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
