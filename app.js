@@ -501,6 +501,11 @@ function startSession(sess, soft = false) {   // soft: reconnect without clearin
       S.bigZoom = S.board.tiles.length > 100 ? Math.max(1, S.base.w / (Math.sqrt(3) * U) / 11) : 1; }   // a very big map opens zoomed in (about 11 hexes across) and is slid across the screen
   });
   es.addEventListener('state', e => { opened = true; onState(JSON.parse(e.data)); });
+  es.addEventListener('closed', e => {   // the server ended the room
+    let why = ''; try { why = JSON.parse(e.data).reason; } catch { /* no reason given */ }
+    if (S.session !== sess) return;
+    leaveToHome(why === 'empty' ? 'The game was ended because all the players left.' : 'This room has closed.');
+  });
   es.onerror = () => {
     if (S.unloading) return;
     if (es.readyState !== EventSource.CLOSED) {   // the connection dropped: the browser keeps retrying, and the player gets a Reconnect button
@@ -2267,11 +2272,19 @@ function openRankings(mode) {
 }
 function openRooms() {
   const poll = S.roomsPoll = {};
-  const paint = list => {
+  const paint = (list, live) => {
     const box = $('#roomlist'); if (!box) return;
     if (!list) { box.innerHTML = '<p class="muted">Could not load the list. Check your connection.</p>'; return; }
-    if (!list.length) { box.innerHTML = '<p class="muted">No public rooms are waiting right now. Be the first: open a room, and others can join you.</p>'; return; }
-    box.innerHTML = list.map(r => `<div class="roomrow"><div class="rinfo"><b>${esc(r.host)}'s room</b><span>${esc(r.map)} · ${r.vp} points · ${r.timer ? r.timer + 's timer' : 'no timer'}</span></div><span class="seats" title="Seats taken">${r.players}/${r.max}${r.bots ? ` · ${plural(r.bots, 'bot')}` : ''}</span><button class="btn small primary" data-join="${r.code}">Join</button></div>`).join('');
+    const liveHtml = `<h3 class="lb-title">Live games you can watch</h3>` + (live && live.length
+      ? live.map(r => `<div class="roomrow live"><div class="rinfo"><b>${r.players.map(p => esc(p.name)).join(', ')}</b><span>${esc(r.map)} · turn ${r.turn} · ${r.vp} points${r.watching ? ` · ${r.watching} watching` : ''}</span></div><button class="btn small" data-watch="${r.code}" aria-label="Watch the game of ${esc(r.host)}">Watch</button></div>`).join('')
+      : '<p class="muted">No public game is running right now.</p>');
+    const waiting = !list.length ? '<p class="muted">No public rooms are waiting right now. Be the first: open a room, and others can join you.</p>' : list.map(r => `<div class="roomrow"><div class="rinfo"><b>${esc(r.host)}'s room</b><span>${esc(r.map)} · ${r.vp} points · ${r.timer ? r.timer + 's timer' : 'no timer'}</span></div><span class="seats" title="Seats taken">${r.players}/${r.max}${r.bots ? ` · ${plural(r.bots, 'bot')}` : ''}</span><button class="btn small primary" data-join="${r.code}">Join</button></div>`).join('');
+    box.innerHTML = waiting + liveHtml;
+    box.querySelectorAll('[data-watch]').forEach(b => b.onclick = async () => {
+      b.disabled = true;
+      try { const j = await post('/api/watch', { code: b.dataset.watch }); closeModal(); startSession({ code: j.code, token: j.token, spectator: true }); }
+      catch (e) { toast(e.message, 'err'); load(); }
+    });
     box.querySelectorAll('[data-join]').forEach(b => b.onclick = async () => {
       b.disabled = true;
       try { const j = await post('/api/join', { code: b.dataset.join, name: S.name }); closeModal(); startSession({ code: j.code, token: j.token }); }
@@ -2280,10 +2293,10 @@ function openRooms() {
   };
   const load = async () => {
     if (S.roomsPoll !== poll || S.modal !== 'rooms') return;
-    try { const r = await fetch('/api/rooms'); const j = await r.json(); if (!r.ok) throw new Error(j.error); paint(j.rooms); } catch { paint(null); }
+    try { const r = await fetch('/api/rooms'); const j = await r.json(); if (!r.ok) throw new Error(j.error); paint(j.rooms, j.live); } catch { paint(null); }
     clearTimeout(poll.t); if (S.roomsPoll === poll && S.modal === 'rooms') poll.t = setTimeout(load, 4000);
   };
-  openModal('rooms', `<h3>Public rooms</h3><p class="muted">Games waiting for players. Tap Join to take a seat.</p><div class="roomlist" id="roomlist" aria-live="polite"><p class="muted">Loading…</p></div><div class="foot"><button class="btn" id="rclose">Close</button><button class="btn primary" id="rnew">Open a public room</button></div>`, () => {
+  openModal('rooms', `<h3>Public rooms</h3><p class="muted">Games waiting for players: tap Join to take a seat. Running games: tap Watch to follow along.</p><div class="roomlist" id="roomlist" aria-live="polite"><p class="muted">Loading…</p></div><div class="foot"><button class="btn" id="rclose">Close</button><button class="btn primary" id="rnew">Open a public room</button></div>`, () => {
     $('#rclose').onclick = closeModal;
     $('#rnew').onclick = () => { S.publicRoom = true; store.set('publicRoom', true); closeModal(); go('create'); };
     load();

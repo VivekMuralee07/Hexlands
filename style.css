@@ -1407,3 +1407,7 @@ button, [role=button], a, label, select, summary { touch-action: manipulation; }
 .highlights .hlic svg { width: 1.2rem; height: 1.2rem; }
 .highlights div { display: grid; min-width: 0; }
 .highlights div span { font-size: .82rem; color: #d6e4f7; overflow-wrap: anywhere; }
+
+/* live games to watch, in the Public rooms window */
+.roomrow.live .rinfo b { white-space: normal; }
+.roomlist .lb-title { margin: .9rem 0 .4rem; }

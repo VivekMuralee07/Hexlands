@@ -168,8 +168,12 @@ function checkCapacity(req) {
   if ([...rooms.values()].filter(r => r.ownerIp === ip).length >= ROOMS_PER_IP) throw tooMany('You already have several rooms open. Finish or close one first.');
   return ip;
 }
-function destroyRoom(room) {
+// Ends a room. Whoever is still connected (spectators, mostly) is told why before the streams close, so their screen can say so.
+function destroyRoom(room, reason = 'closed') {
   clearTimeout(room.botTimer); clearTimeout(room.clockTimer);
+  const bye = `event: closed\ndata: ${JSON.stringify({ reason })}\n\n`;
+  for (const set of room.clients.values()) for (const r of set) r.write(bye);
+  for (const set of room.watchClients.values()) for (const r of set) r.write(bye);
   for (const set of room.clients.values()) for (const r of set) r.end();
   room.clients.clear(); for (const set of room.watchClients.values()) for (const r of set) r.end();
   room.watchClients.clear(); rooms.delete(room.game.code);
@@ -180,10 +184,25 @@ function openLobbies() {   // public rooms still waiting for players, with a fre
   if (!publicOn()) return [];
   return [...rooms.values()].filter(r => r.public && r.game.phase === 'lobby' && r.game.players.length < MAX_PLAYERS && r.game.players.some(p => !p.bot && p.connected));
 }
+function liveGames() {   // running public games anyone may watch (private games need their code)
+  if (!publicOn()) return [];
+  return [...rooms.values()].filter(r => r.public && (r.game.phase === 'setup' || r.game.phase === 'main') && watcherCount(r) < MAX_WATCHERS && r.game.players.some(p => !p.bot && p.connected));
+}
+function liveCard(r) {
+  const g = r.game, h = hostOf(g);
+  return { code: g.code, host: h ? h.name : '', map: g.board.name, vp: g.vpTarget, turn: g.turnNumber, watching: watcherCount(r),
+    players: g.players.map(p => ({ name: p.name, bot: !!p.bot && !p.takenOver, color: p.color })) };
+}
 function roomCard(r) {
   const g = r.game, h = hostOf(g);
   return { code: g.code, host: h ? h.name : '', map: g.board.name, vp: g.vpTarget, timer: g.opts.timer, players: g.players.length, max: MAX_PLAYERS, bots: g.players.filter(p => p.bot).length };
 }
+// A seat that belongs to a person (a bot may be playing it for now) and that they have not left on purpose.
+const humanSeat = p => !p.bot || !!p.takenOver;
+const stillHere = p => humanSeat(p) && !p.left && p.takenOver !== 'left';
+// Every person has left, or has been offline for ALL_GONE_MS: the game is over, with no bot playing on. Spectators are told and sent home.
+const ALL_GONE_MS = 10 * 60e3;
+const everyoneGone = (g, now = Date.now()) => g.players.some(humanSeat) && g.players.every(p => !humanSeat(p) || p.left || p.takenOver === 'left' || (!p.connected && now - (p.offlineSince || now) >= ALL_GONE_MS));
 // Spectators: people with the room code can watch a running game without a seat. They see the board and the public information (card counts, not
 // hands), cannot act or chat, and are not counted as players. A watcher counts while a stream of theirs is open.
 const MAX_WATCHERS = 10, WATCHER_IDLE_MS = 60e3;
@@ -233,7 +252,7 @@ function rematch(room, now = Date.now()) {
   const { game } = makeGame(old.code, { preset: old.board.key }, undefined, old.vpTarget);
   game.opts = { ...old.opts }; game.rng = Math.random;
   for (const p of old.players) {
-    if (p.takenOver) continue;
+    if (p.takenOver || p.left) continue;
     const np = game.players[game.addPlayer(p.name, p.token)];
     np.colorId = p.colorId; np.pid = p.pid;
     if (p.bot) { np.bot = p.bot; np.connected = true; } else { const set = room.clients.get(p.token); np.connected = !!(set && set.size); np.offlineSince = np.connected ? null : now; }
@@ -345,6 +364,7 @@ function tick(now = Date.now()) {
       }
       if (changed && !g.players.some(p => !p.bot)) { destroyRoom(room); continue; }
     }
+    if (g.phase !== 'lobby' && everyoneGone(g, now)) { destroyRoom(room, 'empty'); continue; }
     if (g.ensureHost(now)) changed = true;
     if (g.phase === 'setup' || g.phase === 'main') {   // someone vanished from a running game: a bot plays until they are back
       g.players.forEach((p, i) => { if (!p.bot && !p.connected && now - (p.offlineSince || now) >= TAKEOVER_MS && g.takeOver(i, 'offline')) changed = true; });   // dropped: a bot plays until they are back
@@ -399,7 +419,8 @@ async function api(req, res, url) {
   if (req.method === 'GET' && route === '/api/rooms') {   // the public rooms anyone may join
     guard(req, 'list', 60, 60e3, 'Too many requests. Please wait a moment.');
     const list = openLobbies().sort((a, b) => b.game.players.length - a.game.players.length || a.createdAt - b.createdAt).slice(0, 30).map(roomCard);
-    return sendJson(res, 200, { rooms: list });
+    const live = liveGames().sort((a, b) => b.game.turnNumber - a.game.turnNumber).slice(0, 20).map(liveCard);
+    return sendJson(res, 200, { rooms: list, live });
   }
   if (req.method === 'POST' && route === '/api/quickplay') {   // join the fullest open public room, or open a new one
     const body = await readBody(req);
@@ -464,7 +485,7 @@ async function api(req, res, url) {
     if (!room) { hit(badKey, 600e3); throw new GameError('No room with that code. Check the code and try again.'); }
     if (body.token && room.game.indexOf(body.token) >= 0) {   // rejoining a seat: always possible after a drop, never after leaving on purpose
       const seat = room.game.players[room.game.indexOf(body.token)];
-      if (seat.takenOver === 'left') throw new GameError('You left that game, so a bot has taken your seat.');
+      if (seat.takenOver === 'left' || seat.left) throw new GameError('You left that game, so a bot has taken your seat.');
       return sendJson(res, 200, { code, token: body.token });
     }
     const token = newToken(), name = cleanName(body.name);
@@ -493,7 +514,11 @@ async function api(req, res, url) {
       if (pi >= 0 && room.game.phase === 'lobby') {
         room.game.removePlayer(pi);
         if (!room.game.players.some(p => !p.bot)) destroyRoom(room); else broadcast(room);
-      } else if (pi >= 0 && room.game.takeOver(pi, 'left')) broadcast(room);   // leaving a running game, public or private: a bot plays on
+      } else if (pi >= 0) {   // leaving a running or finished game
+        const g = room.game;
+        if (!g.players.some((p, i) => i !== pi && stillHere(p))) destroyRoom(room, 'empty');   // the last person: the game ends, no bot takes over
+        else { g.players[pi].left = true; g.takeOver(pi, 'left'); broadcast(room); }   // others remain: a bot plays this seat on
+      }
     }
     return sendJson(res, 200, { ok: true });
   }
@@ -566,7 +591,7 @@ async function api(req, res, url) {
       return;
     }
     if (!room || room.game.indexOf(token) < 0) return sendJson(res, 404, { error: 'Room not found.' });
-    if (room.game.players[room.game.indexOf(token)].takenOver === 'left') return sendJson(res, 410, { error: 'A bot has taken this seat.' });
+    { const seat = room.game.players[room.game.indexOf(token)]; if (seat.takenOver === 'left' || seat.left) return sendJson(res, 410, { error: 'A bot has taken this seat.' }); }
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
     res.write('retry: 2000\n\n');
     res.write(`event: board\ndata: ${JSON.stringify(room.game.boardView())}\n\n`);
@@ -639,7 +664,7 @@ setInterval(() => {
   for (const [code, room] of rooms) {
     const idle = now - room.touched;
     const emptyPublic = room.public && room.game.phase !== 'ended' && !room.game.players.some(p => !p.bot && p.connected) && idle > 5 * 60e3;   // everyone left a public game
-    if ((room.clients.size === 0 && idle > 30 * 60e3) || idle > 6 * 3600e3 || emptyPublic) destroyRoom(room);
+    if ((room.clients.size === 0 && idle > 30 * 60e3) || idle > 6 * 3600e3 || emptyPublic) destroyRoom(room, 'idle');
   }
   for (const [k, a] of hits) if (!a.length || now - a[a.length - 1] > 3600e3) hits.delete(k);
   if (hits.size > 50000) hits.clear();
