@@ -457,3 +457,141 @@ test('random full games finish cleanly on every map with 2–4 players', () => {
   }
   assert.ok(finished / games > 0.9, `finished ${finished}/${games}`);
 });
+
+// ---------- taking back the last setup placement ----------
+test('undo: a settlement placed by mistake can be taken back by the player who placed it, and nobody else', () => {
+  const g = lobby(3, 'classic', 7), pi = g.turn, other = (pi + 1) % 3;
+  const v = g.validSettlements(pi, false)[0];
+  assert.equal(g.view(pi).undo, null, 'nothing to undo yet');
+  g.act(pi, { type: 'settle', vertex: v });
+  assert.deepEqual(g.view(pi).undo, { left: 3 });
+  assert.equal(g.view(other).undo, null, 'only the one who placed it');
+  throwsMsg(() => g.act(other, { type: 'undo' }), /nothing to take back/);
+  g.act(pi, { type: 'undo' });
+  assert.equal(g.buildings[v], undefined); assert.equal(g.players[pi].pieces.settlement, 5);
+  assert.equal(g.setup.expect, 'settlement'); assert.equal(g.view(pi).undo, null);
+  assert.ok(g.log.some(l => /took back/.test(l.text)));
+  throwsMsg(() => g.act(pi, { type: 'undo' }), /nothing to take back/);
+  g.act(pi, { type: 'settle', vertex: g.validSettlements(pi, false)[1] });   // and a different place works
+  assert.equal(g.setup.expect, 'road');
+});
+
+test('undo: a road can be taken back until the next player acts; the turn goes back to the player', () => {
+  const g = lobby(3, 'classic', 7), pi = g.turn, next = g.setup.order[1];
+  const v = g.validSettlements(pi, false)[0], e = g.board.vertices[v].edges[0];
+  g.act(pi, { type: 'settle', vertex: v }); g.act(pi, { type: 'road', edge: e });
+  assert.equal(g.turn, next); assert.deepEqual(g.view(pi).undo, { left: 3 });
+  g.act(pi, { type: 'undo' });
+  assert.equal(g.turn, pi); assert.equal(g.setup.expect, 'road'); assert.equal(g.roads[e], undefined); assert.equal(g.players[pi].pieces.road, 15);
+  assert.equal(g.buildings[v].p, pi, 'the settlement stays');
+  g.act(pi, { type: 'road', edge: e });
+  g.act(next, { type: 'settle', vertex: g.validSettlements(next, false)[0] });   // the next player acts: pi can no longer undo
+  throwsMsg(() => g.act(pi, { type: 'undo' }), /nothing to take back/);
+  assert.equal(g.view(pi).undo, null);
+});
+
+test('undo: a second-round settlement gives its cards back to the bank; every player has three undos', () => {
+  const g = lobby(2, 'classic', 9);
+  const place = () => { const pi = g.turn, v = g.validSettlements(pi, false)[0]; g.act(pi, { type: 'settle', vertex: v }); g.act(pi, { type: 'road', edge: g.board.vertices[v].edges.find(x => g.roads[x] === undefined) }); };
+  place(); place();   // the first round
+  const pi = g.turn;
+  for (let n = 0; n < 3; n++) {
+    g.act(pi, { type: 'settle', vertex: g.validSettlements(pi, false)[0] });
+    assert.ok(totalRes(g.players[pi].res) > 0, 'the second settlement pays out');
+    g.act(pi, { type: 'undo' });
+    assert.equal(totalRes(g.players[pi].res), 0, 'the cards are back in the bank'); conservation(g);
+  }
+  g.act(pi, { type: 'settle', vertex: g.validSettlements(pi, false)[0] });
+  assert.equal(g.view(pi).undo, null, 'no undos left');
+  throwsMsg(() => g.act(pi, { type: 'undo' }), /nothing to take back|used all/);
+});
+
+test('undo: the last road of the setup can be taken back too, until the first roll; fog that a road uncovered is covered again', () => {
+  const g = lobby(2, 'hiddenvault', 3);
+  let revealedAtSomePoint = false;
+  while (g.phase === 'setup') {
+    const pi = g.turn, v = g.validSettlements(pi, false)[0];
+    g.act(pi, { type: 'settle', vertex: v });
+    const free = g.board.vertices[v].edges.filter(x => g.roads[x] === undefined), before = g.revealed.size;
+    let e = free.find(x => g.roadReach(x).some(h => g.isHidden(h))) ;
+    e = e === undefined ? free[0] : e;
+    g.act(pi, { type: 'road', edge: e });
+    if (g.revealed.size > before) {   // this road uncovered fog: take it back and check
+      revealedAtSomePoint = true;
+      g.act(pi, { type: 'undo' });
+      assert.equal(g.revealed.size, before, 'the fog is covered again'); conservation(g);
+      g.act(pi, { type: 'road', edge: free.find(x => !g.roadReach(x).some(h => g.isHidden(h))) ?? free[0] });
+    }
+  }
+  assert.equal(g.phase, 'main');
+  assert.ok(revealedAtSomePoint, 'the test saw a road uncover fog');
+});
+
+test('undo: the final setup road can be taken back before anything else happens, and rolling ends the chance', () => {
+  const g = lobby(2, 'classic', 11);
+  let lastPi = null;
+  while (g.phase === 'setup') {
+    const pi = g.turn, v = g.validSettlements(pi, false)[0];
+    g.act(pi, { type: 'settle', vertex: v }); g.act(pi, { type: 'road', edge: g.board.vertices[v].edges.find(x => g.roads[x] === undefined) });
+    lastPi = pi;
+  }
+  assert.equal(g.phase, 'main');
+  assert.deepEqual(g.view(lastPi).undo, { left: 3 });
+  g.act(lastPi, { type: 'undo' });
+  assert.equal(g.phase, 'setup'); assert.equal(g.turn, lastPi); assert.equal(g.setup.expect, 'road');
+  g.act(lastPi, { type: 'road', edge: g.board.vertices[Object.keys(g.buildings).map(Number).filter(v => g.buildings[v].p === lastPi).pop()].edges.find(x => g.roads[x] === undefined) });
+  assert.equal(g.phase, 'main');
+  g.act(g.turn, { type: 'roll' });
+  throwsMsg(() => g.act(lastPi, { type: 'undo' }), /nothing to take back/);
+});
+
+test('undo: a timer placing for the next player in between makes the old undo invalid', () => {
+  const g = lobby(2, 'classic', 5), pi = g.turn, next = g.setup.order[1];
+  const v = g.validSettlements(pi, false)[0];
+  g.act(pi, { type: 'settle', vertex: v }); g.act(pi, { type: 'road', edge: g.board.vertices[v].edges[0] });
+  g.autoTurn(next);   // the move timer places for the next player, outside act()
+  throwsMsg(() => g.act(pi, { type: 'undo' }), /nothing to take back/);
+  assert.equal(g.view(pi).undo, null);
+});
+
+// ---------- counter-offers ----------
+function tradeTable() {
+  const g = finishSetup(lobby(3, 'classic', 4));
+  const a = g.turn, b = (a + 1) % 3, c = (a + 2) % 3;
+  g.rolled = true; g.dice = [3, 4];
+  g.players[a].res = { wood: 2, brick: 0, sheep: 0, wheat: 0, ore: 0 }; g.players[b].res = { wood: 0, brick: 2, sheep: 1, wheat: 0, ore: 0 }; g.players[c].res = { wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 1 };
+  return { g, a, b, c };
+}
+test('counter-offer: another player answers with their own terms, and the offerer can take it up', () => {
+  const { g, a, b } = tradeTable();
+  g.act(a, { type: 'offer', give: { wood: 2 }, get: { brick: 2 } });
+  g.act(b, { type: 'counter', give: { brick: 1 }, get: { wood: 1 } });   // b: one brick for one wood
+  assert.deepEqual(g.trade.counters[b], { give: { brick: 1, wood: 0, sheep: 0, wheat: 0, ore: 0 }, get: { brick: 0, wood: 1, sheep: 0, wheat: 0, ore: 0 } });
+  const before = { a: { ...g.players[a].res }, b: { ...g.players[b].res } };
+  g.act(a, { type: 'confirm', with: b, counter: true });
+  assert.equal(g.players[a].res.wood, before.a.wood - 1); assert.equal(g.players[a].res.brick, 1);
+  assert.equal(g.players[b].res.wood, 1); assert.equal(g.players[b].res.brick, before.b.brick - 1);
+  assert.equal(g.trade, null, 'the trade is done');
+  assert.equal(g.players[a].stats.playerTrades, 1);
+});
+test('counter-offer: checks the cards, cannot be made on your own or a bot\'s offer, can be declined, and a new offer clears it', () => {
+  const { g, a, b, c } = tradeTable();
+  throwsMsg(() => g.act(b, { type: 'counter', give: { brick: 1 }, get: { wood: 1 } }), /no open trade/);
+  g.act(a, { type: 'offer', give: { wood: 2 }, get: { brick: 2 } });
+  throwsMsg(() => g.act(a, { type: 'counter', give: { wood: 1 }, get: { ore: 1 } }), /You made this offer/);
+  throwsMsg(() => g.act(b, { type: 'counter', give: { ore: 1 }, get: { wood: 1 } }), /do not have the cards/);
+  throwsMsg(() => g.act(b, { type: 'counter', give: { brick: 1 }, get: { sheep: 1 } }), /does not have the cards you are asking/);
+  throwsMsg(() => g.act(b, { type: 'counter', give: { brick: 1 }, get: { brick: 1 } }), /same resource/);
+  throwsMsg(() => g.act(b, { type: 'counter', give: {}, get: { wood: 1 } }), /both sides/);
+  g.act(b, { type: 'counter', give: { brick: 1 }, get: { wood: 1 } });
+  g.act(c, { type: 'counter', give: { ore: 1 }, get: { wood: 1 } });
+  g.act(a, { type: 'declineCounter', with: c });
+  assert.equal(g.trade.counters[c], undefined); assert.ok(g.trade.declined.includes(c));
+  throwsMsg(() => g.act(a, { type: 'confirm', with: c, counter: true }), /no counter-offer/);
+  g.players[b].res.brick = 0;   // b spends the card in the meantime
+  throwsMsg(() => g.act(a, { type: 'confirm', with: b, counter: true }), /no longer has the cards/);
+  g.act(a, { type: 'offer', give: { wood: 1 }, get: { ore: 1 } });
+  assert.deepEqual(g.trade.counters, {}, 'a new offer starts clean');
+  g.players[a].bot = 'medium';   // bots do not take counters
+  throwsMsg(() => g.act(c, { type: 'counter', give: { ore: 1 }, get: { wood: 1 } }), /Bots do not take counter-offers/);
+});

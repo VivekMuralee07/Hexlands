@@ -297,6 +297,80 @@ test('watching without a code: the Public rooms window lists live public games w
   await ctx.close(); await player.ctx.close();
 });
 
+test('undo: after a mistaken setup placement an Undo button takes it back; progress bars show how close each player is to winning', async t => {
+  if (why) return t.skip(why);
+  const c = await startGame();
+  const { ctx, page, errors } = await openPage(c);   // bots only play while a human is connected
+  const g = rooms.get(c.code).game, me = g.indexOf(c.token);
+  await page.waitForSelector('#hand');
+  const until = Date.now() + 20000;
+  while (!(g.phase === 'setup' && g.turn === me && g.setup.expect === 'settlement') && Date.now() < until) await new Promise(r => setTimeout(r, 30));
+  assert.equal(await page.locator('#undo').count(), 0, 'nothing to undo before placing');
+  const v = g.validSettlements(me, false)[0];
+  await post('/api/action', { code: c.code, token: c.token, action: { type: 'settle', vertex: v } });
+  await page.waitForSelector('#undo', { timeout: 10000 });
+  assert.match(await page.textContent('#undo'), /Undo[\s\S]*3 left/);
+  assert.ok(g.buildings[v], 'the settlement is on the board');
+  await page.click('#undo');
+  await page.waitForSelector('#undo', { state: 'detached', timeout: 10000 });
+  assert.equal(g.buildings[v], undefined, 'the settlement is gone');
+  assert.equal(g.setup.expect, 'settlement', 'back to choosing a settlement');
+  await toMainPhase(c);   // the game carries on normally
+  g.vpTarget = 4;   // within two points of winning for anyone with two settlements
+  await post('/api/action', { code: c.code, token: c.token, action: { type: 'chat', text: 'x' } });
+  await page.waitForSelector('.pstrip .pc-prog');
+  assert.equal(await page.locator('.pstrip .pchip').count(), 4);
+  assert.equal(await page.locator('.pstrip .pc-prog').count(), 4, 'a progress bar for every player');
+  assert.ok(await page.locator('.pstrip .pc-prog.near').count() >= 1, 'a bar turns amber within two points');
+  assert.match(await page.getAttribute('.pstrip .pchip >> nth=0', 'aria-label'), /of 4 points, 2 points from winning/);
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+test('counter-offer: a player answers an offer with their own cards, and the offerer accepts it', async t => {
+  if (why) return t.skip(why);
+  const c = await post('/api/create', { name: 'Hana', map: { preset: 'classic' }, seed: 5, vpTarget: 10 });
+  const j = await post('/api/join', { code: c.code, name: 'Ivo' });
+  const act = (who, action) => post('/api/action', { code: c.code, token: who.token, action });
+  const hana = { token: c.token }, ivo = { token: j.token };
+  await act(hana, { type: 'fillBots', level: 'easy' });
+  await act(hana, { type: 'ready', value: true }); await act(ivo, { type: 'ready', value: true });
+  const pa = await openPage(c), pb = await openPage({ code: c.code, token: j.token });
+  await act(hana, { type: 'start' });
+  const g = rooms.get(c.code).game, ih = g.indexOf(hana.token), ii = g.indexOf(ivo.token);
+  const until = Date.now() + 30000;
+  while (g.phase === 'setup' && Date.now() < until) {   // the two people place their pieces; the bots play theirs
+    const who = g.turn === ih ? hana : g.turn === ii ? ivo : null;
+    if (who) {
+      const pi = g.turn;
+      if (g.setup.expect === 'settlement') await act(who, { type: 'settle', vertex: g.validSettlements(pi, false)[0] });
+      else { const mine = Object.keys(g.buildings).map(Number).filter(v => g.buildings[v].p === pi); for (const v of mine) for (const e of g.board.vertices[v].edges.filter(e => g.roads[e] === undefined)) { if ((await act(who, { type: 'road', edge: e })).status === 200) break; } }
+    }
+    await new Promise(r => setTimeout(r, 30));
+  }
+  assert.equal(g.phase, 'main');
+  g.turn = ih; g.rolled = true; g.dice = [3, 4]; g.subphase = null;
+  g.players[ih].res = { wood: 2, brick: 0, sheep: 0, wheat: 0, ore: 0 }; g.players[ii].res = { wood: 0, brick: 2, sheep: 1, wheat: 0, ore: 0 };
+  await act(hana, { type: 'offer', give: { wood: 2 }, get: { brick: 2 } });
+  await pb.page.waitForSelector('#tctr', { timeout: 10000 });
+  await pb.page.click('#tctr');
+  await pb.page.waitForSelector('#modal:not([hidden]) #csend');
+  assert.equal(await pb.page.locator('#csend').isDisabled(), false, 'it starts as the offer turned around');
+  await pb.page.click('[data-q="cg:brick:-1"]');   // give one brick instead of two
+  await pb.page.click('[data-q="ct:wood:-1"]');     // ask for one wood instead of two
+  await pb.page.click('#csend');
+  await pa.page.waitForSelector('[data-cwith]', { timeout: 10000 });
+  assert.match(await pa.page.textContent('.counter'), /Ivo counters[\s\S]*You give[\s\S]*You get/);
+  assert.match(await pb.page.textContent('#offer'), /You countered/);
+  if (axePath) assert.deepEqual(await axeFindings(pa.page), [], 'the offer card with a counter-offer');
+  await pa.page.click('[data-cwith]');
+  await pa.page.waitForFunction(() => !document.querySelector('[data-cwith]'), null, { timeout: 10000 });
+  assert.equal(g.trade, null, 'the trade went through');
+  assert.deepEqual([g.players[ih].res.wood, g.players[ih].res.brick, g.players[ii].res.wood, g.players[ii].res.brick], [1, 1, 1, 1]);
+  assert.deepEqual(pa.errors, []); assert.deepEqual(pb.errors, []);
+  await pa.ctx.close(); await pb.ctx.close();
+});
+
 // ---------- accessibility ----------
 let axePath = null;
 try { axePath = require.resolve('axe-core/axe.min.js'); } catch { /* axe-core is not installed */ }

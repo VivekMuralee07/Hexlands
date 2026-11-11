@@ -621,6 +621,11 @@ function onState(st) {
     else if (s.from === me) toast(`${icon(s.card)} ${esc(st.players[s.to].name)} took your ${RES_LABEL[s.card]}`, 'err', true);
   }
   if (prev) turnAlert(prev, st);
+  if (prev && st.phase === 'main') st.players.forEach((p, i) => {   // within two points of winning (public points: hidden victory cards are not counted)
+    const q = prev.players[i], left = st.vpTarget - p.vp;
+    if (!q || left < 1 || left > 2 || st.vpTarget - q.vp <= 2) return;
+    toast(i === st.you ? `${left === 1 ? 'One point' : 'Two points'} to win. Go for it!` : `${esc(p.name)} is ${left === 1 ? 'one point' : 'two points'} from winning`, i === st.you ? 'gain' : 'err');
+  });
   if (prev && prev.phase === 'lobby' && st.phase === 'setup') Sound.theme('start');
   if (prev && prev.phase !== 'ended' && st.phase === 'ended') { Sound.theme('finish'); if (!st.spectator) recordResult(st); setTimeout(openLeaderboard, 700); confetti(); }
   if (prev) soundReactions(prev, st);
@@ -1132,6 +1137,8 @@ function drawDice(d, roll) {
 const ARC = '<svg class="ic" viewBox="0 0 32 32" aria-hidden="true"><path d="M4,24 Q16,0 28,24" fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round"/></svg>';
 function drawPlayers() {
   const st = S.state, leader = Math.max(...st.players.map(p => p.vp));
+  const prog = p => `<span class="pc-prog${st.vpTarget - p.vp <= 2 ? ' near' : ''}" aria-hidden="true" style="--pct:${Math.max(0, Math.min(100, Math.round(100 * p.vp / st.vpTarget)))}%"><i></i></span>`;
+  const toGo = p => (st.vpTarget - p.vp > 0 ? `, ${plural(st.vpTarget - p.vp, 'point')} from winning` : '');
   const bank = `<div class="bank" title="Cards left in the bank, and development cards left in the pile">${RES.map(k => `<span class="bk ${k}" title="${RES_LABEL[k]} left in the bank">${icon(k)}<b>${st.bank[k]}</b></span>`).join('')}<button class="bk dev" data-pile title="Development cards left in the pile. Tap to see what is still unseen.">${icon('dev')}<b>${st.devLeft}</b></button><button class="ibtn" data-info title="Game info: costs, points and settings" aria-label="Game info">i</button></div>`;
   // Phones: every player's key numbers sit in one compact strip (the full cards below are hidden there), so nothing drops down over the map.
   const strip = `<div class="pstrip" role="group" aria-label="Players">${st.players.map((p, i) => {
@@ -1140,11 +1147,11 @@ function drawPlayers() {
     const army = st.largestArmy && st.largestArmy.p === i, road = st.longestRoad && st.longestRoad.p === i;
     const stat = (cls, ic, n, label) => `<span class="pc-s ${cls}" title="${label}">${ic}<b>${n}</b></span>`;
     const pend = st.pendingDiscards[i] ? `Discarding ${st.pendingDiscards[i]}` : st.subphase === 'diamond' && st.pendingDiamond[i] ? `Choosing ${st.pendingDiamond[i]}` : '';
-    return `<div class="pchip ${turn ? 'turn' : ''} ${i === me() ? 'me' : ''}" style="--pc:${p.color}" aria-label="${esc(p.name)}: ${p.vp} points, ${p.cards} resource cards, ${p.devCount} development cards, ${p.knights} knights, longest road ${p.roadLen}">
+    return `<div class="pchip ${turn ? 'turn' : ''} ${i === me() ? 'me' : ''}" style="--pc:${p.color}" aria-label="${esc(p.name)}: ${p.vp} of ${st.vpTarget} points${toGo(p)}, ${p.cards} resource cards, ${p.devCount} development cards, ${p.knights} knights, longest road ${p.roadLen}">
       <span class="pc-top">${p.bot ? icon('bot', 'boticon') : `<span class="dot ${p.connected ? '' : 'off'}"></span>`}<span class="pc-nm">${esc(p.name)}</span><span class="pc-vp ${lead ? 'lead' : ''}" title="Victory points (first to ${st.vpTarget})">${p.vp}</span></span>
       <span class="pc-stats">${stat('', icon('cards'), p.cards, 'Resource cards in hand')}${stat('', '<i class="dv">?</i>', p.devCount, 'Development cards in hand')}${stat(army ? 'gold' : '', icon('knight'), p.knights, army ? 'Knights played (Largest Army)' : 'Knights played')}${stat(road ? 'gold' : '', ARC, p.roadLen, road ? 'Longest road (holds Longest Road)' : 'Longest road')}</span>
       <span class="pc-pieces" style="color:${p.color}" title="Roads, settlements and cities left to build">${[['road', p.pieces.road], ['settlement', p.pieces.settlement], ['city', p.pieces.city]].map(([k, n]) => `<span class="pp">${icon(k)}<b>${n}</b></span>`).join('')}</span>
-      ${pend ? `<span class="pc-note">${pend}</span>` : ''}${skippable ? `<button class="pc-skip" data-skip>Skip</button>` : ''}
+      ${pend ? `<span class="pc-note">${pend}</span>` : ''}${skippable ? `<button class="pc-skip" data-skip>Skip</button>` : ''}${prog(p)}
     </div>`;
   }).join('')}</div>`;
   $('#players').innerHTML = strip + bank + st.players.map((p, i) => {
@@ -1156,7 +1163,7 @@ function drawPlayers() {
     if (st.longestRoad && st.longestRoad.p === i) badges.push(`<span class="badge">${icon('road')} Longest Road</span>`);
     if (st.largestArmy && st.largestArmy.p === i) badges.push(`<span class="badge">${icon('knight')} Largest Army</span>`);
     return `<div class="pcard ${turn ? 'turn' : ''}" style="--pc:${p.color}">
-      <span class="vpb" title="Victory points (first to ${st.vpTarget})">${crown}${p.vp}</span>
+      <span class="vpb" title="Victory points (first to ${st.vpTarget})">${crown}${p.vp}</span>${prog(p)}
       <div class="tag">${p.bot ? icon('bot', 'boticon') : `<span class="dot ${p.connected ? '' : 'off'}"></span>`}<span class="nm">${esc(p.name)}${i === me() ? ' (you)' : ''}</span>${p.bot ? `<span class="lv lvl-${p.bot}" title="${p.takenOver ? 'Away: a bot is playing for ' + esc(p.name) : LEVEL_LABEL[p.bot] + ' bot'}">${p.takenOver ? 'AWAY' : LEVEL_LABEL[p.bot][0]}</span>` : ''}</div>
       <div class="ptiles">
         <span class="pt devt" title="Development cards in hand: ${p.devCount}" aria-label="${p.devCount} development cards in hand"><i>?</i><b class="dn${p.devCount > 9 ? ' two' : ''}">${p.devCount}</b></span>
@@ -1310,6 +1317,11 @@ function costIcons(c) { return `<span class="cost">${Object.entries(c).flatMap((
 function drawActions() {
   const st = S.state, box = $('#actions'), mine = myTurn(), P = st.players[me()];
   if (st.phase === 'ended') { box.innerHTML = `${watching() ? '' : `<button class="act go" id="again">${icon('settlement')}Play again</button>`}<button class="act${watching() ? ' go' : ''}" id="res">${icon('vp')}Results</button><button class="act" id="home">Leave</button>`; if ($('#again')) $('#again').onclick = playAgain; $('#res').onclick = openLeaderboard; $('#home').onclick = () => leaveToHome(); return; }
+  if (st.undo) {   // the last setup placement can be taken back
+    box.innerHTML = `<button class="act undo" id="undo" title="Take back your last placement">↶ Undo<small>${st.undo.left} left</small></button>`;
+    $('#undo').onclick = async () => { S.pick = null; S.mode = null; await act({ type: 'undo' }); };
+    return;
+  }
   if (st.phase === 'setup' || !mine) { box.innerHTML = ''; return; }
   if (st.subphase) { box.innerHTML = ''; return; }
   if (currentMode() === 'heist') {   // choosing the settlement to steal
@@ -1362,27 +1374,63 @@ function drawLog() {
 }
 
 function resLine(r) { return RES.filter(k => r[k]).map(k => `${r[k]}${icon(k)}`).join(' '); }
+// A counter-offer: answer an offer with your own cards. It starts as the offer turned around, and you change the numbers.
+function openCounter(t) {
+  const st = S.state, from = st.players[t.from], hand = st.me.res;
+  const mineSoFar = (t.counters || {})[me()];
+  const give = Object.fromEntries(RES.map(k => [k, Math.min((mineSoFar ? mineSoFar.give[k] : t.get[k]) || 0, hand[k])]));
+  const get = Object.fromEntries(RES.map(k => [k, (mineSoFar ? mineSoFar.get[k] : t.give[k]) || 0]));
+  openModal('counter', `<h3>Counter-offer to ${esc(from.name)}</h3>
+    <p class="muted">They offer ${resLine(t.give)} for ${resLine(t.get)}. Choose cards you would trade instead.</p>
+    <h4 class="lb-title">You give</h4>${qtyRow('cg', give, hand)}
+    <h4 class="lb-title">You get</h4>${qtyRow('ct', get, null)}
+    <p class="help" id="cmsg" aria-live="polite"></p>
+    <div class="foot"><button class="btn" id="cno">Cancel</button><button class="btn primary" id="csend">Send counter-offer</button></div>`, layer => {
+    const check = () => {
+      const g = RES.reduce((a, k) => a + give[k], 0), w = RES.reduce((a, k) => a + get[k], 0), both = RES.find(k => give[k] && get[k]);
+      const msg = !g || !w ? 'Pick cards on both sides.' : both ? `You cannot give and get ${RES_LABEL[both]} at once.` : '';
+      $('#cmsg').textContent = msg; $('#csend').disabled = !!msg;
+    };
+    bindQty(layer, { cg: { vals: give, max: hand }, ct: { vals: get } }, check);
+    check();
+    $('#cno').onclick = closeModal;
+    $('#csend').onclick = async () => {
+      const clean = o => Object.fromEntries(Object.entries(o).filter(([, n]) => n));
+      const r = await act({ type: 'counter', give: clean(give), get: clean(get) });
+      if (r.ok) { closeModal(); toast('Counter-offer sent'); }
+    };
+  });
+}
+
 function drawOffer() {
   const st = S.state, box = $('#offer'), t = st.trade;
   if (!t || st.phase !== 'main') { box.innerHTML = ''; return; }
   const from = st.players[t.from];
   if (t.from === me()) {
     const acc = t.accepted.map(i => `<button class="btn small primary" data-with="${i}">Trade with ${esc(st.players[i].name)}</button>`).join('');
-    const waiting = st.players.map((p, i) => i).filter(i => i !== me() && !t.accepted.includes(i) && !t.declined.includes(i));
+    const counters = t.counters || {};
+    const ctr = Object.keys(counters).map(Number).map(i => `<div class="counter" style="--pc:${st.players[i].color}"><b>${esc(st.players[i].name)} counters</b>
+      <div class="offer-line">You give ${resLine(counters[i].get)}</div><div class="offer-line">You get ${resLine(counters[i].give)}</div>
+      <div class="row"><button class="btn small primary" data-cwith="${i}" ${RES.every(k => st.me.res[k] >= (counters[i].get[k] || 0)) ? '' : 'disabled'}>Accept</button><button class="btn small" data-cno="${i}">No thanks</button></div></div>`).join('');
+    const waiting = st.players.map((p, i) => i).filter(i => i !== me() && !t.accepted.includes(i) && !t.declined.includes(i) && !counters[i]);
     box.innerHTML = `<div class="panel stack"><b>Your offer</b>
       <div class="offer-line">You give ${resLine(t.give)}</div><div class="offer-line">You get ${resLine(t.get)}</div>
-      ${acc ? `<div class="row">${acc}</div>` : ''}
+      ${acc ? `<div class="row">${acc}</div>` : ''}${ctr}
       <div class="muted" style="font-size:.88em">${t.declined.length ? 'Declined: ' + t.declined.map(i => esc(st.players[i].name)).join(', ') + '. ' : ''}${waiting.length ? 'Waiting on ' + waiting.map(i => esc(st.players[i].name)).join(', ') + '.' : ''}</div>
       <button class="btn small" id="tcancel">Withdraw offer</button></div>`;
     $$('[data-with]').forEach(b => b.onclick = () => act({ type: 'confirm', with: +b.dataset.with }));
+    $$('[data-cwith]').forEach(b => b.onclick = () => act({ type: 'confirm', with: +b.dataset.cwith, counter: true }));
+    $$('[data-cno]').forEach(b => b.onclick = () => act({ type: 'declineCounter', with: +b.dataset.cno }));
     $('#tcancel').onclick = () => act({ type: 'cancelTrade' });
   } else {
     const can = RES.every(k => st.me.res[k] >= (t.get[k] || 0));
-    const status = t.accepted.includes(me()) ? 'You accepted. Waiting for them to confirm.' : t.declined.includes(me()) ? 'You declined.' : '';
+    const mine = (t.counters || {})[me()];
+    const status = t.accepted.includes(me()) ? 'You accepted. Waiting for them to confirm.' : t.declined.includes(me()) ? 'You declined.' : mine ? `You countered: you give ${resLine(mine.give)}, you get ${resLine(mine.get)}. Waiting for them.` : '';
     box.innerHTML = `<div class="panel stack"><b style="color:${from.color}">${esc(from.name)} offers a trade</b>
       <div class="offer-line">You get ${resLine(t.give)}</div><div class="offer-line">You give ${resLine(t.get)}</div>
       ${status ? `<div class="muted" style="font-size:.9em">${status}</div>` : ''}
-      <div class="row"><button class="btn small primary" id="tacc" ${can ? '' : 'disabled'}>${can ? 'Accept' : 'Not enough cards'}</button><button class="btn small" id="tdec">Decline</button></div></div>`;
+      <div class="row"><button class="btn small primary" id="tacc" ${can ? '' : 'disabled'}>${can ? 'Accept' : 'Not enough cards'}</button><button class="btn small" id="tdec">Decline</button>${from.bot ? '' : `<button class="btn small" id="tctr" title="Answer with different cards">Counter</button>`}</div></div>`;
+    if ($('#tctr')) $('#tctr').onclick = () => openCounter(t);
     $('#tacc').onclick = () => act({ type: 'respond', accept: true });
     $('#tdec').onclick = () => act({ type: 'respond', accept: false });
   }
@@ -1430,6 +1478,7 @@ function syncModals() {
   if (need && S.modal !== 'discard') openDiscard();
   if (!need && S.modal === 'discard') closeModal();
   if (S.modal === 'steal' && st.subphase !== 'robber') closeModal();
+  if (S.modal === 'counter' && (!st.trade || st.trade.from === me() || st.phase !== 'main')) closeModal();   // the offer is gone
 }
 
 function qtyRow(prefix, vals, max) {

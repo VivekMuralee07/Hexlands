@@ -1411,3 +1411,17 @@ button, [role=button], a, label, select, summary { touch-action: manipulation; }
 /* live games to watch, in the Public rooms window */
 .roomrow.live .rinfo b { white-space: normal; }
 .roomlist .lb-title { margin: .9rem 0 .4rem; }
+
+/* undo and counter-offers */
+.act.undo small { display: block; font-size: .7rem; opacity: .8; font-weight: 500; }
+.counter { display: grid; gap: .2rem; padding: .45rem .6rem; margin-top: .35rem; border-radius: 10px; background: rgba(255, 255, 255, .08); border-left: 4px solid var(--pc, #7a8ea8); }
+.counter b { font-size: .9rem; }
+
+/* progress towards the points target, under each player */
+.pchip { position: relative; }
+.pc-prog { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(255, 255, 255, .14); pointer-events: none; }
+.pcard .pc-prog { left: 6px; right: 6px; bottom: 5px; border-radius: 3px; overflow: hidden; }
+.pc-prog i { display: block; height: 100%; width: var(--pct); background: var(--pc, #ffd23f); transition: width .5s ease; }
+.pc-prog.near i { background: linear-gradient(90deg, var(--pc, #ffd23f), #ffd23f); }
+@media (prefers-reduced-motion: no-preference) { .pc-prog.near i { animation: nearpulse 1.4s ease-in-out infinite; } }
+@keyframes nearpulse { 50% { filter: brightness(1.5); } }
