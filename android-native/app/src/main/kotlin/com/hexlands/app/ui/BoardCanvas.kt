@@ -139,10 +139,20 @@ fun BoardCanvas(
     var robFrom by remember { mutableStateOf(game.robber) }
     var robTo by remember { mutableStateOf(game.robber) }
     val hop = remember { androidx.compose.animation.core.Animatable(1f) }
+    var landedAt by remember { mutableFloatStateOf(-100f) }   // when the robber last came down (for the thud)
+    // the hexes that paid out light up after the dice have settled
+    val rollSeq = game.lastRoll?.seq
+    var seenRoll by remember { mutableStateOf(rollSeq) }
+    var rollAt by remember { mutableFloatStateOf(-100f) }
+    androidx.compose.runtime.LaunchedEffect(rollSeq) { if (rollSeq != seenRoll) { seenRoll = rollSeq; rollAt = clock } }
+    // Longest Road changes hands: that player's roads glow for a moment
+    var awardSeat by remember { mutableStateOf(game.longestRoad?.p) }
+    var awardAt by remember { mutableFloatStateOf(-100f) }
+    androidx.compose.runtime.LaunchedEffect(game.longestRoad?.p) { if (game.longestRoad?.p != awardSeat) { awardSeat = game.longestRoad?.p; awardAt = clock } }
     androidx.compose.runtime.LaunchedEffect(game.robber) {
         if (game.robber != robTo) {
             robFrom = robTo; robTo = game.robber
-            if (anim) { hop.snapTo(0f); hop.animateTo(1f, tween(550)) } else hop.snapTo(1f)
+            if (anim) { hop.snapTo(0f); hop.animateTo(1f, tween(550)); landedAt = clock } else hop.snapTo(1f)
         }
     }
     val density = LocalDensity.current
@@ -202,6 +212,13 @@ fun BoardCanvas(
         if (size.width == 0) return@Canvas
         val k = scale()
         drawBoardArt(board, screen(0.0, 0.0), k, measurer, sea = false)   // the sea behind it is the animated SeaBackground
+        if (anim) for (t in board.tiles) if (!t.fog) terrainLife(t.terrain, t.id, screen(t.x, t.y), k, clock)
+        // the hexes that paid out pulse after a roll
+        if (anim && game.lastRoll != null) {
+            val sum = game.lastRoll.dice.sum()
+            val pp = (clock - rollAt - 0.85f) / 2.4f
+            if (sum != 7 && pp in 0f..1f) for (t in board.tiles) if (t.number == sum && t.id != robTo) paidPulse(screen(t.x, t.y), k, pp)
+        }
         // roads
         for ((eid, seat) in game.roads) {
             val e = board.edges.getOrNull(eid.toIntOrNull() ?: continue) ?: continue
@@ -209,13 +226,18 @@ fun BoardCanvas(
             val pa = screen(a.x, a.y); val pb = screen(b.x, b.y)
             val g = pop("r$eid")
             val cut = if (eid.toIntOrNull() in cutRoads) 0.5f else 1f   // a road an opposing settlement has cut off is shown faded
+            if (anim && seat == awardSeat && clock - awardAt in 0f..2.6f) drawLine(Color(0xFFFFE27A).copy(alpha = 0.5f + 0.4f * kotlin.math.sin((clock - awardAt) * 9f)), pa, pb, strokeWidth = k * 0.42f, cap = StrokeCap.Round)
             drawLine(Color.Black.copy(alpha = 0.7f * cut), pa, pb, strokeWidth = k * 0.27f * g, cap = StrokeCap.Round)
             drawLine(Color(parseColor(game.players.getOrNull(seat)?.color)).copy(alpha = cut), pa, pb, strokeWidth = k * 0.18f * g, cap = StrokeCap.Round)
+            if (anim) landingPuff((pa + pb) / 2f, k * 0.2f, (clock - (births["r$eid"] ?: -10f)) / 0.7f)
         }
         // buildings
         for ((vid, b) in game.buildings) {
             val v = board.vertices.getOrNull(vid.toIntOrNull() ?: continue) ?: continue
-            house(screen(v.x, v.y), k * 0.32f * pop("b$vid${b.type}"), Color(parseColor(game.players.getOrNull(b.p)?.color)), b.type == "city")
+            val vc = screen(v.x, v.y)
+            if (anim && game.phase == "ended" && b.p == game.winner) winnerHalo(vc, k, clock)
+            house(vc, k * 0.32f * pop("b$vid${b.type}"), Color(parseColor(game.players.getOrNull(b.p)?.color)), b.type == "city")
+            if (anim) landingPuff(vc, k * 0.3f, (clock - (births["b$vid${b.type}"] ?: -10f)) / 0.7f)
         }
         // the robber
         board.tiles.getOrNull(robTo)?.let { t ->
@@ -223,8 +245,15 @@ fun BoardCanvas(
             val from = board.tiles.getOrNull(robFrom)?.let { screen(it.x, it.y) } ?: to
             val h = hop.value
             val c = from + (to - from) * h + Offset(0f, -kotlin.math.sin(Math.PI.toFloat() * h) * k * 0.6f)
+            if (anim) {
+                val blocked = (clock - landedAt) in 0f..60f || hop.value >= 1f
+                if (blocked) drawCircle(Color(0xFF101830).copy(alpha = 0.3f), k * 0.34f, to)   // the number it blocks is greyed
+                drawOval(Color.Black.copy(alpha = 0.3f), Offset(c.x - k * 0.22f, to.y + k * 0.05f), androidx.compose.ui.geometry.Size(k * 0.44f * (1f - 0.35f * kotlin.math.sin(Math.PI.toFloat() * h)), k * 0.1f))
+                robberRipple(to, k, (clock - landedAt) / 1.0f)
+            }
             robberFigure(c, k)
         }
+        if (anim) dayNightTint(clock)
         // the spots the player may tap: white transparent bubbles (on a road, at its middle)
         val spotTint = Color.White
         for (id in roadSpots) {

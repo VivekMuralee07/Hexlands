@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -128,8 +129,17 @@ fun ResourceCard(
     onClick: (() -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(12.dp)
+    // a card that gains a copy flips over and bounces; one that loses a copy gives a small nudge
+    val animateCards = LocalAnimate.current
+    val flip = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(1f) }
+    val lastCount = androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(count ?: 0) }
+    androidx.compose.runtime.LaunchedEffect(count) {
+        val n = count ?: 0
+        if (animateCards && n > lastCount.intValue) { flip.snapTo(0f); flip.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.45f, stiffness = 180f)) }
+        lastCount.intValue = n
+    }
     val name = (RESOURCE_LABEL[resource] ?: resource) + (count?.let { ", $it" } ?: "")
-    Box(modifier.aspectRatio(0.76f).semantics { contentDescription = name }.let { if (onClick != null) it.clickable { com.hexlands.app.audio.Sound.play("note", resource); onClick() } else it }) {
+    Box(modifier.aspectRatio(0.76f).graphicsLayer { rotationY = (1f - flip.value) * 90f; cameraDistance = 12f * density; val b = 1f + 0.12f * kotlin.math.sin(flip.value.coerceIn(0f, 1f) * Math.PI.toFloat()); scaleX = b; scaleY = b }.semantics { contentDescription = name }.let { if (onClick != null) it.clickable { com.hexlands.app.audio.Sound.play("note", resource); onClick() } else it }) {
         Box(
             Modifier.fillMaxSize().clip(shape)
                 .background(Brush.verticalGradient(listOf((CARD_TOP[resource] ?: Color.Gray).copy(alpha = if (dim) 0.4f else 1f), (CARD_BOTTOM[resource] ?: Color.DarkGray).copy(alpha = if (dim) 0.4f else 1f))))

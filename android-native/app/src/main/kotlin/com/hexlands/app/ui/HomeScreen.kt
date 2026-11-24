@@ -73,6 +73,7 @@ fun HomeScreen(ui: UiState, vm: GameViewModel, onLeaderboard: () -> Unit = {}, o
 
     Box(Modifier.fillMaxSize()) {
     SeaBackground()
+    CloudLayer()
     // The column is at least as tall as the screen (so it is centred when there is room) and scrolls when there is not. A column forced to the screen
     // height with centred content would push the top of a too-tall page out of reach.
     BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
