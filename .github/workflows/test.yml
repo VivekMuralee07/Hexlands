@@ -51,8 +51,10 @@ jobs:
           exit 1
       - run: npm test
 
-  # The native Android app (android-native/): builds it and runs its tests, which start the real Node server and draw the screens on the JVM.
-  # Not a required check for merging; it shows whether the Android app still builds.
+  # The native Android app (android-native/). Not a required check for merging. Two jobs, so that a download problem cannot hide whether the app builds:
+  #  - "android build": builds the app, keeps the APK, runs the tests that start the real server (no big downloads);
+  #  - "android screens": draws every screen on the build machine (Robolectric). It needs Android runtimes (about 350 MB) from Maven Central, which now and
+  #    then answers "429 Too Many Requests" to build machines, so it keeps them between runs, tries again, and may fail without failing the pull request.
   android:
     name: android build
     runs-on: ubuntu-24.04
@@ -67,9 +69,63 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
-      - name: Build and test the Android app
+      - name: Build the app
         working-directory: android-native
-        run: ./gradlew --no-daemon assembleDebug testDebugUnitTest
+        run: ./gradlew --no-daemon assembleDebug
+      # The test app, ready to install on a phone: Actions tab, open this run, Artifacts, hexlands-test-apk (a zip with app-debug.apk inside).
+      - name: Keep the test app (APK)
+        uses: actions/upload-artifact@v4
+        with:
+          name: hexlands-test-apk
+          path: android-native/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+      - name: Test the Android app against the real server
+        working-directory: android-native
+        run: ./gradlew --no-daemon testDebugUnitTest -PnoScreenTests=true
+
+  android-screens:
+    name: android screens
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    continue-on-error: true   # best effort: see the comment above
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Look for the Android runtimes saved by an earlier run
+        id: runtimes
+        uses: actions/cache/restore@v4
+        with:
+          path: android-native/app/build/robolectric-runtime
+          key: robolectric-runtime-${{ hashFiles('android-native/app/build.gradle.kts') }}
+      - name: Download the Android runtimes
+        if: steps.runtimes.outputs.cache-hit != 'true'
+        working-directory: android-native
+        run: |
+          for attempt in 1 2 3 4 5; do
+            ./gradlew --no-daemon -q :app:copyRobolectricRuntime && exit 0
+            echo "The download was refused (attempt $attempt of 5). Trying again in 60 seconds."
+            sleep 60
+          done
+          exit 1
+      - name: Save the Android runtimes for the next run
+        if: steps.runtimes.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: android-native/app/build/robolectric-runtime
+          key: robolectric-runtime-${{ hashFiles('android-native/app/build.gradle.kts') }}
+      - name: Draw the screens and check the taps
+        working-directory: android-native
+        run: ./gradlew --no-daemon testDebugUnitTest -x :app:copyRobolectricRuntime --tests '*ScreenshotTest*' --tests '*BoardTapTest*'
+      - name: Show why the tests failed
+        if: failure()
+        working-directory: android-native
+        run: |
+          echo "--- the runtime folder:"; ls -la app/build/robolectric-runtime || true
+          grep -h -A6 "<failure" app/build/test-results/testDebugUnitTest/*.xml 2>/dev/null | head -40 || true
       - name: Keep the screen pictures
         if: always()
         uses: actions/upload-artifact@v4
