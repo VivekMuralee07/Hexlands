@@ -87,6 +87,7 @@ tasks.withType<Test>().configureEach {
             excludeTestsMatching("com.hexlands.app.ScreenshotTest")
             excludeTestsMatching("com.hexlands.app.BoardTapTest")
             excludeTestsMatching("com.hexlands.app.TwoTapPlacementTest")   // draws screens too
+            excludeTestsMatching("com.hexlands.app.AllMapsTest")
         }
     } else {
         dependsOn(copyRobolectricRuntime)

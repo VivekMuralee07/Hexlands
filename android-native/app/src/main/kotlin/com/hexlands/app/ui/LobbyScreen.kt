@@ -23,6 +23,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,6 +54,9 @@ fun LobbyScreen(game: GameState, vm: GameViewModel) {
     val allReady = humans.all { it.ready }
     val canStart = amHost && game.players.size >= 2 && (!needReady || allReady)
     val countdown = game.net?.countdown
+    var showMaps by remember { mutableStateOf(false) }
+    val ui by vm.ui.collectAsStateWithLifecycle()
+    if (showMaps) MapPickerDialog(ui.maps, ui.board?.key, onLoad = { vm.loadMaps() }, onClose = { showMaps = false }) { vm.chooseMap(it.key) }
 
     Box(Modifier.fillMaxSize()) {
     SeaBackground()
@@ -81,7 +85,10 @@ fun LobbyScreen(game: GameState, vm: GameViewModel) {
             }
         }
 
-        Text("${game.mapName} · ${game.vpTarget} points to win${if (game.opts.timer > 0) " · ${game.opts.timer}s move timer" else ""}", color = FoamDim)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("${game.mapName} · ${game.vpTarget} points to win${if (game.opts.timer > 0) " · ${game.opts.timer}s move timer" else ""}", Modifier.weight(1f), color = FoamDim)
+            if (amHost) GlassButton(onClick = { showMaps = true }) { Text("Change map", fontSize = 13.sp) }
+        }
 
         Text("Players (${game.players.size} of 4)", fontWeight = FontWeight.Bold)
         game.players.forEachIndexed { i, p ->

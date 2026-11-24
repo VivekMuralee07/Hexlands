@@ -42,6 +42,8 @@ data class UiState(
     /** A room code from an invite link, ready to join. */
     val joinCode: String = "",
     val update: UpdateState = UpdateState.Idle,
+    /** The maps the host can choose from, loaded when the picker opens. */
+    val maps: List<com.hexlands.app.net.MapInfo>? = null,
 )
 
 class GameViewModel(private val app: Application) : AndroidViewModel(app) {
@@ -194,6 +196,19 @@ class GameViewModel(private val app: Application) : AndroidViewModel(app) {
         }
         Updater.install(app, ready.file)
     }
+
+    // ---------- choosing the map (the host, in the waiting room) ----------
+
+    fun loadMaps() {
+        if (_ui.value.maps != null) return
+        viewModelScope.launch {
+            try { _ui.update { it.copy(maps = api.maps().maps) } }
+            catch (e: ApiException) { _ui.update { it.copy(message = e.message) } }
+        }
+    }
+
+    /** The server swaps the board; the new one arrives on the live stream like any other change. */
+    fun chooseMap(key: String) = act("setMap") { put("preset", key) }
 
     // ---------- the room list ----------
 
