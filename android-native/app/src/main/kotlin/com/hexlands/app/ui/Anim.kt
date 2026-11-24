@@ -147,5 +147,6 @@ fun SeaBackground(modifier: Modifier = Modifier) {
             val cy = h * (0.2f + 0.15f * ((i * 3) % 5)) + sin(t * 0.14f + i) * h * 0.03f
             drawCircle(Brush.radialGradient(listOf(Color.White.copy(alpha = 0.07f), Color.Transparent), Offset(cx, cy), w * 0.35f), w * 0.35f, Offset(cx, cy))
         }
+        seaLife(t)
     }
 }
