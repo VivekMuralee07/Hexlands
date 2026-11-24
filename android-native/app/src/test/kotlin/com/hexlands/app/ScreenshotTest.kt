@@ -73,7 +73,12 @@ class ScreenshotTest {
     private fun ui(game: GameState, spectator: Boolean = false, board: Board = this.board) =
         UiState(session = Session("K7QXM", "t", spectator), board = board, game = game)
 
-    @Test fun home() = shot("home") { HomeScreen(UiState(), GameViewModel(app)) }
+    @Test fun home() {
+        shot("home") { HomeScreen(UiState(), GameViewModel(app)) }
+        rule.onNodeWithContentDescription("How to play: tutorial and rules").assertExists()
+        rule.onNodeWithContentDescription("Sound effects on").assertExists()
+        rule.onNodeWithContentDescription("Music on").assertExists()
+    }
 
     @Test fun lobby() = shot("lobby") { LobbyScreen(state("lobby"), GameViewModel(app)) }
 
@@ -295,5 +300,15 @@ class ScreenshotTest {
         shot("strike") { GameScreen(ui(g), g, GameViewModel(app), animate = false, strikeAtStart = true) }
         rule.onNodeWithText("The robber strikes!").assertExists()
         rule.onNodeWithText("A 7 was rolled: nobody collects.").assertExists()
+    }
+
+    @Test fun howToPlayHasTheAnimatedTutorialAndTheRulesInWords() {
+        val record = com.hexlands.app.tutorial.TutorialRecord.parse(File("src/main/assets/tutorial.json").readText())
+        shot("howto") { com.hexlands.app.ui.HowToPlayScreen(record, onClose = {}) }
+        rule.onNodeWithText("Watch the tutorial").assertExists()
+        rule.onNodeWithText("Hexlands is played on an island of hex tiles. Each tile produces one resource.").assertExists()   // the first caption of the tutorial
+        rule.onNodeWithText("Read the rules").performClick(); rule.waitForIdle()
+        rule.onNodeWithText("Goal").assertExists()
+        rule.onNodeWithText("Setup").assertExists()
     }
 }
