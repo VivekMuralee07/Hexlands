@@ -243,8 +243,8 @@ private fun DrawScope.port(p: Port, measurer: TextMeasurer) {
 }
 
 /** Sea, the island's coast rings, ports, tiles and number tokens, in the web's order. [origin] is where board point (0, 0) is on the screen; [k] is pixels per board unit. */
-fun DrawScope.drawBoardArt(board: Board, origin: Offset, k: Float, measurer: TextMeasurer) {
-    drawRect(SEA_COLOR)
+fun DrawScope.drawBoardArt(board: Board, origin: Offset, k: Float, measurer: TextMeasurer, sea: Boolean = true) {
+    if (sea) drawRect(SEA_COLOR)
     val u = k / U
     withTransform({ translate(origin.x, origin.y); scale(u, u, Offset.Zero) }) {
         val land = board.tiles.filter { it.terrain != "fog" }

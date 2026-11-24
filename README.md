@@ -302,6 +302,15 @@ cd android-native
 
 **Releasing it:** the app uses the same application ID as the Play Store app made with PWABuilder (`com.vivek.hexlands_r2fs.twa`), so it can update that listing as a new version, but only if it is signed with the same key you uploaded then (Play App Signing keeps the real key; you sign with your upload key). Make a release bundle with `./gradlew bundleRelease`, and sign it in Android Studio (Build, Generate Signed Bundle) or with your own signing setup. Raise `versionCode` in `android-native/app/build.gradle.kts` for each upload. Nothing about the Data safety answers changes: the app sends the same anonymous player ID and game data as the web app.
 
+### Updating the test build from inside the app
+
+The test build ("Hexlands (test)") checks GitHub Releases when it opens. If a newer build exists, the front page shows an **Update now** card with a progress bar, then hands the APK to Android's installer. You can also tap **Check for updates** at the bottom of the front page.
+
+- Every merge to `main` publishes a release `app-<number>` with `hexlands-test.apk` (CI numbers builds `1000 + run number`, so newer always wins).
+- Android only installs over the old app if both are signed with the same key. The test build uses `android-native/test-signing.jks`, committed on purpose: it protects nothing, it only keeps updates working. Play Store builds use your own key and never this one.
+- The first time, Android asks you to allow installing from Hexlands. If you installed an older test build (signed with a different key), uninstall it once and install the newest; after that no more reinstalling.
+- Play Store builds do not contain the updater.
+
 ## Publish on Google Play
 
 You need: a Play Console developer account (one-time fee, identity checks), the live HTTPS site, and the signed `.aab` from PWABuilder (previous section).

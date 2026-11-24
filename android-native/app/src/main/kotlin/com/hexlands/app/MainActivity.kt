@@ -6,6 +6,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -73,6 +79,12 @@ private fun App(vm: GameViewModel) {
 
     Box(Modifier.fillMaxSize().background(Navy).safeDrawingPadding()) {
         val game = ui.game
+        val key = when { ui.session == null -> 0; game == null -> 1; game.phase == "lobby" -> 2; else -> 3 }
+        AnimatedContent(
+            targetState = key,
+            transitionSpec = { (fadeIn(tween(350)) + scaleIn(tween(350), initialScale = 0.96f)) togetherWith fadeOut(tween(200)) },
+            label = "screen",
+        ) { _ ->
         when {
             ui.session == null -> HomeScreen(ui, vm)
             game == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -90,6 +102,7 @@ private fun App(vm: GameViewModel) {
             }
             game.phase == "lobby" -> LobbyScreen(game, vm)
             else -> GameScreen(ui, game, vm)
+        }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = 96.dp))
     }

@@ -28,6 +28,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -36,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -309,7 +311,11 @@ private fun ActionRow(game: GameState, myTurn: Boolean, vm: GameViewModel, onBan
         Modifier.fillMaxWidth().background(NavyDark).horizontalScroll(rememberScrollState()).padding(horizontal = 6.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (free && !game.rolled) Button(onClick = { vm.act("roll") }, modifier = Modifier.height(48.dp)) { Text("Roll dice", fontWeight = FontWeight.Bold) }
+        if (free && !game.rolled) {
+            val pulse = if (LocalAnimate.current) androidx.compose.animation.core.rememberInfiniteTransition(label = "roll").animateFloat(
+                1f, 1.07f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(700), androidx.compose.animation.core.RepeatMode.Reverse), label = "p").value else 1f
+            GoldButton(onClick = { vm.act("roll") }, modifier = Modifier.height(48.dp).graphicsLayer { scaleX = pulse; scaleY = pulse }) { Text("Roll dice", fontWeight = FontWeight.Bold) }
+        }
         if (free && game.rolled) Button(onClick = { vm.act("endTurn") }, modifier = Modifier.height(48.dp)) { Text("End turn", fontWeight = FontWeight.Bold) }
         if (game.undo != null) OutlinedButton(onClick = { vm.act("undo") }) { Text("↶ Undo (${game.undo.left})") }
         OutlinedButton(onClick = onBank, enabled = free && game.rolled) { Text("Bank trade") }
