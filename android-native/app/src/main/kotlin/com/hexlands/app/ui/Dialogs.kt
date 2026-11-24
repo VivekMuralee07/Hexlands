@@ -208,6 +208,11 @@ private fun ThisGame(game: GameState) {
         Text("Friendly robber: ${if (o.friendlyRobber) "on" else "off"}", fontSize = 13.sp)
         Text("Balanced dice: ${if (o.balancedDice) "on" else "off"}", fontSize = 13.sp)
         Text("Pinch to zoom the board and drag to move it; tap Fit to see all of it again.", color = FoamDim, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
+        Text("Sound", fontWeight = FontWeight.Bold, color = Gold, modifier = Modifier.padding(top = 6.dp))
+        var sfx by remember { mutableStateOf(com.hexlands.app.audio.Sound.sfxOn) }
+        var music by remember { mutableStateOf(com.hexlands.app.audio.Sound.musicOn) }
+        Row(verticalAlignment = Alignment.CenterVertically) { Text("Sound effects", Modifier.weight(1f), fontSize = 13.sp); androidx.compose.material3.Switch(checked = sfx, onCheckedChange = { sfx = it; com.hexlands.app.audio.Sound.setSfx(it) }) }
+        Row(verticalAlignment = Alignment.CenterVertically) { Text("Music", Modifier.weight(1f), fontSize = 13.sp); androidx.compose.material3.Switch(checked = music, onCheckedChange = { music = it; com.hexlands.app.audio.Sound.setMusic(it) }) }
     }
 }
 

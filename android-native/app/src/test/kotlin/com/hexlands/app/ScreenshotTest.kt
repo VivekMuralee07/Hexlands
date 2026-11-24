@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.performClick
@@ -72,7 +73,12 @@ class ScreenshotTest {
     private fun ui(game: GameState, spectator: Boolean = false, board: Board = this.board) =
         UiState(session = Session("K7QXM", "t", spectator), board = board, game = game)
 
-    @Test fun home() = shot("home") { HomeScreen(UiState(), GameViewModel(app)) }
+    @Test fun home() {
+        shot("home") { HomeScreen(UiState(), GameViewModel(app)) }
+        rule.onNodeWithContentDescription("How to play: tutorial and rules").assertExists()
+        rule.onNodeWithContentDescription("Sound effects on").assertExists()
+        rule.onNodeWithContentDescription("Music on").assertExists()
+    }
 
     @Test fun lobby() = shot("lobby") { LobbyScreen(state("lobby"), GameViewModel(app)) }
 
@@ -156,7 +162,7 @@ class ScreenshotTest {
     @Test fun theMoveTimerShowsTheTimeLeftAndWhoseStepItIs() {
         val g = state("main").copy(timer = com.hexlands.app.net.TimerView(setting = 30, limit = 30, left = 20000.0))
         shot("clock") { GameScreen(ui(g), g, GameViewModel(app), animate = false) }
-        rule.onNodeWithText("0:20").assertExists()
+        rule.onAllNodesWithText("0:20").onFirst().assertExists()
         rule.onNodeWithText("You").assertExists()
     }
 
@@ -287,5 +293,22 @@ class ScreenshotTest {
         rule.mainClock.advanceTimeBy(3_000)          // all landed
         rule.waitForIdle()
         rule.onNodeWithContentDescription("Wood").assertDoesNotExist()
+    }
+
+    @Test fun aMessageSaysTheRobberStrikesWhenA7IsRolled() {
+        val g = state("main").copy(dice = listOf(3, 4))
+        shot("strike") { GameScreen(ui(g), g, GameViewModel(app), animate = false, strikeAtStart = true) }
+        rule.onNodeWithText("The robber strikes!").assertExists()
+        rule.onNodeWithText("A 7 was rolled: nobody collects.").assertExists()
+    }
+
+    @Test fun howToPlayHasTheAnimatedTutorialAndTheRulesInWords() {
+        val record = com.hexlands.app.tutorial.TutorialRecord.parse(File("src/main/assets/tutorial.json").readText())
+        shot("howto") { com.hexlands.app.ui.HowToPlayScreen(record, onClose = {}) }
+        rule.onNodeWithText("Watch the tutorial").assertExists()
+        rule.onNodeWithText("Hexlands is played on an island of hex tiles. Each tile produces one resource.").assertExists()   // the first caption of the tutorial
+        rule.onNodeWithText("Read the rules").performClick(); rule.waitForIdle()
+        rule.onNodeWithText("Goal").assertExists()
+        rule.onNodeWithText("Setup").assertExists()
     }
 }

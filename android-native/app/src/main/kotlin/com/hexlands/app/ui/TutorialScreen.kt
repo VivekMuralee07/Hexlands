@@ -133,9 +133,7 @@ private fun TutorialBoard(board: Board, scene: Scene, colors: List<Color>, me: I
         for (pt in scene.extraHouses) house(fit.at(pt), k * 0.32f * pop("x${pt.x}"), colors.getOrElse(me) { Color.Gray }, false)
         // the robber
         board.tiles.getOrNull(m.robber)?.let { t ->
-            val c = fit.at(Pt(t.x, t.y)) + Offset(0f, -k * 0.05f)
-            drawCircle(Color(0xFF222222), k * 0.16f, c + Offset(0f, k * 0.14f)); drawCircle(Color(0xFF222222), k * 0.1f, c - Offset(0f, k * 0.08f))
-            drawCircle(Color.White.copy(alpha = 0.5f), k * 0.16f, c + Offset(0f, k * 0.14f), style = Stroke(max(1f, k * 0.015f)))
+            robberFigure(fit.at(Pt(t.x, t.y)), k)
         }
         // a harbour and its two corners
         scene.port?.let { p ->
@@ -265,7 +263,7 @@ private fun TradeDemo(t: Trade, modifier: Modifier = Modifier) {
  * and a dot for each chapter. With animations off (the screen tests) a step shows its final picture and nothing advances by itself.
  */
 @Composable
-fun TutorialScreen(record: TutorialRecord, onClose: () -> Unit, startChapter: Int = 0, startStep: Int = 0) {
+fun TutorialScreen(record: TutorialRecord, onClose: () -> Unit, startChapter: Int = 0, startStep: Int = 0, embedded: Boolean = false) {
     val chapters = remember(record) { buildChapters(record) }
     val animate = LocalAnimate.current
     var chIdx by remember { mutableIntStateOf(startChapter.coerceIn(0, chapters.lastIndex)) }
@@ -299,10 +297,10 @@ fun TutorialScreen(record: TutorialRecord, onClose: () -> Unit, startChapter: In
     val fit = remember(record, stage) { Fit(record.board, stage) }
     val density = LocalDensity.current
 
-    Column(Modifier.fillMaxSize().background(Navy).safeDrawingPadding()) {
-        Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    Column(Modifier.fillMaxSize().background(Navy).then(if (embedded) Modifier else Modifier.safeDrawingPadding())) {
+        Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp, top = if (embedded) 6.dp else 0.dp, bottom = if (embedded) 4.dp else 0.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("${chIdx + 1}. ${ch.title}", Modifier.weight(1f), fontWeight = FontWeight.ExtraBold, fontSize = 17.sp, color = Gold)
-            Text("✕", Modifier.clip(CircleShape).clickable(onClick = onClose).padding(12.dp).semantics { contentDescription = "Close the tutorial" }, fontSize = 18.sp)
+            if (!embedded) Text("✕", Modifier.clip(CircleShape).clickable(onClick = onClose).padding(12.dp).semantics { contentDescription = "Close the tutorial" }, fontSize = 18.sp)
         }
         Box(Modifier.weight(1f).fillMaxWidth().onSizeChanged { stage = it }) {
             if (stage.width > 0) {

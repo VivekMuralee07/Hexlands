@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,6 +33,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.Path
 import kotlinx.coroutines.delay
 import androidx.compose.ui.geometry.Offset
 import kotlin.math.max
@@ -117,7 +123,7 @@ private sealed interface GameDialog {
 }
 
 @Composable
-fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean = true, tradeOpenAtStart: Boolean = false, onTutorial: (() -> Unit)? = null) {
+fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean = true, tradeOpenAtStart: Boolean = false, onTutorial: (() -> Unit)? = null, strikeAtStart: Boolean = false) {
     val board = ui.board
     val context = LocalContext.current
     val spectating = game.spectator || ui.session?.spectator == true
@@ -183,6 +189,15 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
     var seenRoll by remember { mutableStateOf(rollSeq) }
     var flights by remember { mutableStateOf(emptyList<GainFlight>()) }
     val boardView = remember { BoardView() }
+    // A 7 was just rolled: the robber strikes. A message says so for a moment (a roll already on the screen when you arrive does not count).
+    var strike by remember { mutableStateOf(strikeAtStart) }
+    var seenStrikeRoll by remember { mutableStateOf(rollSeq) }
+    LaunchedEffect(rollSeq) {
+        if (rollSeq != null && rollSeq != seenStrikeRoll) {
+            seenStrikeRoll = rollSeq
+            if (game.lastRoll?.dice?.sum() == 7) { strike = true; delay(3200); strike = false }
+        }
+    }
     var rootPos by remember { mutableStateOf(Offset.Zero) }
     var boardBounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
     var stripBounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
@@ -200,16 +215,22 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
         }
     }
 
+    GameSounds(game)
     Box(Modifier.fillMaxSize().onGloballyPositioned { rootPos = it.positionInWindow() }) {
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.onGloballyPositioned { stripBounds = it.boundsInWindow() }) { PlayersStrip(game) }
+        // whose turn it is, and the move timer
+        if (game.phase == "setup" || game.phase == "main") Row(Modifier.fillMaxWidth().background(NavyDark).padding(start = 10.dp, end = 12.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            TurnPill(game)
+            Box(Modifier.weight(1f))
+            MoveClock(game)
+        }
         Row(Modifier.fillMaxWidth().background(NavyDark).padding(start = 12.dp, end = 4.dp, top = 2.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 (if (heistMode) "Heist: tap an opponent's settlement to steal it" else bannerText(game)) + if (ui.reconnecting) "  ·  Reconnecting…" else "",
                 Modifier.weight(1f).padding(vertical = 6.dp),
                 color = Gold, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
             )
-            MoveClock(game, Modifier.padding(end = 6.dp))
             if (!spectating) {
                 HeaderIconButton(HeaderIcon.Log, "Game log") { dialog = GameDialog.Log }
                 HeaderIconButton(HeaderIcon.Info, "Game info") { dialog = GameDialog.Info }
@@ -251,6 +272,7 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
                 game, vm, tradeGive, tradeGet, canTrade, onClose = { tradeOpen = false },
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
             )
+            RobberStrikes(visible = strike, discardLimit = game.opts.discardLimit, modifier = Modifier.align(Alignment.Center))
             game.dice?.let { d ->
                 if (d.size == 2) Row(
                     Modifier.align(Alignment.TopStart).padding(8.dp).background(NavyDark.copy(alpha = 0.85f), RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 6.dp),
@@ -369,29 +391,61 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
 
 @Composable
 private fun PlayersStrip(game: GameState) {
-    Row(Modifier.fillMaxWidth().background(NavyDark).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        game.players.forEachIndexed { i, p ->
-            val color = Color(parseColor(p.color))
-            val turn = game.turn == i && game.phase != "ended"
-            val left = game.vpTarget - p.vp
-            Column(
-                Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).background(NavyLight)
-                    .border(if (turn) 2.dp else 0.dp, if (turn) Gold else Color.Transparent, RoundedCornerShape(8.dp)).padding(horizontal = 6.dp, vertical = 4.dp),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(8.dp).clip(CircleShape).background(color))
-                    Text(p.name + if (i == game.you) " (you)" else "", Modifier.padding(start = 4.dp).weight(1f), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold)
-                    Text("${p.vp}", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = if (left in 1..2) Gold else Foam)
-                }
-                Text("${p.cards} cards · ${p.devCount} dev", fontSize = 10.sp, color = FoamDim, maxLines = 1)
-                Text("⚔ ${p.knights}  road ${p.roadLen}", fontSize = 10.sp, color = if (game.largestArmy?.p == i || game.longestRoad?.p == i) Gold else FoamDim, maxLines = 1)
-                LinearProgressIndicator(
-                    progress = { (p.vp.toFloat() / game.vpTarget).coerceIn(0f, 1f) },
-                    modifier = Modifier.fillMaxWidth().height(4.dp).padding(top = 1.dp),
-                    color = if (left in 1..2) Gold else color, trackColor = Color.White.copy(alpha = 0.15f),
+    Row(Modifier.fillMaxWidth().background(NavyDark).padding(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        game.players.forEachIndexed { i, p -> PlayerCard(game, i, p, Modifier.weight(1f)) }
+    }
+}
+
+/** One player, as on the web: avatar, name and points badge; cards, development cards, knights and longest road; the pieces left; and a bar towards the target. */
+@Composable
+private fun PlayerCard(game: GameState, i: Int, p: com.hexlands.app.net.PlayerView, modifier: Modifier) {
+    val color = Color(parseColor(p.color))
+    val turn = game.turn == i && game.phase != "ended"
+    val left = game.vpTarget - p.vp
+    val shape = RoundedCornerShape(14.dp)
+    val bg = if (turn) Color(color.red * 0.45f + 0.1f, color.green * 0.45f + 0.1f, color.blue * 0.45f + 0.1f) else Color(0xFF14294F)
+    Box(modifier.clip(shape).background(bg).border(if (turn) 2.5.dp else 0.dp, if (turn) Color.White else Color.Transparent, shape)) {
+        // a stripe in the player's colour down the left edge
+        // (matchParentSize: a bar that filled the height itself would make the card as tall as the whole screen)
+        Box(Modifier.matchParentSize()) { Box(Modifier.align(Alignment.CenterStart).fillMaxHeight().width(4.dp).background(color)) }
+        Column(Modifier.padding(start = 9.dp, end = 5.dp, top = 6.dp, bottom = 3.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (p.bot != null) Text("🤖", fontSize = 11.sp) else Box(Modifier.size(8.dp).clip(CircleShape).background(if (p.connected) Good else Color.Gray))
+                Text(
+                    p.name, Modifier.weight(1f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold,
+                    textDecoration = if (i == game.you) androidx.compose.ui.text.style.TextDecoration.Underline else null,
                 )
+                Box(Modifier.size(24.dp).clip(CircleShape).background(Color.White), contentAlignment = Alignment.Center) {
+                    Text("${p.vp}", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = if (left in 1..2) Color(0xFFB36B00) else Color(0xFF14294F))
+                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                StatPair(p.cards) { drawRoundRect(Color(0xFFF2D27A), Offset(size.width * 0.1f, size.height * 0.1f), androidx.compose.ui.geometry.Size(size.width * 0.8f, size.height * 0.8f), androidx.compose.ui.geometry.CornerRadius(3f)) }
+                StatPair(p.devCount) { drawRoundRect(Color(0xFF2F6FE0), Offset.Zero, size, androidx.compose.ui.geometry.CornerRadius(3f)); drawLine(Color.White, Offset(size.width * 0.5f, size.height * 0.3f), Offset(size.width * 0.5f, size.height * 0.55f), size.width * 0.14f); drawCircle(Color.White, size.width * 0.08f, Offset(size.width * 0.5f, size.height * 0.75f)) }
+                StatPair(p.knights, if (game.largestArmy?.p == i) Gold else Foam) {
+                    drawPath(Path().apply { moveTo(size.width * 0.5f, 0f); lineTo(size.width, size.height * 0.2f); lineTo(size.width * 0.9f, size.height * 0.65f); lineTo(size.width * 0.5f, size.height); lineTo(size.width * 0.1f, size.height * 0.65f); lineTo(0f, size.height * 0.2f); close() }, Color(0xFFB3BCC7))
+                    drawLine(Color(0xFFC62828), Offset(size.width * 0.5f, size.height * 0.2f), Offset(size.width * 0.5f, size.height * 0.75f), size.width * 0.16f); drawLine(Color(0xFFC62828), Offset(size.width * 0.28f, size.height * 0.42f), Offset(size.width * 0.72f, size.height * 0.42f), size.width * 0.16f)
+                }
+                StatPair(p.roadLen, if (game.longestRoad?.p == i) Gold else Foam) { drawArc(Color.White, 180f, 180f, false, Offset(size.width * 0.1f, size.height * 0.25f), androidx.compose.ui.geometry.Size(size.width * 0.8f, size.height * 0.9f), style = Stroke(size.width * 0.18f, cap = StrokeCap.Round)) }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                StatPair(p.pieces.road, FoamDim) { rotate(-35f) { drawRoundRect(color, Offset(0f, size.height * 0.35f), androidx.compose.ui.geometry.Size(size.width, size.height * 0.3f), androidx.compose.ui.geometry.CornerRadius(3f)) } }
+                StatPair(p.pieces.settlement, FoamDim) { drawPath(Path().apply { moveTo(size.width * 0.5f, 0f); lineTo(size.width, size.height * 0.45f); lineTo(size.width * 0.85f, size.height); lineTo(size.width * 0.15f, size.height); lineTo(0f, size.height * 0.45f); close() }, color) }
+                StatPair(p.pieces.city, FoamDim) { drawPath(Path().apply { moveTo(0f, size.height); lineTo(0f, size.height * 0.4f); lineTo(size.width * 0.35f, size.height * 0.4f); lineTo(size.width * 0.35f, size.height * 0.1f); lineTo(size.width * 0.65f, 0f); lineTo(size.width * 0.65f, size.height * 0.4f); lineTo(size.width, size.height * 0.4f); lineTo(size.width, size.height); close() }, color) }
+            }
+            Box(Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(Color.White.copy(alpha = 0.15f))) {
+                Box(Modifier.fillMaxWidth((p.vp.toFloat() / game.vpTarget).coerceIn(0f, 1f)).height(3.dp).background(color))
             }
         }
+    }
+}
+
+/** A small icon and a number. */
+@Composable
+private fun StatPair(n: Int, textColor: Color = Foam, icon: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        androidx.compose.foundation.Canvas(Modifier.size(10.dp)) { icon() }
+        Text("$n", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = textColor, maxLines = 1)
     }
 }
 
@@ -442,5 +496,46 @@ private fun DevTile(count: Int, modifier: Modifier, onClick: () -> Unit) {
             Modifier.align(Alignment.TopEnd).offset(x = 6.dp, y = (-6).dp).size(24.dp).clip(CircleShape).background(Color(0xFF1F3F9A)).border(1.5.dp, Gold, CircleShape),
             contentAlignment = Alignment.Center,
         ) { Text("$count", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold) }
+    }
+}
+
+/** The pill in the colour of the player whose turn it is, with the time left in it: "Your turn 0:29". */
+@Composable
+private fun TurnPill(game: GameState, modifier: Modifier = Modifier) {
+    val p = game.players.getOrNull(game.turn) ?: return
+    val color = Color(parseColor(p.color))
+    val mine = game.turn == game.you
+    val secs = rememberSecsLeft(game)?.first
+    Row(
+        modifier.clip(RoundedCornerShape(50)).background(color).border(3.dp, Color.White.copy(alpha = 0.92f), RoundedCornerShape(50)).padding(horizontal = 12.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(Modifier.size(20.dp).clip(CircleShape).background(Color.White), contentAlignment = Alignment.Center) { Box(Modifier.size(10.dp).clip(CircleShape).background(color)) }
+        Text(if (mine) "Your turn" else "${p.name}'s turn", fontWeight = FontWeight.ExtraBold, fontSize = 17.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (secs != null) Text("${secs / 60}:${(secs % 60).toString().padStart(2, '0')}", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.White.copy(alpha = 0.85f), maxLines = 1, softWrap = false)
+    }
+}
+
+/** The message when a 7 is rolled: the robber figure and "The robber strikes!", for everyone at the table. It pops in, stays a moment and goes. */
+@Composable
+private fun RobberStrikes(visible: Boolean, discardLimit: Int, modifier: Modifier = Modifier) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = visible, modifier = modifier,
+        enter = androidx.compose.animation.fadeIn(tween(200)) + androidx.compose.animation.scaleIn(androidx.compose.animation.core.spring(dampingRatio = 0.5f, stiffness = 300f), initialScale = 0.4f),
+        exit = androidx.compose.animation.fadeOut(tween(450)) + androidx.compose.animation.scaleOut(targetScale = 1.15f),
+    ) {
+        Column(
+            Modifier.padding(24.dp).widthIn(max = 280.dp).clip(RoundedCornerShape(20.dp)).background(Color(0xE60E0E16)).border(3.dp, Color(0xFFFF4A3D), RoundedCornerShape(20.dp)).padding(horizontal = 26.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            androidx.compose.foundation.Canvas(Modifier.size(84.dp)) {
+                // the figure's picture is 44 units wide and drawn up and to the left of the point it is given: centre it in this square
+                val u = size.width * 0.92f / 44f; val tl = (size.width - 44f * u) / 2f
+                robberFigure(Offset(tl + 58f * u, tl + 42f * u), u * 60f)
+            }
+            Text("The robber strikes!", fontWeight = FontWeight.ExtraBold, fontSize = 24.sp, color = Color(0xFFFF6B57))
+            Text("A 7 was rolled: nobody collects.", fontSize = 13.sp, color = Foam)
+            Text("Anyone holding more than $discardLimit cards must discard.", fontSize = 12.sp, color = FoamDim, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        }
     }
 }

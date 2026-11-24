@@ -1,6 +1,14 @@
 package com.hexlands.app.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -65,6 +73,14 @@ fun HomeScreen(ui: UiState, vm: GameViewModel, onLeaderboard: () -> Unit = {}, o
 
     Box(Modifier.fillMaxSize()) {
     SeaBackground()
+    // the corner buttons: how to play (the "i": tutorial and the rules in words), sound effects, music
+    Row(Modifier.align(Alignment.TopEnd).safeDrawingPadding().padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        var sfx by remember { mutableStateOf(com.hexlands.app.audio.Sound.sfxOn) }
+        var music by remember { mutableStateOf(com.hexlands.app.audio.Sound.musicOn) }
+        CornerButton("Sound effects ${if (sfx) "on" else "off"}", if (sfx) "🔊" else "🔇", dim = !sfx) { sfx = !sfx; com.hexlands.app.audio.Sound.setSfx(sfx) }
+        CornerButton("Music ${if (music) "on" else "off"}", "🎵", dim = !music) { music = !music; com.hexlands.app.audio.Sound.setMusic(music) }
+        CornerButton("How to play: tutorial and rules", "i", bold = true, onClick = onTutorial)
+    }
     // The column is at least as tall as the screen (so it is centred when there is room) and scrolls when there is not. A column forced to the screen
     // height with centred content would push the top of a too-tall page out of reach.
     BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
@@ -131,10 +147,7 @@ fun HomeScreen(ui: UiState, vm: GameViewModel, onLeaderboard: () -> Unit = {}, o
         }
 
         Appear(5) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                GlassButton(onClick = onLeaderboard, modifier = Modifier.weight(1f)) { Text("🏆 Leaderboard") }
-                GlassButton(onClick = onTutorial, modifier = Modifier.weight(1f)) { Text("How to play") }
-            }
+            GlassButton(onClick = onLeaderboard, modifier = Modifier.fillMaxWidth()) { Text("🏆 Leaderboard") }
         }
         Appear(6) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -242,4 +255,15 @@ private fun UpdateCard(ui: UiState, vm: GameViewModel) {
             }
         }
     }
+}
+
+/** A round glass button in the corner of the front page. */
+@Composable
+private fun CornerButton(description: String, label: String, bold: Boolean = false, dim: Boolean = false, onClick: () -> Unit) {
+    androidx.compose.foundation.layout.Box(
+        Modifier.size(42.dp).graphicsLayer { alpha = if (dim) 0.5f else 1f }.clip(androidx.compose.foundation.shape.CircleShape).background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.16f))
+            .border(1.2.dp, androidx.compose.ui.graphics.Color.White.copy(alpha = 0.5f), androidx.compose.foundation.shape.CircleShape)
+            .clickable(onClick = onClick).semantics { contentDescription = description },
+        contentAlignment = Alignment.Center,
+    ) { Text(label, fontSize = if (bold) 22.sp else 18.sp, fontWeight = if (bold) FontWeight.ExtraBold else FontWeight.Normal, fontStyle = if (bold) androidx.compose.ui.text.font.FontStyle.Italic else null, color = Foam) }
 }

@@ -236,8 +236,8 @@ private fun DrawScope.port(p: Port, measurer: TextMeasurer) {
             val q = measurer.measure("?", TextStyle(fontSize = 24f.toSp(), fontWeight = FontWeight.ExtraBold, color = Color(0xFF5C3B2A)))
             drawText(q, topLeft = Offset(-q.size.width / 2f, -9f - q.size.height * 0.7f))
         } else {
-            drawCircle(RESOURCE_COLOR[p.type] ?: Color.Gray, 9f, Offset(0f, -17f))
-            drawCircle(Color.White, 9f, Offset(0f, -17f), style = Stroke(1.5f))
+            // the resource this harbour trades at 2:1, drawn small in the sail like the web's ships
+            withTransform({ translate(-10.5f, -27.5f) }) { resourceGlyph(p.type, 21f) }
         }
         val r = measurer.measure(if (any) "3:1" else "2:1", TextStyle(fontSize = 12f.toSp(), fontWeight = FontWeight.Bold, color = Color(0xFF6B4A38)))
         drawText(r, topLeft = Offset(-r.size.width / 2f, 2.5f - r.size.height * 0.75f))

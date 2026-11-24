@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -212,10 +213,8 @@ fun BoardCanvas(
             val to = screen(t.x, t.y)
             val from = board.tiles.getOrNull(robFrom)?.let { screen(it.x, it.y) } ?: to
             val h = hop.value
-            val c = from + (to - from) * h + Offset(0f, -k * 0.05f - kotlin.math.sin(Math.PI.toFloat() * h) * k * 0.6f)
-            drawCircle(Color(0xFF222222), k * 0.16f, c + Offset(0f, k * 0.14f))
-            drawCircle(Color(0xFF222222), k * 0.1f, c - Offset(0f, k * 0.08f))
-            drawCircle(Color.White.copy(alpha = 0.5f), k * 0.16f, c + Offset(0f, k * 0.14f), style = Stroke(max(1f, k * 0.015f)))
+            val c = from + (to - from) * h + Offset(0f, -kotlin.math.sin(Math.PI.toFloat() * h) * k * 0.6f)
+            robberFigure(c, k)
         }
         // the spots the player may tap: glowing circles (on a road, at its middle)
         for (id in roadSpots) {
@@ -280,58 +279,58 @@ private fun DrawScope.centeredText(measurer: TextMeasurer, text: String, center:
 private fun tone(c: Color, f: Float): Color =
     if (f < 0) Color(c.red * (1 + f), c.green * (1 + f), c.blue * (1 + f), c.alpha) else Color(c.red + (1 - c.red) * f, c.green + (1 - c.green) * f, c.blue + (1 - c.blue) * f, c.alpha)
 
+private fun svgPath(d: String): Path = androidx.compose.ui.graphics.vector.PathParser().parsePathString(d).toPath()
+private val SETTLEMENT_BODY = svgPath("M-13,10 L-14,-3 L-7,-14 L7,-14 L14,-3 L13,10Z")
+private val CITY_MAIN = svgPath("M-23,12 L-24,-3 L-15,-17 L1,-17 L10,-3 L9,12Z")
+private val CITY_WING = svgPath("M9,12 V0 L12,-4 H22 L24,0 V12Z")
+
 /**
- * A settlement (a cottage with a chimney) or a city (a big hall with a tall tower and a flag), in the player's colour: lit on the left and shaded on the right
- * so it reads as solid, with a darker roof, a door, windows and a soft shadow on the ground. [r] is about half the piece's width; (0, 0) is the corner it stands on.
+ * The web game's pieces: a barn-style settlement or a city with a wing, in the player's colour, with a lighter left roof, a darker right roof, a ridge line, a dark
+ * door and a thick dark outline, inside a white halo so they stand out on any tile. [r] sets the size (the callers pass about a third of a hex's radius);
+ * (0, 0) is the corner it stands on.
  */
 internal fun DrawScope.house(c: Offset, r: Float, color: Color, city: Boolean) {
-    fun p(vararg pts: Pair<Float, Float>): Path = Path().apply {
-        moveTo(c.x + pts[0].first * r, c.y + pts[0].second * r)
-        for (i in 1 until pts.size) lineTo(c.x + pts[i].first * r, c.y + pts[i].second * r)
-        close()
+    val s = r * (if (city) 0.0677f else 0.0896f)
+    val ink = tone(color, -0.6f); val lt = tone(color, 0.3f); val dk = tone(color, -0.2f); val door = Color(0xFF150808)
+    withTransform({ translate(c.x, c.y); scale(s, s, Offset.Zero) }) {
+        // a soft shadow under the piece
+        drawOval(Color.Black.copy(alpha = 0.3f), Offset(if (city) -26f else -16f, 8f), androidx.compose.ui.geometry.Size(if (city) 54f else 32f, 9f))
+        val halo = Stroke(8f, join = StrokeJoin.Round)
+        val line = Stroke(3.2f, join = StrokeJoin.Round)
+        val thin = Stroke(2f)
+        if (!city) {
+            drawPath(SETTLEMENT_BODY, Color.White); drawPath(SETTLEMENT_BODY, Color.White, style = halo)
+            drawPath(SETTLEMENT_BODY, color)
+            drawPath(svgPath("M-14,-3 L-7,-14 H0 V-3Z"), lt); drawPath(svgPath("M0,-14 H7 L14,-3 H0Z"), dk)
+            drawPath(SETTLEMENT_BODY, ink, style = line)
+            drawPath(svgPath("M-14,-3 H14 M0,-14 V-3"), ink, style = thin)
+            drawPath(svgPath("M-3,10 V6.4 a3,3 0 0 1 6,0 V10Z"), door)
+        } else {
+            drawPath(CITY_MAIN, Color.White); drawPath(CITY_MAIN, Color.White, style = halo); drawPath(CITY_WING, Color.White); drawPath(CITY_WING, Color.White, style = halo)
+            drawPath(CITY_MAIN, color)
+            drawPath(svgPath("M-24,-3 L-15,-17 H-7 V-3Z"), lt); drawPath(svgPath("M-7,-17 H1 L10,-3 H-7Z"), dk)
+            drawPath(CITY_WING, color); drawPath(svgPath("M9,0 L12,-4 H22 L24,0Z"), dk)
+            drawPath(CITY_MAIN, ink, style = line); drawPath(CITY_WING, ink, style = line)
+            drawPath(svgPath("M-24,-3 H10 M-7,-17 V-3"), ink, style = thin)
+            drawPath(svgPath("M-10,12 V8.2 a3,3 0 0 1 6,0 V12Z"), door)
+            drawRoundRect(door, Offset(-18f, 1f), androidx.compose.ui.geometry.Size(3.8f, 5f), androidx.compose.ui.geometry.CornerRadius(0.8f))
+            drawRoundRect(door, Offset(-1f, 1f), androidx.compose.ui.geometry.Size(3.8f, 5f), androidx.compose.ui.geometry.CornerRadius(0.8f))
+            drawRoundRect(door, Offset(14.5f, 4f), androidx.compose.ui.geometry.Size(4.4f, 3.8f), androidx.compose.ui.geometry.CornerRadius(0.8f))
+        }
     }
-    val ink = Color(0xFF14110F).copy(alpha = 0.9f)
-    val line = Stroke(max(1.4f, r * 0.09f), join = StrokeJoin.Round)
-    val lit = tone(color, 0.14f); val dim = tone(color, -0.16f)
-    val roofLit = tone(color, -0.22f); val roofDim = tone(color, -0.42f)
-    val glass = Color(0xFFFFF0A8); val door = tone(color, -0.6f)
-    // the shadow on the ground
-    drawOval(Color.Black.copy(alpha = 0.28f), Offset(c.x - (if (city) 1.45f else 1.05f) * r, c.y + 0.62f * r), androidx.compose.ui.geometry.Size((if (city) 2.9f else 2.1f) * r, 0.5f * r))
-    fun win(x: Float, y: Float, w: Float, h: Float) { drawRect(glass, Offset(c.x + x * r, c.y + y * r), androidx.compose.ui.geometry.Size(w * r, h * r)); drawRect(ink, Offset(c.x + x * r, c.y + y * r), androidx.compose.ui.geometry.Size(w * r, h * r), style = Stroke(max(1f, r * 0.05f))) }
-    if (!city) {
-        // walls: the left half lit, the right half in shade
-        drawPath(p(-0.8f to -0.05f, 0f to -0.05f, 0f to 0.8f, -0.8f to 0.8f), lit)
-        drawPath(p(0f to -0.05f, 0.8f to -0.05f, 0.8f to 0.8f, 0f to 0.8f), dim)
-        // chimney, then the roof over it
-        drawPath(p(0.38f to -0.85f, 0.66f to -0.85f, 0.66f to -0.3f, 0.38f to -0.3f), roofDim); drawPath(p(0.38f to -0.85f, 0.66f to -0.85f, 0.66f to -0.3f, 0.38f to -0.3f), ink, style = line)
-        drawPath(p(-1.0f to 0.0f, 0f to -1.0f, 0f to 0.0f), roofLit)
-        drawPath(p(0f to -1.0f, 1.0f to 0.0f, 0f to 0.0f), roofDim)
-        drawPath(p(-1.0f to 0.0f, 0f to -1.0f, 1.0f to 0.0f), ink, style = line)
-        drawPath(p(-0.8f to -0.02f, -0.8f to 0.8f, 0.8f to 0.8f, 0.8f to -0.02f), ink, style = line)
-        // a door and a window
-        drawPath(p(-0.22f to 0.8f, -0.22f to 0.38f, 0.22f to 0.38f, 0.22f to 0.8f), door); drawPath(p(-0.22f to 0.8f, -0.22f to 0.38f, 0.22f to 0.38f, 0.22f to 0.8f), ink, style = Stroke(max(1f, r * 0.06f)))
-        win(0.36f, 0.2f, 0.32f, 0.3f)
-    } else {
-        // the hall on the left and the tower on the right
-        drawPath(p(-1.3f to 0.05f, -0.2f to 0.05f, -0.2f to 0.8f, -1.3f to 0.8f), lit)
-        drawPath(p(-0.2f to -0.5f, 0.45f to -0.5f, 0.45f to 0.8f, -0.2f to 0.8f), dim)
-        drawPath(p(0.45f to -0.5f, 1.15f to -0.5f, 1.15f to 0.8f, 0.45f to 0.8f), tone(color, -0.3f))
-        // roofs: the hall's gable, the tower's point
-        drawPath(p(-1.45f to 0.05f, -0.75f to -0.6f, -0.05f to 0.05f), roofLit)
-        drawPath(p(-0.75f to -0.6f, -0.05f to 0.05f, -0.75f to 0.05f), roofDim)
-        drawPath(p(-1.45f to 0.05f, -0.75f to -0.6f, -0.05f to 0.05f), ink, style = line)
-        drawPath(p(0.3f to -0.5f, 0.8f to -1.3f, 1.3f to -0.5f), roofLit)
-        drawPath(p(0.8f to -1.3f, 1.3f to -0.5f, 0.8f to -0.5f), roofDim)
-        drawPath(p(0.3f to -0.5f, 0.8f to -1.3f, 1.3f to -0.5f), ink, style = line)
-        drawPath(p(-1.3f to 0.03f, -1.3f to 0.8f, -0.2f to 0.8f, -0.2f to -0.5f, 0.45f to -0.5f), ink, style = line)
-        drawPath(p(0.45f to -0.5f, 1.15f to -0.5f, 1.15f to 0.8f, 0.45f to 0.8f), ink, style = line)
-        // a flag on the tower
-        drawLine(ink, Offset(c.x + 0.8f * r, c.y - 1.3f * r), Offset(c.x + 0.8f * r, c.y - 1.75f * r), strokeWidth = max(1.4f, r * 0.08f))
-        drawPath(p(0.8f to -1.75f, 1.2f to -1.62f, 0.8f to -1.48f), Color(0xFFFFD23F)); drawPath(p(0.8f to -1.75f, 1.2f to -1.62f, 0.8f to -1.48f), ink, style = Stroke(max(1f, r * 0.05f)))
-        // an arched door, windows
-        drawPath(p(-0.95f to 0.8f, -0.95f to 0.42f, -0.55f to 0.42f, -0.55f to 0.8f), door); drawPath(p(-0.95f to 0.8f, -0.95f to 0.42f, -0.55f to 0.42f, -0.55f to 0.8f), ink, style = Stroke(max(1f, r * 0.06f)))
-        win(-0.4f, 0.22f, 0.26f, 0.26f); win(0.2f, 0.12f, 0.2f, 0.22f)
-        win(0.62f, -0.2f, 0.34f, 0.3f); win(0.62f, 0.38f, 0.34f, 0.3f)
+}
+
+/** The robber: a hooded figure with red eyes, as on the web (its 32 x 32 picture scaled to 44 units and set up and to the left of the tile's middle). [k] is pixels per board unit. */
+internal fun DrawScope.robberFigure(tileCentre: Offset, k: Float) {
+    val u = k / 60f
+    withTransform({ translate(tileCentre.x - 58f * u, tileCentre.y - 42f * u); scale(44f / 32f * u, 44f / 32f * u, Offset.Zero) }) {
+        drawOval(Color.Black.copy(alpha = 0.4f), Offset(7f, 27.3f), androidx.compose.ui.geometry.Size(18f, 4.4f))
+        drawPath(svgPath("M6,29 C6,17 10,11 16,11 C22,11 26,17 26,29Z"), Color(0xFF23232B))
+        drawPath(svgPath("M6,29 C6,17 10,11 16,11 L16,29Z"), Color(0xFF3A3A46))
+        drawCircle(Color(0xFF2B2B34), 6f, Offset(16f, 8.5f))
+        drawPath(svgPath("M10.5,9 C10.5,4 13,2.5 16,2.5 C19,2.5 21.5,4 21.5,9 C21.5,12 19,13 16,13 C13,13 10.5,12 10.5,9Z"), Color(0xFF15151B))
+        drawOval(Color(0xFFFF4A3D), Offset(12f, 7.9f), androidx.compose.ui.geometry.Size(3.2f, 2.2f))
+        drawOval(Color(0xFFFF4A3D), Offset(16.8f, 7.9f), androidx.compose.ui.geometry.Size(3.2f, 2.2f))
     }
 }
 
@@ -347,6 +346,7 @@ fun BoardPreview(board: Board, modifier: Modifier = Modifier) {
         drawBoardArt(board, origin, k, measurer)
     }
 }
+
 
 /** A glowing circle: a soft golden halo that pulses, with a bright dot and a white rim in the middle. [r] is the halo's radius. */
 internal fun DrawScope.glowSpot(c: Offset, r: Float, pulse: Float) {
