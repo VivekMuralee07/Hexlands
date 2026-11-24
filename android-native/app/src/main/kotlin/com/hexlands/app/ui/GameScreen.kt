@@ -176,10 +176,20 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
                 Modifier.weight(1f).padding(vertical = 6.dp),
                 color = Gold, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
             )
+            MoveClock(game, Modifier.padding(end = 6.dp))
             if (!spectating) {
                 HeaderIconButton(HeaderIcon.Log, "Game log") { dialog = GameDialog.Log }
                 HeaderIconButton(HeaderIcon.Info, "Game info") { dialog = GameDialog.Info }
                 HeaderIconButton(HeaderIcon.Leave, "Leave the game") { vm.leave() }
+            }
+        }
+
+        // A bot is playing this seat (you were away, or the timer ran out twice): say so, and offer the seat back.
+        val mineSeat = game.players.getOrNull(game.you)
+        if (!spectating && mineSeat?.takenOver != null && game.phase != "ended") {
+            Row(Modifier.fillMaxWidth().background(NavyLight).padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(if (mineSeat.takenOver == "left") "You left, so a bot is playing your seat." else "A bot is playing for you because you were away.", Modifier.weight(1f), fontSize = 13.sp)
+                GoldButton(onClick = { vm.act("reclaim") }, padding = androidx.compose.foundation.layout.PaddingValues(14.dp, 7.dp)) { Text("Take back control", fontWeight = FontWeight.Bold, fontSize = 12.sp) }
             }
         }
 

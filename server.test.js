@@ -207,6 +207,21 @@ test('host leaving a lobby with only bots closes the room', async () => {
   assert.equal(rooms.has(c.body.code), false);
 });
 
+test('the host can choose the exact layout of a map with a seed, so a preview is the map they get', async () => {
+  const c = await post('/api/create', { name: 'Hosty', map: { preset: 'classic' } });
+  const { code, token } = c.body;
+  const L = listen(code, token);
+  try {
+    await L.waitFor(s => s.phase === 'lobby');
+    const pv = await (await fetch(`${base}/api/preview?map=japan&seed=4242`)).json();
+    assert.equal((await post('/api/action', { code, token, action: { type: 'setMap', preset: 'japan', seed: 4242 } })).status, 200);
+    await L.waitFor(s => s.mapName === pv.board.name);
+    const b = L.last('board');
+    assert.deepEqual(b.tiles.map(t => [t.terrain, t.number]), pv.board.tiles.map(t => [t.terrain, t.number]), 'the room has the previewed layout');
+    assert.deepEqual(b.ports, pv.board.ports);
+  } finally { L.close(); }
+});
+
 test('host sets options in the waiting room; the move timer plays for an idle human', async () => {
   const c = await post('/api/create', { name: 'Host', map: { preset: 'classic' }, seed: 5 });
   const { code, token } = c.body;

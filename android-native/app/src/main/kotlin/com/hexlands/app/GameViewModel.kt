@@ -25,6 +25,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 
 /** Everything the screens show. */
 data class UiState(
@@ -44,6 +45,8 @@ data class UiState(
     val update: UpdateState = UpdateState.Idle,
     /** The maps the host can choose from, loaded when the picker opens. */
     val maps: List<com.hexlands.app.net.MapInfo>? = null,
+    /** A preview board for each map looked at so far (each from its own seed). */
+    val previews: Map<String, com.hexlands.app.net.PreviewReply> = emptyMap(),
 )
 
 class GameViewModel(private val app: Application) : AndroidViewModel(app) {
@@ -207,8 +210,23 @@ class GameViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** The server swaps the board; the new one arrives on the live stream like any other change. */
-    fun chooseMap(key: String) = act("setMap") { put("preset", key) }
+    /** Makes a preview of a map once; the server answers with a board and the seed it was made from. */
+    fun loadPreview(key: String) {
+        if (_ui.value.previews.containsKey(key) || !requested.add(key)) return
+        viewModelScope.launch {
+            try { val p = api.preview(key); _ui.update { it.copy(previews = it.previews + (key to p)) } }
+            catch (e: ApiException) { requested.remove(key) }
+        }
+    }
+    private val requested = mutableSetOf<String>()
+
+    /** The server swaps the board (the exact layout of the preview when a seed is given); the new one arrives on the live stream like any other change. */
+    fun chooseMap(key: String, seed: Long? = null) = act("setMap") { put("preset", key); if (seed != null) put("seed", seed) }
+
+    /** The host changes one of the game options in the waiting room (points to win, discard, move timer, friendly robber, balanced dice). */
+    fun setOption(key: String, value: Int) = act("setOptions") { putJsonObject("opts") { put(key, value) } }
+    fun setOption(key: String, value: Boolean) = act("setOptions") { putJsonObject("opts") { put(key, value) } }
+    fun setOption(key: String, value: String) = act("setOptions") { putJsonObject("opts") { put(key, value) } }
 
     // ---------- the room list ----------
 

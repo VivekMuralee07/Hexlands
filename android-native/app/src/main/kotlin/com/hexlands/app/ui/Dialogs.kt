@@ -180,6 +180,10 @@ fun InfoDialog(game: GameState, onClose: () -> Unit) {
                 Text("Longest Road (5+ roads) and Largest Army (3+ knights) are worth 2 points each.", color = FoamDim, fontSize = 13.sp)
                 Text("Bank: ${RESOURCES.joinToString(" · ") { "${RESOURCE_LABEL[it]} ${game.bank[it] ?: 0}" }} · ${game.devLeft} development cards left", color = FoamDim, fontSize = 13.sp)
                 game.me?.ratios?.let { r -> Text("Your bank rates: ${RESOURCES.joinToString(" · ") { "${RESOURCE_LABEL[it]} ${r[it] ?: 4}:1" }}", color = FoamDim, fontSize = 13.sp) }
+                val o = game.opts
+                Text("Rules of this game", fontWeight = FontWeight.Bold, color = Gold, modifier = Modifier.padding(top = 4.dp))
+                Text("Points to win: ${game.vpTarget} · Discard limit: ${o.discardLimit} cards, ${if (o.discardMode == "four") "4 cards" else "half the hand"} given up", fontSize = 13.sp, color = FoamDim)
+                Text("Move timer: ${if (o.timer > 0) "${o.timer} seconds (setup placements get 60)" else "off"} · Friendly robber: ${if (o.friendlyRobber) "on" else "off"} · Balanced dice: ${if (o.balancedDice) "on" else "off"}", fontSize = 13.sp, color = FoamDim)
                 Text("Pinch to zoom the board and drag to move it; tap Fit to see all of it again.", color = FoamDim, fontSize = 13.sp)
             }
         },

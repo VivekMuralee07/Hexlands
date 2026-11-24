@@ -534,7 +534,12 @@ async function api(req, res, url) {
       if (!g.isHost(pi)) throw new GameError('Only the host can choose the map.');
       const preset = String(body.action.preset || '');
       if (!maps.PRESETS[preset]) throw new GameError('Unknown map.');
-      g.setMap(maps.generatePreset(preset, crypto.randomInt(1, 2 ** 31)));
+      // An optional seed picks that exact layout (the app shows a preview made from a seed, then asks for the same one); without it the layout is random.
+      const seed = Number.isInteger(body.action.seed) && body.action.seed > 0 ? body.action.seed >>> 0 : crypto.randomInt(1, 2 ** 31);
+      // The harbours are drawn with the game's own dice generator, so a seeded choice uses the same one a preview used.
+      const saved = g.rng;
+      if (Number.isInteger(body.action.seed) && body.action.seed > 0) g.rng = maps.makeRng(seed + 7);
+      try { g.setMap(maps.generatePreset(preset, seed)); } finally { g.rng = saved; }
       broadcast(room);
       return sendJson(res, 200, { ok: true, result: null });
     }

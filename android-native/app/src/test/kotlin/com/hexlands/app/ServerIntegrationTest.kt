@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -188,5 +189,31 @@ class ServerIntegrationTest {
             assertTrue("${m.key} has land", board.tiles.isNotEmpty() && board.vertices.isNotEmpty() && board.edges.isNotEmpty())
             assertEquals(m.name, board.name)
         }
+    }
+
+    @Test
+    fun theHostSetsTheGameRulesAndPicksTheExactPreviewedMap() = runBlocking {
+        val room = api.create("Kira", public = false)
+        val session = Session(room.code, room.token)
+        val w = Watcher(api, session, scope)
+        w.until(what = "the waiting room") { it.phase == "lobby" }
+
+        // the rules: same options and limits as the web game
+        api.act(session, "setOptions") { putJsonObject("opts") { put("vpTarget", 12) } }
+        api.act(session, "setOptions") { putJsonObject("opts") { put("discardLimit", 9) } }
+        api.act(session, "setOptions") { putJsonObject("opts") { put("discardMode", "four") } }
+        api.act(session, "setOptions") { putJsonObject("opts") { put("timer", 30) } }
+        api.act(session, "setOptions") { putJsonObject("opts") { put("friendlyRobber", true) } }
+        api.act(session, "setOptions") { putJsonObject("opts") { put("balancedDice", true) } }
+        val s = w.until(what = "the new rules") { it.vpTarget == 12 && it.opts.balancedDice }
+        assertEquals(9, s.opts.discardLimit); assertEquals("four", s.opts.discardMode); assertEquals(30, s.opts.timer); assertTrue(s.opts.friendlyRobber)
+        try { api.act(session, "setOptions") { putJsonObject("opts") { put("timer", 20) } }; fail("20 seconds is not a timer setting") } catch (e: ApiException) { assertTrue(e.message!!.contains("timer")) }
+
+        // the preview of a map is the map the room gets
+        val pv = api.preview("japan")
+        api.act(session, "setMap") { put("preset", "japan"); put("seed", pv.seed) }
+        val board = withTimeout(15_000) { w.board.first { it != null && it.key == "japan" }!! }
+        assertEquals(pv.board.tiles.map { it.terrain to it.number }, board.tiles.map { it.terrain to it.number })
+        assertEquals(pv.board.ports, board.ports)
     }
 }

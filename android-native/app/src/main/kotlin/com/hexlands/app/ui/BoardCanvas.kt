@@ -107,6 +107,7 @@ fun BoardCanvas(
     // The glow on the spots you may tap pulses. [animate] = false holds it steady (the screenshot tests need a screen that is ever idle).
     val pulse = if (animate) rememberInfiniteTransition(label = "pulse").animateFloat(0.35f, 0.95f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "pulse").value else 0.8f
     val anim = animate && LocalAnimate.current
+    val cutRoads = remember(game.cutRoads) { game.cutRoads.toSet() }
     val clock by rememberClock()
     // Pieces pop in when they appear: the first time a road or building is seen after the board has been shown, its birth time is noted.
     val births = remember { HashMap<String, Float>() }
@@ -190,8 +191,9 @@ fun BoardCanvas(
             val a = board.vertices[e.v[0]]; val b = board.vertices[e.v[1]]
             val pa = screen(a.x, a.y); val pb = screen(b.x, b.y)
             val g = pop("r$eid")
-            drawLine(Color.Black.copy(alpha = 0.7f), pa, pb, strokeWidth = k * 0.17f * g, cap = StrokeCap.Round)
-            drawLine(Color(parseColor(game.players.getOrNull(seat)?.color)), pa, pb, strokeWidth = k * 0.11f * g, cap = StrokeCap.Round)
+            val cut = if (eid.toIntOrNull() in cutRoads) 0.5f else 1f   // a road an opposing settlement has cut off is shown faded
+            drawLine(Color.Black.copy(alpha = 0.7f * cut), pa, pb, strokeWidth = k * 0.17f * g, cap = StrokeCap.Round)
+            drawLine(Color(parseColor(game.players.getOrNull(seat)?.color)).copy(alpha = cut), pa, pb, strokeWidth = k * 0.11f * g, cap = StrokeCap.Round)
         }
         // buildings
         for ((vid, b) in game.buildings) {
@@ -271,4 +273,17 @@ private fun DrawScope.house(c: Offset, r: Float, color: Color, city: Boolean) {
     else poly(-0.85f to 0.7f, -0.85f to -0.1f, 0f to -0.95f, 0.85f to -0.1f, 0.85f to 0.7f)
     drawPath(shape, color)
     drawPath(shape, Color.Black.copy(alpha = 0.85f), style = Stroke(max(1.5f, r * 0.16f)))
+}
+
+/** A whole map drawn to fit its box (no pieces, no taps): the map previews and thumbnails. */
+@Composable
+fun BoardPreview(board: Board, modifier: Modifier = Modifier) {
+    val measurer = rememberTextMeasurer()
+    val bounds = remember(board) { boundsOf(board) }
+    Canvas(modifier) {
+        if (size.width <= 0f || size.height <= 0f) return@Canvas
+        val k = min(size.width / bounds.w.toFloat(), size.height / bounds.h.toFloat())
+        val origin = Offset(size.width / 2f - (bounds.cx * k).toFloat(), size.height / 2f - (bounds.cy * k).toFloat())
+        drawBoardArt(board, origin, k, measurer)
+    }
 }

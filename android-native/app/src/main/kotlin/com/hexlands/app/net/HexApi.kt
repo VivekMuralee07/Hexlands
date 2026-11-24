@@ -103,6 +103,9 @@ class HexApi(
     /** Every map the game has. */
     suspend fun maps(): MapsReply = get("/api/maps")
 
+    /** One map's board (a random layout, or the one for [seed]). */
+    suspend fun preview(key: String): PreviewReply = get("/api/preview?map=$key")
+
     // ---------- the live stream ----------
 
     /**

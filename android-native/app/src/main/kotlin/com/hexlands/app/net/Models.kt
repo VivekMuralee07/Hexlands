@@ -86,6 +86,7 @@ data class GameState(
     val net: NetInfo? = null,
     val timer: TimerView? = null,
     val heist: HeistInfo? = null,
+    val cutRoads: List<Int> = emptyList(),   // roads an opposing settlement has cut off: they stay, but no longer link to your towns
 )
 
 @Serializable
@@ -235,6 +236,10 @@ data class MapInfo(val key: String = "", val name: String = "", val blurb: Strin
 
 @Serializable
 data class MapsReply(val maps: List<MapInfo> = emptyList())
+
+/** A map's board made from a seed; asking the server for the same seed in the waiting room gives exactly this board. */
+@Serializable
+data class PreviewReply(val seed: Long = 0, val board: Board = Board())
 
 @Serializable
 data class RoomsReply(val rooms: List<RoomCard> = emptyList(), val live: List<LiveCard> = emptyList())
