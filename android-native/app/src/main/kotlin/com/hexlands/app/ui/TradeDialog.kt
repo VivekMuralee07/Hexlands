@@ -102,8 +102,8 @@ private fun PlayersPane(game: GameState, vm: GameViewModel, give0: String?, canT
             RESOURCES.forEach { k ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Row(Modifier.weight(1.1f), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(12.dp).clip(RoundedCornerShape(3.dp)).background(RESOURCE_COLOR[k] ?: Color.Gray))
-                        Text(" ${RESOURCE_LABEL[k]} (${game.hand(k)})", fontSize = 13.sp)
+                        Box(Modifier.size(34.dp).clip(RoundedCornerShape(8.dp)).background(RESOURCE_COLOR[k] ?: Color.Gray), contentAlignment = Alignment.Center) { ResourceIcon(k, 26.dp) }
+                        Text("  ${game.hand(k)}", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
                     Stepper(give[k] ?: 0, max = game.hand(k), enabled = (get[k] ?: 0) == 0, Modifier.weight(1f)) { give[k] = it }
                     Stepper(get[k] ?: 0, max = 9, enabled = (give[k] ?: 0) == 0, Modifier.weight(1f)) { get[k] = it }

@@ -38,6 +38,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.hexlands.app.net.Board
@@ -141,7 +142,6 @@ fun BoardCanvas(
         var found: Tap? = null
         var best = Float.MAX_VALUE
         for (id in cornerSpots) {
-            if (picked == Tap.Corner(id)) continue
             val v = board.vertices.getOrNull(id) ?: continue
             val d = (screen(v.x, v.y) - at).getDistance()
             if (d < slop && d < best) { best = d; found = Tap.Corner(id) }
@@ -160,7 +160,7 @@ fun BoardCanvas(
         found?.let(onTap)
     }
 
-    Box(modifier.fillMaxSize()) {
+    Box(modifier.fillMaxSize().testTag("board")) {
     Canvas(
         modifier = Modifier
             .fillMaxSize()
@@ -211,13 +211,14 @@ fun BoardCanvas(
         // the spots the player may tap
         val glow = GOLD.copy(alpha = pulse)
         for (id in roadSpots) {
-            if (picked == Tap.Road(id)) continue
+            if (picked == Tap.Road(id)) continue   // the preview piece is drawn there instead
             val e = board.edges.getOrNull(id) ?: continue
             val a = board.vertices[e.v[0]]; val b = board.vertices[e.v[1]]
             val sel = picked == Tap.Road(id)
             drawLine(if (sel) Color(0xFF4CD964) else glow, screen(a.x, a.y), screen(b.x, b.y), strokeWidth = k * (if (sel) 0.2f else 0.14f), cap = StrokeCap.Round)
         }
         for (id in cornerSpots) {
+            if (picked == Tap.Corner(id)) continue   // the preview piece is drawn there instead
             val v = board.vertices.getOrNull(id) ?: continue
             val c = screen(v.x, v.y); val sel = picked == Tap.Corner(id)
             drawCircle(if (sel) Color(0xFF4CD964) else glow, k * (if (sel) 0.26f else 0.2f), c)

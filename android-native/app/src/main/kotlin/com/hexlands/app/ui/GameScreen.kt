@@ -173,6 +173,19 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
         Box(Modifier.weight(1f).fillMaxWidth()) {
             if (board == null) Text("Loading the board…", Modifier.align(Alignment.Center))
             else BoardCanvas(board, game, cornerSpots, roadSpots, hexSpots, pickedNow, ::onTap, animate = animate, previewKind = pickedKind)
+            // Hints sit on top of the board, never beside it: a bar that appeared below would shrink the board and move the spot you just tapped.
+            val hint = when {
+                pickedNow != null -> if (pickedKind == "heist") "Tap it again to steal this settlement" else "Tap it again to build a $pickedKind"
+                heistMode -> if (heistTargets.isEmpty()) "No opponent has a settlement to steal." else "Tap one of the glowing settlements."
+                else -> null
+            }
+            if (hint != null) Row(
+                Modifier.align(Alignment.TopCenter).padding(top = 6.dp).background(NavyDark.copy(alpha = 0.92f), RoundedCornerShape(14.dp)).padding(start = 14.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(hint, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Gold)
+                TextButton(onClick = { picked = null; heistMode = false }) { Text("Cancel") }
+            }
             game.dice?.let { d ->
                 if (d.size == 2) Row(
                     Modifier.align(Alignment.BottomStart).padding(8.dp).background(NavyDark.copy(alpha = 0.85f), RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 6.dp),
@@ -197,23 +210,6 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
                         OutlinedButton(onClick = { vm.act("respond") { put("accept", false) } }) { Text("Decline") }
                     }
                 }
-            }
-        }
-
-        if (heistMode && pickedNow == null) {
-            Row(Modifier.fillMaxWidth().background(NavyDark).padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(if (heistTargets.isEmpty()) "No opponent has a settlement to steal." else "Tap one of the glowing settlements.", Modifier.weight(1f), fontWeight = FontWeight.Bold)
-                OutlinedButton(onClick = { heistMode = false }) { Text("Cancel") }
-            }
-        }
-        // The spot you tapped shows a small preview piece on the board; tapping it again places it.
-        if (pickedNow != null) {
-            Row(Modifier.fillMaxWidth().background(NavyDark).padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    if (pickedKind == "heist") "Tap it again to steal this settlement" else "Tap it again to build a $pickedKind",
-                    Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Gold,
-                )
-                TextButton(onClick = { picked = null }) { Text("Cancel") }
             }
         }
 
@@ -318,7 +314,7 @@ private fun HandRow(game: GameState, onTapResource: (String) -> Unit) {
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text("$n", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = Color.Black.copy(alpha = 0.85f))
-                    Text(RESOURCE_LABEL[k] ?: k, fontSize = 11.sp, color = Color.Black.copy(alpha = 0.8f))
+                    ResourceIcon(k, 30.dp)
                 }
                 if (gain.value < 1f) Text(
                     "+$shownGain", Modifier.align(Alignment.TopCenter).graphicsLayer { translationY = -gain.value * 56.dp.toPx() - 8.dp.toPx(); alpha = 1f - gain.value * gain.value },

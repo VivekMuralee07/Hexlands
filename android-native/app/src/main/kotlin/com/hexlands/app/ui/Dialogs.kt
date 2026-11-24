@@ -1,6 +1,10 @@
 package com.hexlands.app.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -46,7 +50,7 @@ fun DiscardDialog(game: GameState, onSend: (Map<String, Int>) -> Unit) {
                 RESOURCES.forEach { k ->
                     val have = game.hand(k); val n = chosen[k] ?: 0
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("${RESOURCE_LABEL[k]} ($have)", Modifier.weight(1f))
+                        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) { ResourceIcon(k, 28.dp); Text("  $have", fontWeight = FontWeight.Bold) }
                         OutlinedButton(onClick = { chosen[k] = n - 1 }, enabled = n > 0) { Text("−") }
                         Text("$n", Modifier.padding(horizontal = 12.dp), fontWeight = FontWeight.Bold)
                         OutlinedButton(onClick = { chosen[k] = n + 1 }, enabled = n < have && total < need) { Text("+") }
@@ -81,7 +85,7 @@ fun BankPane(game: GameState, give0: String?, onTrade: (give: String, get: Strin
     val ok = give != null && get != null && give != get && times in 1..most && (game.bank[get] ?: 0) >= times
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("You give", fontWeight = FontWeight.Bold, color = Gold)
-        ChipRow(RESOURCES, give, label = { "${RESOURCE_LABEL[it]} ${game.hand(it)}" }) { give = it; times = 1 }
+        ChipRow(RESOURCES, give, label = { "${game.hand(it)}" }) { give = it; times = 1 }
         Text("You get", fontWeight = FontWeight.Bold, color = Gold)
         ChipRow(RESOURCES.filter { it != give }, get, label = { RESOURCE_LABEL[it] ?: it }) { get = it }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -99,9 +103,21 @@ fun BankPane(game: GameState, give0: String?, onTrade: (give: String, get: Strin
 
 @Composable
 internal fun ChipRow(items: List<String>, selected: String?, label: (String) -> String, onPick: (String) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        items.chunked(3).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { row.forEach { k -> FilterChip(selected = selected == k, onClick = { onPick(k) }, label = { Text(label(k), fontSize = 12.sp) }) } }
+    // Each resource is a coloured tile with its picture; the small text under it (a count, say) comes from [label] only when it is not just the name.
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        items.forEach { k ->
+            val sel = selected == k
+            androidx.compose.foundation.layout.Column(
+                Modifier.weight(1f).clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                    .background((RESOURCE_COLOR[k] ?: androidx.compose.ui.graphics.Color.Gray).copy(alpha = if (sel) 1f else 0.55f))
+                    .border(if (sel) 3.dp else 0.dp, if (sel) Gold else androidx.compose.ui.graphics.Color.Transparent, androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                    .clickable { onPick(k) }.padding(vertical = 6.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                ResourceIcon(k, 32.dp)
+                val text = label(k)
+                if (text != (RESOURCE_LABEL[k] ?: k)) Text(text, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.85f))
+            }
         }
     }
 }
@@ -174,8 +190,12 @@ fun PickResourcesDialog(title: String, count: Int, onClose: () -> Unit, onPick: 
         title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                RESOURCES.forEach { k -> OutlinedButton(onClick = { if (picks.value.size < count) picks.value = picks.value + k }, modifier = Modifier.fillMaxWidth()) { Text(RESOURCE_LABEL[k] ?: k) } }
-                Text("Chosen: ${picks.value.joinToString(", ") { RESOURCE_LABEL[it] ?: it }.ifEmpty { "none yet" }}", color = FoamDim)
+                RESOURCES.forEach { k -> OutlinedButton(onClick = { if (picks.value.size < count) picks.value = picks.value + k }, modifier = Modifier.fillMaxWidth()) { ResourceIcon(k, 28.dp) } }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Chosen:", color = FoamDim)
+                    if (picks.value.isEmpty()) Text("none yet", color = FoamDim)
+                    picks.value.forEach { ResourceIcon(it, 24.dp) }
+                }
             }
         },
         confirmButton = { Button(onClick = { onPick(picks.value) }, enabled = picks.value.size == count) { Text("OK") } },
@@ -270,7 +290,7 @@ fun DiamondBody(game: GameState, n: Int, picks: List<String>, onPick: (String) -
         RESOURCES.forEach { k ->
             val left = (game.bank[k] ?: 0) - picks.count { it == k }
             OutlinedButton(onClick = { onPick(k) }, enabled = picks.size < n && left > 0, modifier = Modifier.fillMaxWidth()) {
-                Text("${RESOURCE_LABEL[k]}   (${picks.count { it == k }} chosen, $left in the bank)")
+                ResourceIcon(k, 26.dp); Text("   ${picks.count { it == k }} chosen, $left in the bank")
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
