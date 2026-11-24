@@ -28,6 +28,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
@@ -258,17 +259,63 @@ private fun DrawScope.centeredText(measurer: TextMeasurer, text: String, center:
     drawText(r, topLeft = center - Offset(r.size.width / 2f, r.size.height / 2f))
 }
 
-/** A little house (settlement) or a bigger one with a tower (city), in the player's colour. */
+/** [c] lightened ([f] > 0) or darkened ([f] < 0). */
+private fun tone(c: Color, f: Float): Color =
+    if (f < 0) Color(c.red * (1 + f), c.green * (1 + f), c.blue * (1 + f), c.alpha) else Color(c.red + (1 - c.red) * f, c.green + (1 - c.green) * f, c.blue + (1 - c.blue) * f, c.alpha)
+
+/**
+ * A settlement (a cottage with a chimney) or a city (a big hall with a tall tower and a flag), in the player's colour: lit on the left and shaded on the right
+ * so it reads as solid, with a darker roof, a door, windows and a soft shadow on the ground. [r] is about half the piece's width; (0, 0) is the corner it stands on.
+ */
 private fun DrawScope.house(c: Offset, r: Float, color: Color, city: Boolean) {
-    fun poly(vararg pts: Pair<Float, Float>): Path = Path().apply {
+    fun p(vararg pts: Pair<Float, Float>): Path = Path().apply {
         moveTo(c.x + pts[0].first * r, c.y + pts[0].second * r)
         for (i in 1 until pts.size) lineTo(c.x + pts[i].first * r, c.y + pts[i].second * r)
         close()
     }
-    val shape = if (city) poly(-1.25f to 0.75f, -1.25f to -0.15f, -0.45f to -0.15f, -0.45f to -0.75f, 0.2f to -1.2f, 0.85f to -0.75f, 0.85f to -0.15f, 1.25f to -0.15f, 1.25f to 0.75f)
-    else poly(-0.85f to 0.7f, -0.85f to -0.1f, 0f to -0.95f, 0.85f to -0.1f, 0.85f to 0.7f)
-    drawPath(shape, color)
-    drawPath(shape, Color.Black.copy(alpha = 0.85f), style = Stroke(max(1.5f, r * 0.16f)))
+    val ink = Color(0xFF14110F).copy(alpha = 0.9f)
+    val line = Stroke(max(1.4f, r * 0.09f), join = StrokeJoin.Round)
+    val lit = tone(color, 0.14f); val dim = tone(color, -0.16f)
+    val roofLit = tone(color, -0.22f); val roofDim = tone(color, -0.42f)
+    val glass = Color(0xFFFFF0A8); val door = tone(color, -0.6f)
+    // the shadow on the ground
+    drawOval(Color.Black.copy(alpha = 0.28f), Offset(c.x - (if (city) 1.45f else 1.05f) * r, c.y + 0.62f * r), androidx.compose.ui.geometry.Size((if (city) 2.9f else 2.1f) * r, 0.5f * r))
+    fun win(x: Float, y: Float, w: Float, h: Float) { drawRect(glass, Offset(c.x + x * r, c.y + y * r), androidx.compose.ui.geometry.Size(w * r, h * r)); drawRect(ink, Offset(c.x + x * r, c.y + y * r), androidx.compose.ui.geometry.Size(w * r, h * r), style = Stroke(max(1f, r * 0.05f))) }
+    if (!city) {
+        // walls: the left half lit, the right half in shade
+        drawPath(p(-0.8f to -0.05f, 0f to -0.05f, 0f to 0.8f, -0.8f to 0.8f), lit)
+        drawPath(p(0f to -0.05f, 0.8f to -0.05f, 0.8f to 0.8f, 0f to 0.8f), dim)
+        // chimney, then the roof over it
+        drawPath(p(0.38f to -0.85f, 0.66f to -0.85f, 0.66f to -0.3f, 0.38f to -0.3f), roofDim); drawPath(p(0.38f to -0.85f, 0.66f to -0.85f, 0.66f to -0.3f, 0.38f to -0.3f), ink, style = line)
+        drawPath(p(-1.0f to 0.0f, 0f to -1.0f, 0f to 0.0f), roofLit)
+        drawPath(p(0f to -1.0f, 1.0f to 0.0f, 0f to 0.0f), roofDim)
+        drawPath(p(-1.0f to 0.0f, 0f to -1.0f, 1.0f to 0.0f), ink, style = line)
+        drawPath(p(-0.8f to -0.02f, -0.8f to 0.8f, 0.8f to 0.8f, 0.8f to -0.02f), ink, style = line)
+        // a door and a window
+        drawPath(p(-0.22f to 0.8f, -0.22f to 0.38f, 0.22f to 0.38f, 0.22f to 0.8f), door); drawPath(p(-0.22f to 0.8f, -0.22f to 0.38f, 0.22f to 0.38f, 0.22f to 0.8f), ink, style = Stroke(max(1f, r * 0.06f)))
+        win(0.36f, 0.2f, 0.32f, 0.3f)
+    } else {
+        // the hall on the left and the tower on the right
+        drawPath(p(-1.3f to 0.05f, -0.2f to 0.05f, -0.2f to 0.8f, -1.3f to 0.8f), lit)
+        drawPath(p(-0.2f to -0.5f, 0.45f to -0.5f, 0.45f to 0.8f, -0.2f to 0.8f), dim)
+        drawPath(p(0.45f to -0.5f, 1.15f to -0.5f, 1.15f to 0.8f, 0.45f to 0.8f), tone(color, -0.3f))
+        // roofs: the hall's gable, the tower's point
+        drawPath(p(-1.45f to 0.05f, -0.75f to -0.6f, -0.05f to 0.05f), roofLit)
+        drawPath(p(-0.75f to -0.6f, -0.05f to 0.05f, -0.75f to 0.05f), roofDim)
+        drawPath(p(-1.45f to 0.05f, -0.75f to -0.6f, -0.05f to 0.05f), ink, style = line)
+        drawPath(p(0.3f to -0.5f, 0.8f to -1.3f, 1.3f to -0.5f), roofLit)
+        drawPath(p(0.8f to -1.3f, 1.3f to -0.5f, 0.8f to -0.5f), roofDim)
+        drawPath(p(0.3f to -0.5f, 0.8f to -1.3f, 1.3f to -0.5f), ink, style = line)
+        drawPath(p(-1.3f to 0.03f, -1.3f to 0.8f, -0.2f to 0.8f, -0.2f to -0.5f, 0.45f to -0.5f), ink, style = line)
+        drawPath(p(0.45f to -0.5f, 1.15f to -0.5f, 1.15f to 0.8f, 0.45f to 0.8f), ink, style = line)
+        // a flag on the tower
+        drawLine(ink, Offset(c.x + 0.8f * r, c.y - 1.3f * r), Offset(c.x + 0.8f * r, c.y - 1.75f * r), strokeWidth = max(1.4f, r * 0.08f))
+        drawPath(p(0.8f to -1.75f, 1.2f to -1.62f, 0.8f to -1.48f), Color(0xFFFFD23F)); drawPath(p(0.8f to -1.75f, 1.2f to -1.62f, 0.8f to -1.48f), ink, style = Stroke(max(1f, r * 0.05f)))
+        // an arched door, windows
+        drawPath(p(-0.95f to 0.8f, -0.95f to 0.42f, -0.55f to 0.42f, -0.55f to 0.8f), door); drawPath(p(-0.95f to 0.8f, -0.95f to 0.42f, -0.55f to 0.42f, -0.55f to 0.8f), ink, style = Stroke(max(1f, r * 0.06f)))
+        win(-0.4f, 0.22f, 0.26f, 0.26f); win(0.2f, 0.12f, 0.2f, 0.22f)
+        win(0.62f, -0.2f, 0.34f, 0.3f); win(0.62f, 0.38f, 0.34f, 0.3f)
+    }
 }
 
 /** A whole map drawn to fit its box (no pieces, no taps): the map previews and thumbnails. */
