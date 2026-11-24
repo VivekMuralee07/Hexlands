@@ -1,6 +1,9 @@
 package com.hexlands.app.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
@@ -34,33 +37,6 @@ import com.hexlands.app.net.RESOURCE_LABEL
 import com.hexlands.app.net.canAfford
 import com.hexlands.app.net.cities
 import com.hexlands.app.net.hand
-
-/** A seven was rolled and you hold too many cards: choose which to give back. Cannot be dismissed; the server asks for exactly this many. */
-@Composable
-fun DiscardDialog(game: GameState, onSend: (Map<String, Int>) -> Unit) {
-    val need = game.pendingDiscards[game.you.toString()] ?: 0
-    val chosen = remember { mutableStateMapOf<String, Int>() }
-    val total = chosen.values.sum()
-    AlertDialog(
-        onDismissRequest = {},
-        title = { Text("The robber strikes!") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("You hold more than ${game.opts.discardLimit} cards. Choose $need to give back to the bank. ($total of $need)")
-                RESOURCES.forEach { k ->
-                    val have = game.hand(k); val n = chosen[k] ?: 0
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) { ResourceIcon(k, 28.dp); Text("  $have", fontWeight = FontWeight.Bold) }
-                        OutlinedButton(onClick = { chosen[k] = n - 1 }, enabled = n > 0) { Text("−") }
-                        Text("$n", Modifier.padding(horizontal = 12.dp), fontWeight = FontWeight.Bold)
-                        OutlinedButton(onClick = { chosen[k] = n + 1 }, enabled = n < have && total < need) { Text("+") }
-                    }
-                }
-            }
-        },
-        confirmButton = { Button(onClick = { onSend(chosen.toMap()) }, enabled = total == need) { Text("Discard") } },
-    )
-}
 
 /** More than one player could be robbed: choose whom. */
 @Composable
@@ -165,30 +141,74 @@ fun LogDialog(game: GameState, onClose: () -> Unit) {
     )
 }
 
+/**
+ * The "i" window: the rules of the game in detail. Rules (the full How to play text, the same as on the web game), costs, points and the settings of
+ * this game each have a tab; the tutorial is one tap away.
+ */
 @Composable
-fun InfoDialog(game: GameState, onClose: () -> Unit) {
+fun InfoDialog(game: GameState, onClose: () -> Unit, onTutorial: (() -> Unit)? = null) {
+    var tab by remember { mutableStateOf(0) }
+    val tabs = listOf("Rules", "Costs", "Points", "This game")
     AlertDialog(
         onDismissRequest = onClose,
         title = { Text("Game info") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(Modifier.heightIn(max = 560.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Room ${game.code} · first to ${game.vpTarget} points", fontWeight = FontWeight.Bold)
-                Text("Road: ${resText(COST_ROAD)}")
-                Text("Settlement (1 point): ${resText(COST_SETTLEMENT)}")
-                Text("City (2 points): ${resText(COST_CITY)}")
-                Text("Development card: ${resText(COST_DEV)}")
-                Text("Longest Road (5+ roads) and Largest Army (3+ knights) are worth 2 points each.", color = FoamDim, fontSize = 13.sp)
-                Text("Bank: ${RESOURCES.joinToString(" · ") { "${RESOURCE_LABEL[it]} ${game.bank[it] ?: 0}" }} · ${game.devLeft} development cards left", color = FoamDim, fontSize = 13.sp)
-                game.me?.ratios?.let { r -> Text("Your bank rates: ${RESOURCES.joinToString(" · ") { "${RESOURCE_LABEL[it]} ${r[it] ?: 4}:1" }}", color = FoamDim, fontSize = 13.sp) }
-                val o = game.opts
-                Text("Rules of this game", fontWeight = FontWeight.Bold, color = Gold, modifier = Modifier.padding(top = 4.dp))
-                Text("Points to win: ${game.vpTarget} · Discard limit: ${o.discardLimit} cards, ${if (o.discardMode == "four") "4 cards" else "half the hand"} given up", fontSize = 13.sp, color = FoamDim)
-                Text("Move timer: ${if (o.timer > 0) "${o.timer} seconds (setup placements get 60)" else "off"} · Friendly robber: ${if (o.friendlyRobber) "on" else "off"} · Balanced dice: ${if (o.balancedDice) "on" else "off"}", fontSize = 13.sp, color = FoamDim)
-                Text("Pinch to zoom the board and drag to move it; tap Fit to see all of it again.", color = FoamDim, fontSize = 13.sp)
+                androidx.compose.material3.ScrollableTabRow(selectedTabIndex = tab, edgePadding = 0.dp, containerColor = androidx.compose.ui.graphics.Color.Transparent) {
+                    tabs.forEachIndexed { i, t -> androidx.compose.material3.Tab(selected = tab == i, onClick = { tab = i }, text = { Text(t, fontSize = 13.sp) }) }
+                }
+                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    when (tab) {
+                        0 -> {
+                            if (onTutorial != null) GoldButton(onClick = onTutorial, modifier = Modifier.fillMaxWidth()) { Text("▶ Watch the animated tutorial", fontWeight = FontWeight.Bold) }
+                            RulesText()
+                        }
+                        1 -> CostsList()
+                        2 -> PointsList(game)
+                        else -> ThisGame(game)
+                    }
+                }
             }
         },
         confirmButton = { TextButton(onClick = onClose) { Text("Close") } },
     )
+}
+
+@Composable
+private fun PointsList(game: GameState) {
+    fun who(i: Int) = game.players.getOrNull(i)?.name ?: "?"
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        listOf(
+            Triple("Settlement", "Each one you keep.", "1"),
+            Triple("City", "Replaces a settlement and pays double.", "2"),
+            Triple("Longest Road", "5 or more roads in a row, and you must beat the holder." + (game.longestRoad?.let { " Held by ${who(it.p)} (${it.len ?: 0} roads)." } ?: " Nobody holds it yet."), "2"),
+            Triple("Largest Army", "3 or more Knights played, and you must beat the holder." + (game.largestArmy?.let { " Held by ${who(it.p)} (${it.size ?: 0} Knights)." } ?: " Nobody holds it yet."), "2"),
+            Triple("Victory Point card", "Hidden in your hand until you win.", "1"),
+        ).forEach { (name, note, pts) ->
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.weight(1f)) { Text(name, fontWeight = FontWeight.Bold, fontSize = 13.sp); Text(note, fontSize = 11.sp, color = FoamDim) }
+                Text(pts, fontWeight = FontWeight.ExtraBold, color = Gold, fontSize = 20.sp)
+            }
+        }
+        Text("The first player to reach ${game.vpTarget} points on their own turn wins.", fontSize = 12.sp, color = FoamDim)
+    }
+}
+
+@Composable
+private fun ThisGame(game: GameState) {
+    val o = game.opts
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("Bank: ${RESOURCES.joinToString(" · ") { "${RESOURCE_LABEL[it]} ${game.bank[it] ?: 0}" }} · ${game.devLeft} development cards left", fontSize = 13.sp, color = FoamDim)
+        game.me?.ratios?.let { r -> Text("Your bank rates: ${RESOURCES.joinToString(" · ") { "${RESOURCE_LABEL[it]} ${r[it] ?: 4}:1" }}", fontSize = 13.sp, color = FoamDim) }
+        Text("Rules of this game", fontWeight = FontWeight.Bold, color = Gold, modifier = Modifier.padding(top = 6.dp))
+        Text("Points to win: ${game.vpTarget}", fontSize = 13.sp)
+        Text("Discard limit: ${o.discardLimit} cards; ${if (o.discardMode == "four") "4 cards" else "half the hand"} given up", fontSize = 13.sp)
+        Text("Move timer: ${if (o.timer > 0) "${o.timer} seconds (setup placements get 60)" else "off"}", fontSize = 13.sp)
+        Text("Friendly robber: ${if (o.friendlyRobber) "on" else "off"}", fontSize = 13.sp)
+        Text("Balanced dice: ${if (o.balancedDice) "on" else "off"}", fontSize = 13.sp)
+        Text("Pinch to zoom the board and drag to move it; tap Fit to see all of it again.", color = FoamDim, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
+    }
 }
 
 @Composable

@@ -32,6 +32,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.runtime.Composable
+import kotlinx.coroutines.delay
+import androidx.compose.ui.geometry.Offset
+import kotlin.math.max
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import kotlin.math.sin
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.Animatable
@@ -83,7 +89,7 @@ fun bannerText(g: GameState): String {
     }
     return when (g.subphase) {
         "discard" -> { val n = g.pendingDiscards[g.you.toString()] ?: 0; if (n > 0) "A seven! Discard $n cards" else "A seven! Waiting for players to discard" }
-        "robber" -> if (mine) "Move the robber: tap a ringed hex" else "$cur is moving the robber"
+        "robber" -> if (mine) "Move the robber: tap a glowing circle" else "$cur is moving the robber"
         "roadBuilding" -> if (mine) "Place ${g.freeRoads} free road${if (g.freeRoads == 1) "" else "s"}" else "$cur is placing free roads"
         "diamond" -> { val n = g.pendingDiamond[g.you.toString()] ?: 0; if (n > 0) "The diamond opens! Choose $n cards from the bank" else "The diamond opens: players are choosing their cards" }
         else -> if (mine) (if (!g.rolled) "Your turn: roll the dice" else "Build, trade, or end your turn") else "$cur's turn"
@@ -111,7 +117,7 @@ private sealed interface GameDialog {
 }
 
 @Composable
-fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean = true, tradeOpenAtStart: Boolean = false) {
+fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean = true, tradeOpenAtStart: Boolean = false, onTutorial: (() -> Unit)? = null) {
     val board = ui.board
     val context = LocalContext.current
     val spectating = game.spectator || ui.session?.spectator == true
@@ -120,6 +126,10 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
     var picked by remember { mutableStateOf<Tap?>(null) }
     var dialog by remember { mutableStateOf<GameDialog?>(null) }
     var showResults by remember { mutableStateOf(true) }
+    // A seven was rolled and you hold too many cards: you pick the ones to give back by tapping them in your hand.
+    val needDiscard = if (!spectating && game.subphase == "discard") (game.pendingDiscards[game.you.toString()] ?: 0) else 0
+    val discardPick = remember { androidx.compose.runtime.mutableStateMapOf<String, Int>() }
+    LaunchedEffect(needDiscard) { discardPick.clear() }
     var tradeOpen by remember { mutableStateOf(tradeOpenAtStart) }
     val tradeGive = remember { androidx.compose.runtime.mutableStateMapOf<String, Int>() }
     val tradeGet = remember { androidx.compose.runtime.mutableStateMapOf<String, Int>() }
@@ -168,8 +178,31 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
         }
     }
 
+    // The cards of a roll fly from their tiles to the players who were paid. A roll already on the screen when you arrive is not replayed.
+    val rollSeq = game.lastRoll?.seq
+    var seenRoll by remember { mutableStateOf(rollSeq) }
+    var flights by remember { mutableStateOf(emptyList<GainFlight>()) }
+    val boardView = remember { BoardView() }
+    var rootPos by remember { mutableStateOf(Offset.Zero) }
+    var boardBounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
+    var stripBounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
+    var handBounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
+    val flightsOn = animate && LocalAnimate.current
+    LaunchedEffect(rollSeq) {
+        if (rollSeq != null && rollSeq != seenRoll) {
+            seenRoll = rollSeq
+            if (flightsOn && board != null) {
+                val list = gainFlights(board, game)
+                flights = list
+                delay((list.maxOfOrNull { it.delayMs } ?: 0L) + FLIGHT_MS + 300L)
+                flights = emptyList()
+            }
+        }
+    }
+
+    Box(Modifier.fillMaxSize().onGloballyPositioned { rootPos = it.positionInWindow() }) {
     Column(Modifier.fillMaxSize()) {
-        PlayersStrip(game)
+        Box(Modifier.onGloballyPositioned { stripBounds = it.boundsInWindow() }) { PlayersStrip(game) }
         Row(Modifier.fillMaxWidth().background(NavyDark).padding(start = 12.dp, end = 4.dp, top = 2.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 (if (heistMode) "Heist: tap an opponent's settlement to steal it" else bannerText(game)) + if (ui.reconnecting) "  ·  Reconnecting…" else "",
@@ -193,9 +226,9 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
             }
         }
 
-        Box(Modifier.weight(1f).fillMaxWidth()) {
+        Box(Modifier.weight(1f).fillMaxWidth().onGloballyPositioned { boardBounds = it.boundsInWindow() }) {
             if (board == null) Text("Loading the board…", Modifier.align(Alignment.Center))
-            else BoardCanvas(board, game, cornerSpots, roadSpots, hexSpots, pickedNow, ::onTap, animate = animate, previewKind = pickedKind)
+            else BoardCanvas(board, game, cornerSpots, roadSpots, hexSpots, pickedNow, ::onTap, animate = animate, previewKind = pickedKind, view = boardView)
             // Hints sit on top of the board, never beside it: a bar that appeared below would shrink the board and move the spot you just tapped.
             val hint = when {
                 pickedNow != null -> if (pickedKind == "heist") "Tap it again to steal this settlement" else "Tap it again to build a $pickedKind"
@@ -209,7 +242,12 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
                 Text(hint, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Gold)
                 TextButton(onClick = { picked = null; heistMode = false }) { Text("Cancel") }
             }
-            if (tradeOpen && !spectating) TradePanel(
+            if (needDiscard > 0) DiscardPanel(
+                game, needDiscard, discardPick,
+                onSend = { vm.act("discard") { put("res", kotlinx.serialization.json.buildJsonObject { discardPick.forEach { (k, n) -> if (n > 0) put(k, n) } }) } },
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
+            )
+            if (tradeOpen && needDiscard == 0 && !spectating) TradePanel(
                 game, vm, tradeGive, tradeGet, canTrade, onClose = { tradeOpen = false },
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
             )
@@ -259,18 +297,43 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
                 OutlinedButton(onClick = { vm.leave() }) { Text("Stop") }
             }
         } else {
-            HandRow(game, onDev = { dialog = GameDialog.Dev }) { k ->
+            Box(Modifier.onGloballyPositioned { handBounds = it.boundsInWindow() }) {
+            HandRow(game, discardPick, onDev = { dialog = GameDialog.Dev }) { k ->
+                if (needDiscard > 0) {
+                    if (discardPick.values.sum() < needDiscard && (discardPick[k] ?: 0) < game.hand(k)) discardPick[k] = (discardPick[k] ?: 0) + 1
+                    return@HandRow
+                }
                 if (!tradeOpen) { tradeOpen = true; picked = null }
                 // with the panel open, a card from your hand goes into what you give
                 if (canTrade && (tradeGet[k] ?: 0) == 0 && (tradeGive[k] ?: 0) < game.hand(k)) tradeGive[k] = (tradeGive[k] ?: 0) + 1
             }
+            }
         }
     }
 
-    // ---------- windows ----------
-    if (!spectating && game.subphase == "discard" && (game.pendingDiscards[game.you.toString()] ?: 0) > 0) {
-        DiscardDialog(game) { res -> vm.act("discard") { put("res", kotlinx.serialization.json.buildJsonObject { res.forEach { (k, n) -> if (n > 0) put(k, n) } }) } }
+    // the cards of the last roll, flying from their tiles to the players
+    if (flights.isNotEmpty()) {
+        fun toRoot(o: Offset) = o - rootPos
+        GainFlights(
+            flights,
+            from = { f -> val t = f.tile?.let { board?.tiles?.getOrNull(it) }
+                if (t != null) toRoot(boardBounds.topLeft + boardView.toScreen(t.x, t.y)) else toRoot(boardBounds.center) },
+            to = { f ->
+                if (f.player == game.you) {
+                    // the card of that resource in your hand: the hand row is six equal cells (five resources and the Dev card)
+                    val w = handBounds.width; val pad = 8f; val gap = 8f; val cell = (w - 22f - 5 * gap) / 6f
+                    val cx = handBounds.left + pad + cell * (RESOURCES.indexOf(f.res) + 0.5f) + gap * RESOURCES.indexOf(f.res)
+                    toRoot(Offset(cx, handBounds.center.y))
+                } else {
+                    val n = max(1, game.players.size)
+                    toRoot(Offset(stripBounds.left + stripBounds.width * (f.player + 0.5f) / n, stripBounds.center.y))
+                }
+            },
+        )
     }
+    }
+
+    // ---------- windows ----------
     if (!spectating && game.subphase == "diamond" && (game.pendingDiamond[game.you.toString()] ?: 0) > 0) {
         DiamondDialog(game) { picks -> vm.act("diamond") { put("res", buildJsonArray { picks.forEach { add(it) } }) } }
     }
@@ -295,7 +358,7 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
             }
         }
         is GameDialog.Log -> LogDialog(game) { dialog = null }
-        is GameDialog.Info -> InfoDialog(game) { dialog = null }
+        is GameDialog.Info -> InfoDialog(game, onClose = { dialog = null }, onTutorial = onTutorial?.let { open -> { dialog = null; open() } })
         null -> {}
     }
     if (game.phase == "ended" && showResults) {
@@ -333,10 +396,10 @@ private fun PlayersStrip(game: GameState) {
 }
 
 @Composable
-private fun HandRow(game: GameState, onDev: () -> Unit, onTapResource: (String) -> Unit) {
+private fun HandRow(game: GameState, discarding: Map<String, Int>, onDev: () -> Unit, onTapResource: (String) -> Unit) {
     Row(Modifier.fillMaxWidth().background(NavyDark).padding(start = 8.dp, end = 14.dp, top = 12.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         RESOURCES.forEach { k ->
-            val n = game.hand(k)
+            val n = game.hand(k) - (discarding[k] ?: 0)   // cards you have picked to discard are taken out of the count at once
             // When a hand count goes up the card bumps and a "+n" floats away from it.
             val gain = remember { Animatable(1f) }
             var shownGain by remember { mutableStateOf(0) }
@@ -350,7 +413,7 @@ private fun HandRow(game: GameState, onDev: () -> Unit, onTapResource: (String) 
             Box(Modifier.weight(1f)) {
                 ResourceCard(
                     k, Modifier.fillMaxWidth().graphicsLayer { scaleX = bump; scaleY = bump }, count = n.takeIf { it > 0 }, label = RESOURCE_LABEL[k],
-                    dim = n == 0, goldBadge = true, onClick = { onTapResource(k) },
+                    dim = n == 0, goldBadge = true, chip = discarding[k]?.takeIf { it > 0 }?.let { "−$it" }, onClick = { onTapResource(k) },
                 )
                 if (gain.value < 1f) Text(
                     "+$shownGain", Modifier.align(Alignment.TopCenter).graphicsLayer { translationY = -gain.value * 56.dp.toPx() - 8.dp.toPx(); alpha = 1f - gain.value * gain.value },

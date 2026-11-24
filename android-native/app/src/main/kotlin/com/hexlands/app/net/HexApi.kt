@@ -100,6 +100,12 @@ class HexApi(
 
     suspend fun rooms(): RoomsReply = get("/api/rooms")
 
+    /** The leaderboard: [mode] ranked | multi | all, [period] all | 30 | 7 (days), [sort] wins | rate | vp. Your own standing is marked with the device ID. */
+    suspend fun leaderboard(mode: String, period: String, sort: String): LbReply = get("/api/leaderboard?mode=$mode&period=$period&sort=$sort&pid=$pid")
+
+    /** This device's last ten finished games. */
+    suspend fun recent(): RecentReply = get("/api/recent?pid=$pid")
+
     /** Every map the game has. */
     suspend fun maps(): MapsReply = get("/api/maps")
 

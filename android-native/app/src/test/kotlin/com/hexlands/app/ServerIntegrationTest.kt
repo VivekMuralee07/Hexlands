@@ -216,4 +216,17 @@ class ServerIntegrationTest {
         assertEquals(pv.board.tiles.map { it.terrain to it.number }, board.tiles.map { it.terrain to it.number })
         assertEquals(pv.board.ports, board.ports)
     }
+
+    @Test
+    fun theLeaderboardAndRecentGamesAnswerLikeTheWebGameExpects() = runBlocking {
+        for (mode in listOf("ranked", "multi", "all")) for (period in listOf("all", "30", "7")) for (sort in listOf("wins", "rate", "vp")) {
+            val r = api.leaderboard(mode, period, sort)
+            assertEquals(mode, r.mode); assertEquals(sort, r.sort)
+            assertTrue("a total and a minimum", r.total >= 0 && r.minGames >= 1 || !r.enabled)
+        }
+        val all = api.leaderboard("all", "all", "wins")
+        if (all.enabled) assertNotNull("the All games list has the bots' figures", all.bots)
+        val recent = api.recent()
+        assertTrue(recent.games.size <= 10)
+    }
 }

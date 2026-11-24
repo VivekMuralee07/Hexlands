@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import com.hexlands.app.net.RESOURCE_LABEL
 
 /** Card colours, light at the top and deeper at the bottom, like the cards in a hand. */
+private val GOLD_RING = Color(0xFFFFD23F)
 private val CARD_TOP = mapOf("wood" to Color(0xFF47C255), "brick" to Color(0xFFE08A72), "sheep" to Color(0xFFA9DB2A), "wheat" to Color(0xFFF6BC57), "ore" to Color(0xFFA9C4BC))
 private val CARD_BOTTOM = mapOf("wood" to Color(0xFF1F8A2E), "brick" to Color(0xFFB45A44), "sheep" to Color(0xFF6F9F0B), "wheat" to Color(0xFFD38F2A), "ore" to Color(0xFF6C8C86))
 
@@ -128,14 +129,16 @@ fun ResourceCard(
     chip: String? = null,
     dim: Boolean = false,
     goldBadge: Boolean = false,
+    highlight: Boolean = false,
     onClick: (() -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(12.dp)
-    Box(modifier.aspectRatio(0.76f).let { if (onClick != null) it.clickable(onClick = onClick) else it }) {
+    val name = (RESOURCE_LABEL[resource] ?: resource) + (count?.let { ", $it" } ?: "")
+    Box(modifier.aspectRatio(0.76f).semantics { contentDescription = name }.let { if (onClick != null) it.clickable(onClick = onClick) else it }) {
         Box(
             Modifier.fillMaxSize().clip(shape)
                 .background(Brush.verticalGradient(listOf((CARD_TOP[resource] ?: Color.Gray).copy(alpha = if (dim) 0.4f else 1f), (CARD_BOTTOM[resource] ?: Color.DarkGray).copy(alpha = if (dim) 0.4f else 1f))))
-                .border(1.5.dp, Color.White.copy(alpha = if (dim) 0.35f else 0.9f), shape),
+                .border(if (highlight) 3.dp else 1.5.dp, if (highlight) GOLD_RING else Color.White.copy(alpha = if (dim) 0.35f else 0.9f), shape),
             contentAlignment = Alignment.Center,
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {

@@ -40,6 +40,9 @@ import com.hexlands.app.ui.GameScreen
 import com.hexlands.app.ui.Gold
 import com.hexlands.app.ui.HexlandsTheme
 import com.hexlands.app.ui.HomeScreen
+import com.hexlands.app.ui.LeaderboardScreen
+import com.hexlands.app.ui.RecentGamesScreen
+import com.hexlands.app.ui.TutorialScreen
 import com.hexlands.app.ui.LobbyScreen
 import com.hexlands.app.ui.Navy
 
@@ -70,6 +73,11 @@ private fun App(vm: GameViewModel) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     var confirmLeave by remember { mutableStateOf(false) }
+    // full-screen pages opened from the front page: the leaderboard, your recent games, the tutorial
+    var page by remember { mutableStateOf<String?>(null) }
+    val appContext = androidx.compose.ui.platform.LocalContext.current
+    val tutorial = remember { com.hexlands.app.tutorial.TutorialRecord.load(appContext) }
+    BackHandler(enabled = page != null && ui.session == null) { page = if (page == "recent") "leaderboard" else null }
 
     LaunchedEffect(ui.message) {
         ui.message?.let { snackbar.showSnackbar(it); vm.consumeMessage() }
@@ -78,10 +86,12 @@ private fun App(vm: GameViewModel) {
         // Leaving is permanent in a running game (a bot takes the seat), so ask first.
         if (ui.game?.phase == "lobby" || ui.session?.spectator == true) vm.leave() else confirmLeave = true
     }
+    // the tutorial can be opened from the front page and from the i window in a game; Back closes it first
+    BackHandler(enabled = page == "tutorial") { page = null }
 
     Box(Modifier.fillMaxSize().background(Navy)) {
         val game = ui.game
-        val key = when { ui.session == null -> 0; game == null -> 1; game.phase == "lobby" -> 2; else -> 3 }
+        val key = when { page == "tutorial" -> 4; ui.session == null -> 0; game == null -> 1; game.phase == "lobby" -> 2; else -> 3 }
         AnimatedContent(
             targetState = key,
             transitionSpec = { (fadeIn(tween(350)) + scaleIn(tween(350), initialScale = 0.96f)) togetherWith fadeOut(tween(200)) },
@@ -90,7 +100,10 @@ private fun App(vm: GameViewModel) {
         // The front page and the waiting room draw the sea under the system bars themselves; the others keep inside them.
         Box(if (k == 0 || k == 2) Modifier.fillMaxSize() else Modifier.fillMaxSize().safeDrawingPadding()) {
         when {
-            ui.session == null -> HomeScreen(ui, vm)
+            page == "tutorial" -> TutorialScreen(tutorial, onClose = { page = null })
+            ui.session == null && page == "leaderboard" -> LeaderboardScreen(ui, vm, onBack = { page = null }, onRecent = { page = "recent" })
+            ui.session == null && page == "recent" -> RecentGamesScreen(ui, vm, onBack = { page = "leaderboard" })
+            ui.session == null -> HomeScreen(ui, vm, onLeaderboard = { page = "leaderboard" }, onTutorial = { page = "tutorial" })
             game == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(color = Gold)
@@ -105,7 +118,7 @@ private fun App(vm: GameViewModel) {
                 }
             }
             game.phase == "lobby" -> LobbyScreen(game, vm)
-            else -> GameScreen(ui, game, vm)
+            else -> GameScreen(ui, game, vm, onTutorial = { page = "tutorial" })
         }
         }
         }
