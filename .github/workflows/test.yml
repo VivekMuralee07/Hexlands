@@ -50,3 +50,30 @@ jobs:
           echo "The browser could not be installed. This is a problem with GitHub's network or the package servers, not with the code."
           exit 1
       - run: npm test
+
+  # The native Android app (android-native/): builds it and runs its tests, which start the real Node server and draw the screens on the JVM.
+  # Not a required check for merging; it shows whether the Android app still builds.
+  android:
+    name: android build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22   # the Android tests start the game server (node server.js)
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build and test the Android app
+        working-directory: android-native
+        run: ./gradlew --no-daemon assembleDebug testDebugUnitTest
+      - name: Keep the screen pictures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-screens
+          path: android-native/app/build/screens/
+          if-no-files-found: ignore

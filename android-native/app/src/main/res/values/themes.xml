@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark sea-blue window, shown before the first screen is drawn. -->
+    <style name="Theme.Hexlands" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/sea</item>
+        <item name="android:statusBarColor">@color/sea_dark</item>
+        <item name="android:navigationBarColor">@color/sea_dark</item>
+    </style>
+    <color name="sea">#0A2A62</color>
+    <color name="sea_dark">#071E4C</color>
+</resources>

@@ -1,0 +1,106 @@
+package com.hexlands.app
+
+import android.content.Intent
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.setContent
+import androidx.activity.viewModels
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.hexlands.app.ui.GameScreen
+import com.hexlands.app.ui.Gold
+import com.hexlands.app.ui.HexlandsTheme
+import com.hexlands.app.ui.HomeScreen
+import com.hexlands.app.ui.LobbyScreen
+import com.hexlands.app.ui.Navy
+
+class MainActivity : ComponentActivity() {
+    private val vm: GameViewModel by viewModels()
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        openInvite(intent)
+        setContent { HexlandsTheme { App(vm) } }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        openInvite(intent)
+    }
+
+    /** An invite link (https://<server>/room/ABCDE) puts its code in the join box. */
+    private fun openInvite(intent: Intent?) {
+        val path = intent?.data?.path ?: return
+        Regex("^/room/([A-Za-z0-9]{5})$").find(path)?.let { vm.setJoinCode(it.groupValues[1]) }
+    }
+}
+
+@Composable
+private fun App(vm: GameViewModel) {
+    val ui by vm.ui.collectAsStateWithLifecycle()
+    val snackbar = remember { SnackbarHostState() }
+    var confirmLeave by remember { mutableStateOf(false) }
+
+    LaunchedEffect(ui.message) {
+        ui.message?.let { snackbar.showSnackbar(it); vm.consumeMessage() }
+    }
+    BackHandler(enabled = ui.session != null) {
+        // Leaving is permanent in a running game (a bot takes the seat), so ask first.
+        if (ui.game?.phase == "lobby" || ui.session?.spectator == true) vm.leave() else confirmLeave = true
+    }
+
+    Box(Modifier.fillMaxSize().background(Navy).safeDrawingPadding()) {
+        val game = ui.game
+        when {
+            ui.session == null -> HomeScreen(ui, vm)
+            game == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = Gold)
+                    Text("Connecting…", Modifier.padding(top = 12.dp))
+                    TextButton(onClick = { vm.leave() }) { Text("Cancel") }
+                }
+            }
+            game.phase == "lobby" && game.spectator -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Waiting for the next game…")
+                    Button(onClick = { vm.leave() }, modifier = Modifier.padding(top = 12.dp)) { Text("Stop watching") }
+                }
+            }
+            game.phase == "lobby" -> LobbyScreen(game, vm)
+            else -> GameScreen(ui, game, vm)
+        }
+        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = 96.dp))
+    }
+
+    if (confirmLeave) {
+        AlertDialog(
+            onDismissRequest = { confirmLeave = false },
+            title = { Text("Leave this game?") },
+            text = { Text("A bot will play your seat for the rest of the game, and you will not be able to come back. If you are the last person, the game ends.") },
+            confirmButton = { TextButton(onClick = { confirmLeave = false; vm.leave() }) { Text("Leave") } },
+            dismissButton = { TextButton(onClick = { confirmLeave = false }) { Text("Stay") } },
+        )
+    }
+}

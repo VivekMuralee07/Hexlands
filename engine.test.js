@@ -595,3 +595,34 @@ test('counter-offer: checks the cards, cannot be made on your own or a bot\'s of
   g.players[a].bot = 'medium';   // bots do not take counters
   throwsMsg(() => g.act(c, { type: 'counter', give: { ore: 1 }, get: { wood: 1 } }), /Bots do not take counter-offers/);
 });
+
+// ---------- legal spots in the view (for clients that do not know the rules) ----------
+test('legal spots: setup lists settlements, then roads touching the new settlement, only for the player whose move it is', () => {
+  const g = lobby(3, 'classic', 8), pi = g.turn, other = (pi + 1) % 3;
+  assert.deepEqual(g.view(other).legal, { settlements: [], cities: [], roads: [] }, 'not their move');
+  const l = g.view(pi).legal;
+  assert.ok(l.settlements.length > 20 && l.roads.length === 0 && l.cities.length === 0);
+  assert.deepEqual(l.settlements, g.validSettlements(pi, false));
+  g.act(pi, { type: 'settle', vertex: l.settlements[0] });
+  const r = g.view(pi).legal;
+  assert.equal(r.settlements.length, 0); assert.ok(r.roads.length >= 2 && r.roads.length <= 3);
+  assert.ok(r.roads.every(e => g.board.edges[e].v.includes(l.settlements[0])), 'every road touches the settlement');
+  g.act(pi, { type: 'road', edge: r.roads[0] });   // what the list offers is accepted
+});
+test('legal spots: in the main game they need the roll, the cards and a free piece; roads need a connection', () => {
+  const g = finishSetup(lobby(3, 'classic', 4)), pi = g.turn;
+  assert.deepEqual(g.view(pi).legal, { settlements: [], cities: [], roads: [] }, 'nothing before the roll');
+  g.rolled = true; g.dice = [3, 4];
+  g.players[pi].res = { wood: 0, brick: 0, sheep: 0, wheat: 0, ore: 0 };
+  assert.deepEqual(g.view(pi).legal, { settlements: [], cities: [], roads: [] }, 'nothing without cards');
+  g.players[pi].res = { wood: 1, brick: 1, sheep: 1, wheat: 2, ore: 3 };
+  const l = g.view(pi).legal;
+  assert.deepEqual(l.roads, g.validRoads(pi));
+  assert.equal(l.cities.length, 2, 'both settlements can become cities');
+  assert.ok(l.cities.every(v => g.buildings[v].p === pi && g.buildings[v].type === 'settlement'));
+  for (const v of l.settlements) assert.ok(g.canSettle(pi, v, true));
+  g.act(pi, { type: 'city', vertex: l.cities[0] });   // accepted
+  g.players[pi].pieces.road = 0;
+  assert.deepEqual(g.view(pi).legal.roads, [], 'no road pieces left');
+  assert.equal(g.view(-1).legal.settlements.length, 0, 'a spectator has none');
+});
