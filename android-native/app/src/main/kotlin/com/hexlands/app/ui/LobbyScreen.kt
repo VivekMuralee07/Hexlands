@@ -56,7 +56,7 @@ fun LobbyScreen(game: GameState, vm: GameViewModel) {
     val countdown = game.net?.countdown
     var showMaps by remember { mutableStateOf(false) }
     val ui by vm.ui.collectAsStateWithLifecycle()
-    if (showMaps) MapPickerDialog(ui.maps, ui.board?.key, onLoad = { vm.loadMaps() }, onClose = { showMaps = false }) { vm.chooseMap(it.key) }
+    if (showMaps) MapPickerDialog(ui.maps, ui.board?.key, ui.previews, onLoad = { vm.loadMaps() }, onWant = { vm.loadPreview(it) }, onClose = { showMaps = false }) { m, seed -> vm.chooseMap(m.key, seed) }
 
     Box(Modifier.fillMaxSize()) {
     SeaBackground()
@@ -105,6 +105,8 @@ fun LobbyScreen(game: GameState, vm: GameViewModel) {
                 }
             }
         }
+
+        GameOptions(game, amHost, vm)
 
         if (amHost && game.players.size < 4) {
             Text("Add a bot", fontWeight = FontWeight.Bold)

@@ -6,6 +6,8 @@ import android.graphics.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.activity.ComponentActivity
@@ -19,6 +21,7 @@ import com.hexlands.app.net.HexJson
 import com.hexlands.app.net.Session
 import com.hexlands.app.ui.BoardCanvas
 import com.hexlands.app.ui.DiamondBody
+import com.hexlands.app.ui.GameOptions
 import com.hexlands.app.ui.GameScreen
 import com.hexlands.app.ui.Tap
 import com.hexlands.app.ui.HexlandsTheme
@@ -145,5 +148,44 @@ class ScreenshotTest {
         shot("main-no-buy") { GameScreen(ui(rich), rich, GameViewModel(app), animate = false) }
         rule.onNodeWithText("Buy card").assertDoesNotExist()
         rule.onNodeWithContentDescription("End your turn").assertExists()
+    }
+
+    @Test fun theMoveTimerShowsTheTimeLeftAndWhoseStepItIs() {
+        val g = state("main").copy(timer = com.hexlands.app.net.TimerView(setting = 30, limit = 30, left = 20000.0))
+        shot("clock") { GameScreen(ui(g), g, GameViewModel(app), animate = false) }
+        rule.onNodeWithText("0:20").assertExists()
+        rule.onNodeWithText("You").assertExists()
+    }
+
+    @Test fun noClockWhenTheTimerIsOff() {
+        val g = state("main")
+        shot("no-clock") { GameScreen(ui(g), g, GameViewModel(app), animate = false) }
+        rule.onNodeWithContentDescription("20 seconds left for You").assertDoesNotExist()
+    }
+
+    @Test fun aBotPlayingYourSeatOffersToGiveItBack() {
+        val g0 = state("main")
+        val g = g0.copy(players = g0.players.mapIndexed { i, p -> if (i == g0.you) p.copy(takenOver = "idle") else p })
+        shot("away") { GameScreen(ui(g), g, GameViewModel(app), animate = false) }
+        rule.onNodeWithText("Take back control").assertExists()
+        rule.onNodeWithText("A bot is playing for you because you were away.").assertExists()
+    }
+
+    @Test fun theWaitingRoomShowsTheGameRules() {
+        val g = state("lobby")
+        shot("lobby-rules") { GameOptions(g, host = true, vm = GameViewModel(app)) }
+        rule.onNodeWithText("Points to win").assertExists()
+        rule.onNodeWithText("Move timer").assertExists()
+        rule.onNodeWithText("Friendly robber").assertExists()
+        rule.onNodeWithText("Balanced dice").assertExists()
+    }
+
+    @Test fun theMapWindowListsEveryMapWithAPreview() {
+        val maps = HexJson.decodeFromString(com.hexlands.app.net.MapsReply.serializer(), text("maps")).maps
+        val previews = maps.associate { it.key to com.hexlands.app.net.PreviewReply(5, HexJson.decodeFromString(Board.serializer(), text("map_${it.key}"))) }
+        shot("map-chooser") { com.hexlands.app.ui.MapChooser(maps, "china", previews, onWant = {}, onUse = { _, _ -> }, modifier = androidx.compose.ui.Modifier.padding(12.dp)) }
+        rule.onNodeWithText("Countries (15)").assertExists()
+        rule.onNodeWithText("China").assertExists()
+        rule.onNodeWithText("Draw this map again").assertExists()   // China is the map in use
     }
 }
