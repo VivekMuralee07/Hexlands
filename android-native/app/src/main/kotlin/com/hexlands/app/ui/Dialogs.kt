@@ -72,40 +72,33 @@ fun StealDialog(victims: List<Pair<Int, String>>, onClose: () -> Unit, onPick: (
 
 /** Trade with the bank (4 cards for 1, or 3 or 2 with a harbour). */
 @Composable
-fun BankDialog(game: GameState, give0: String?, onClose: () -> Unit, onTrade: (give: String, get: String, times: Int) -> Unit) {
+fun BankPane(game: GameState, give0: String?, onTrade: (give: String, get: String, times: Int) -> Unit) {
     var give by remember { mutableStateOf(give0 ?: RESOURCES.firstOrNull { game.hand(it) > 0 }) }
     var get by remember { mutableStateOf<String?>(null) }
     var times by remember { mutableStateOf(1) }
     val ratio = give?.let { game.me?.ratios?.get(it) ?: 4 } ?: 4
     val most = give?.let { game.hand(it) / ratio } ?: 0
     val ok = give != null && get != null && give != get && times in 1..most && (game.bank[get] ?: 0) >= times
-    AlertDialog(
-        onDismissRequest = onClose,
-        title = { Text("Trade with the bank") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("You give", fontWeight = FontWeight.Bold, color = Gold)
-                ChipRow(RESOURCES, give, label = { "${RESOURCE_LABEL[it]} ${game.hand(it)}" }) { give = it; times = 1 }
-                Text("You get", fontWeight = FontWeight.Bold, color = Gold)
-                ChipRow(RESOURCES.filter { it != give }, get, label = { RESOURCE_LABEL[it] ?: it }) { get = it }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("How many: $times", Modifier.weight(1f))
-                    OutlinedButton(onClick = { times-- }, enabled = times > 1) { Text("−") }
-                    OutlinedButton(onClick = { times++ }, enabled = times < most, modifier = Modifier.padding(start = 8.dp)) { Text("+") }
-                }
-                if (give != null) Text(
-                    if (most == 0) "You need $ratio ${RESOURCE_LABEL[give]} for one card." else "Give ${ratio * times} ${RESOURCE_LABEL[give]} for $times ${get?.let { RESOURCE_LABEL[it] } ?: "…"}.",
-                    fontSize = 13.sp, color = FoamDim,
-                )
-            }
-        },
-        confirmButton = { Button(onClick = { onTrade(give!!, get!!, times) }, enabled = ok) { Text("Trade") } },
-        dismissButton = { TextButton(onClick = onClose) { Text("Close") } },
-    )
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("You give", fontWeight = FontWeight.Bold, color = Gold)
+        ChipRow(RESOURCES, give, label = { "${RESOURCE_LABEL[it]} ${game.hand(it)}" }) { give = it; times = 1 }
+        Text("You get", fontWeight = FontWeight.Bold, color = Gold)
+        ChipRow(RESOURCES.filter { it != give }, get, label = { RESOURCE_LABEL[it] ?: it }) { get = it }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("How many: $times", Modifier.weight(1f))
+            OutlinedButton(onClick = { times-- }, enabled = times > 1) { Text("−") }
+            OutlinedButton(onClick = { times++ }, enabled = times < most, modifier = Modifier.padding(start = 8.dp)) { Text("+") }
+        }
+        if (give != null) Text(
+            if (most == 0) "You need $ratio ${RESOURCE_LABEL[give]} for one card." else "Give ${ratio * times} ${RESOURCE_LABEL[give]} for $times ${get?.let { RESOURCE_LABEL[it] } ?: "…"}.",
+            fontSize = 13.sp, color = FoamDim,
+        )
+        GoldButton(onClick = { onTrade(give!!, get!!, times) }, enabled = ok, modifier = Modifier.fillMaxWidth()) { Text("Trade with the bank", fontWeight = FontWeight.Bold) }
+    }
 }
 
 @Composable
-private fun ChipRow(items: List<String>, selected: String?, label: (String) -> String, onPick: (String) -> Unit) {
+internal fun ChipRow(items: List<String>, selected: String?, label: (String) -> String, onPick: (String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         items.chunked(3).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { row.forEach { k -> FilterChip(selected = selected == k, onClick = { onPick(k) }, label = { Text(label(k), fontSize = 12.sp) }) } }

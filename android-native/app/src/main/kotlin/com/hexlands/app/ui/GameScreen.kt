@@ -55,6 +55,7 @@ import com.hexlands.app.net.Legal
 import com.hexlands.app.net.RESOURCES
 import com.hexlands.app.net.RESOURCE_LABEL
 import com.hexlands.app.net.canAfford
+import com.hexlands.app.net.cities
 import com.hexlands.app.net.hand
 import com.hexlands.app.net.isMyTurn
 import com.hexlands.app.net.parseColor
@@ -135,6 +136,13 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
     val hexSpots = if (game.subphase == "robber" && myTurn) (game.robberOptions ?: emptyList()).toSet() else emptySet()
     val pickedNow = picked?.takeIf { (it is Tap.Corner && it.id in cornerSpots) || (it is Tap.Road && it.id in roadSpots) }
 
+    val pickedKind = when {
+        pickedNow == null -> null
+        heistMode -> "heist"
+        pickedNow is Tap.Road -> "road"
+        pickedNow is Tap.Corner && pickedNow.id in legal.cities -> "city"
+        else -> "settlement"
+    }
     fun onTap(t: Tap) {
         when (t) {
             is Tap.Hex -> {
@@ -143,7 +151,14 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
                 if (victims.size >= 2) dialog = GameDialog.Steal(t.id, victims.map { it to (game.players.getOrNull(it)?.name ?: "?") })
                 else vm.act("robber") { put("tile", t.id) }
             }
-            else -> picked = if (picked == t) null else t
+            else -> if (picked == t) {
+                picked = null
+                when (t) {
+                    is Tap.Corner -> if (pickedKind == "heist") { heistMode = false; vm.act("playDev") { put("card", "heist"); put("vertex", t.id) } } else vm.act(if (pickedKind == "city") "city" else "settle") { put("vertex", t.id) }
+                    is Tap.Road -> vm.act("road") { put("edge", t.id) }
+                    else -> {}
+                }
+            } else picked = t
         }
     }
 
@@ -157,7 +172,7 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
 
         Box(Modifier.weight(1f).fillMaxWidth()) {
             if (board == null) Text("Loading the board…", Modifier.align(Alignment.Center))
-            else BoardCanvas(board, game, cornerSpots, roadSpots, hexSpots, pickedNow, ::onTap, animate = animate)
+            else BoardCanvas(board, game, cornerSpots, roadSpots, hexSpots, pickedNow, ::onTap, animate = animate, previewKind = pickedKind)
             game.dice?.let { d ->
                 if (d.size == 2) Row(
                     Modifier.align(Alignment.BottomStart).padding(8.dp).background(NavyDark.copy(alpha = 0.85f), RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 6.dp),
@@ -191,26 +206,14 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
                 OutlinedButton(onClick = { heistMode = false }) { Text("Cancel") }
             }
         }
-        // Confirm the spot you tapped.
+        // The spot you tapped shows a small preview piece on the board; tapping it again places it.
         if (pickedNow != null) {
-            val what = when {
-                heistMode -> "heist"
-                pickedNow is Tap.Road -> "road"
-                pickedNow is Tap.Corner && pickedNow.id in legal.cities -> "city"
-                else -> "settlement"
-            }
-            Row(Modifier.fillMaxWidth().background(NavyDark).padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(if (what == "heist") "Steal this settlement?" else "Build a $what here?", Modifier.weight(1f), fontWeight = FontWeight.Bold)
-                OutlinedButton(onClick = { picked = null }) { Text("Cancel") }
-                Button(onClick = {
-                    val p = pickedNow
-                    picked = null
-                    when (p) {
-                        is Tap.Corner -> if (what == "heist") { heistMode = false; vm.act("playDev") { put("card", "heist"); put("vertex", p.id) } } else vm.act(if (what == "city") "city" else "settle") { put("vertex", p.id) }
-                        is Tap.Road -> vm.act("road") { put("edge", p.id) }
-                        else -> {}
-                    }
-                }) { Text(if (what == "heist") "Steal" else "Build") }
+            Row(Modifier.fillMaxWidth().background(NavyDark).padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    if (pickedKind == "heist") "Tap it again to steal this settlement" else "Tap it again to build a $pickedKind",
+                    Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Gold,
+                )
+                TextButton(onClick = { picked = null }) { Text("Cancel") }
             }
         }
 
@@ -235,7 +238,7 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
     }
     when (val d = dialog) {
         is GameDialog.Steal -> StealDialog(d.victims, onClose = { dialog = null }) { v -> dialog = null; vm.act("robber") { put("tile", d.tile); put("victim", v) } }
-        is GameDialog.Bank -> BankDialog(game, d.give, onClose = { dialog = null }) { give, get, times -> dialog = null; vm.bankTrade(give, get, times) }
+        is GameDialog.Bank -> TradeDialog(game, vm, d.give, canTrade = myTurn && game.phase == "main" && game.rolled && game.subphase == null) { dialog = null }
         is GameDialog.Dev -> DevDialog(game, hasHeistTargets = heistTargets.isNotEmpty(), onClose = { dialog = null }, onBuyHeist = { dialog = null; vm.act("buyHeist") }) { card ->
             dialog = null
             when (card) {
@@ -341,9 +344,14 @@ private fun ActionRow(game: GameState, myTurn: Boolean, vm: GameViewModel, onBan
         }
         if (free && game.rolled) Button(onClick = { vm.act("endTurn") }, modifier = Modifier.height(48.dp)) { Text("End turn", fontWeight = FontWeight.Bold) }
         if (game.undo != null) OutlinedButton(onClick = { vm.act("undo") }) { Text("↶ Undo (${game.undo.left})") }
-        OutlinedButton(onClick = onBank, enabled = free && game.rolled) { Text("Bank trade") }
-        OutlinedButton(onClick = { vm.act("buyDev") }, enabled = free && game.rolled && game.devLeft > 0 && game.canAfford(COST_DEV)) { Text("Buy card") }
-        OutlinedButton(onClick = onDev) { Text("Cards ($devCards)") }
+        OutlinedButton(onClick = onBank) { Text("Trade") }
+        val canBuy = free && game.rolled
+        if (canBuy && game.devLeft > 0 && game.canAfford(COST_DEV)) GoldButton(onClick = { vm.act("buyDev") }, modifier = Modifier.height(44.dp)) { Text("Buy card", fontWeight = FontWeight.Bold) }
+        val heist = game.heist
+        if (canBuy && heist != null && game.me?.heistBought != true && game.cities() >= heist.need && game.canAfford(heist.cost)) {
+            GoldButton(onClick = { vm.act("buyHeist") }, modifier = Modifier.height(44.dp)) { Text("Buy Heist card", fontWeight = FontWeight.Bold) }
+        }
+        if (devCards > 0) OutlinedButton(onClick = onDev) { Text("Cards ($devCards)") }
         OutlinedButton(onClick = onLog) { Text("Log") }
         OutlinedButton(onClick = onInfo) { Text("Info") }
         TextButton(onClick = { vm.leave() }) { Text("Leave") }

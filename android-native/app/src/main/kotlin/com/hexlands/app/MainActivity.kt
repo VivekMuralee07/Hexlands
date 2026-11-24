@@ -5,6 +5,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
@@ -47,6 +48,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()   // draw behind the status and navigation bars, so the sea fills the whole screen
         openInvite(intent)
         setContent { HexlandsTheme { App(vm) } }
     }
@@ -77,14 +79,16 @@ private fun App(vm: GameViewModel) {
         if (ui.game?.phase == "lobby" || ui.session?.spectator == true) vm.leave() else confirmLeave = true
     }
 
-    Box(Modifier.fillMaxSize().background(Navy).safeDrawingPadding()) {
+    Box(Modifier.fillMaxSize().background(Navy)) {
         val game = ui.game
         val key = when { ui.session == null -> 0; game == null -> 1; game.phase == "lobby" -> 2; else -> 3 }
         AnimatedContent(
             targetState = key,
             transitionSpec = { (fadeIn(tween(350)) + scaleIn(tween(350), initialScale = 0.96f)) togetherWith fadeOut(tween(200)) },
             label = "screen",
-        ) { _ ->
+        ) { k ->
+        // The front page and the waiting room draw the sea under the system bars themselves; the others keep inside them.
+        Box(if (k == 0 || k == 2) Modifier.fillMaxSize() else Modifier.fillMaxSize().safeDrawingPadding()) {
         when {
             ui.session == null -> HomeScreen(ui, vm)
             game == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -94,7 +98,7 @@ private fun App(vm: GameViewModel) {
                     TextButton(onClick = { vm.leave() }) { Text("Cancel") }
                 }
             }
-            game.phase == "lobby" && game.spectator -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            game.phase == "lobby" && game.spectator -> Box(Modifier.fillMaxSize().safeDrawingPadding(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("Waiting for the next game…")
                     Button(onClick = { vm.leave() }, modifier = Modifier.padding(top = 12.dp)) { Text("Stop watching") }
@@ -102,6 +106,7 @@ private fun App(vm: GameViewModel) {
             }
             game.phase == "lobby" -> LobbyScreen(game, vm)
             else -> GameScreen(ui, game, vm)
+        }
         }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = 96.dp))
