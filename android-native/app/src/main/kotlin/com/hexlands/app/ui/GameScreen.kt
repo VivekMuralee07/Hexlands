@@ -384,7 +384,12 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
         null -> {}
     }
     if (game.phase == "ended" && showResults) {
-        ResultsDialog(game, spectating, onAgain = { vm.act("rematch") }, onLeave = { vm.leave() }, onClose = { showResults = false })
+        val won = !spectating && game.winner == game.you
+        LaunchedEffect(game.code, game.turnNumber) { if (!spectating) vm.prefs.recordResult("${game.code}-${game.turnNumber}", won) }
+        GameOverScreen(
+            game, spectating, vm.prefs.recordGames, vm.prefs.recordWins,
+            onAgain = { vm.act("rematch") }, onLeave = { vm.leave() }, onViewBoard = { showResults = false },
+        )
     }
     LaunchedEffect(game.phase) { if (game.phase == "ended") showResults = true }
 }

@@ -28,6 +28,7 @@ import com.hexlands.app.ui.GameOptions
 import com.hexlands.app.ui.GameScreen
 import com.hexlands.app.ui.Tap
 import com.hexlands.app.ui.HexlandsTheme
+import com.hexlands.app.ui.finishingOrder
 import com.hexlands.app.ui.HomeScreen
 import com.hexlands.app.ui.LeaderboardScreen
 import com.hexlands.app.ui.LobbyScreen
@@ -101,7 +102,12 @@ class ScreenshotTest {
         val base = state("ended")
         val points = listOf(10, 6, 7, 5)   // the fixture game is only a few turns old: give the finished game believable scores
         val g = base.copy(players = base.players.mapIndexed { i, p -> p.copy(vp = points[i]) }, turnNumber = 87)
-        shot("ended") { ResultsBody(g, spectating = false) }
+        val withDice = g.copy(diceCounts = listOf(0, 0, 2, 4, 6, 9, 12, 14, 11, 9, 8, 5, 3))
+        shot("ended") { com.hexlands.app.ui.GameOverScreen(withDice, false, 5, 2, {}, {}, {}) }
+        rule.onNodeWithText("Final standings").assertExists()
+        rule.onNodeWithText("Play again").assertExists()
+        rule.onNodeWithText("View board").assertExists()
+        assertEquals(0, withDice.finishingOrder().first().let { if (it == withDice.winner) 0 else 1 })
     }
 
     @Test fun spectatorView() {
