@@ -192,13 +192,13 @@ fun BoardCanvas(
             val pa = screen(a.x, a.y); val pb = screen(b.x, b.y)
             val g = pop("r$eid")
             val cut = if (eid.toIntOrNull() in cutRoads) 0.5f else 1f   // a road an opposing settlement has cut off is shown faded
-            drawLine(Color.Black.copy(alpha = 0.7f * cut), pa, pb, strokeWidth = k * 0.17f * g, cap = StrokeCap.Round)
-            drawLine(Color(parseColor(game.players.getOrNull(seat)?.color)).copy(alpha = cut), pa, pb, strokeWidth = k * 0.11f * g, cap = StrokeCap.Round)
+            drawLine(Color.Black.copy(alpha = 0.7f * cut), pa, pb, strokeWidth = k * 0.27f * g, cap = StrokeCap.Round)
+            drawLine(Color(parseColor(game.players.getOrNull(seat)?.color)).copy(alpha = cut), pa, pb, strokeWidth = k * 0.18f * g, cap = StrokeCap.Round)
         }
         // buildings
         for ((vid, b) in game.buildings) {
             val v = board.vertices.getOrNull(vid.toIntOrNull() ?: continue) ?: continue
-            house(screen(v.x, v.y), k * 0.2f * pop("b$vid${b.type}"), Color(parseColor(game.players.getOrNull(b.p)?.color)), b.type == "city")
+            house(screen(v.x, v.y), k * 0.32f * pop("b$vid${b.type}"), Color(parseColor(game.players.getOrNull(b.p)?.color)), b.type == "city")
         }
         // the robber
         board.tiles.getOrNull(robTo)?.let { t ->
@@ -210,21 +210,17 @@ fun BoardCanvas(
             drawCircle(Color(0xFF222222), k * 0.1f, c - Offset(0f, k * 0.08f))
             drawCircle(Color.White.copy(alpha = 0.5f), k * 0.16f, c + Offset(0f, k * 0.14f), style = Stroke(max(1f, k * 0.015f)))
         }
-        // the spots the player may tap
-        val glow = GOLD.copy(alpha = pulse)
+        // the spots the player may tap: glowing circles (on a road, at its middle)
         for (id in roadSpots) {
             if (picked == Tap.Road(id)) continue   // the preview piece is drawn there instead
             val e = board.edges.getOrNull(id) ?: continue
             val a = board.vertices[e.v[0]]; val b = board.vertices[e.v[1]]
-            val sel = picked == Tap.Road(id)
-            drawLine(if (sel) Color(0xFF4CD964) else glow, screen(a.x, a.y), screen(b.x, b.y), strokeWidth = k * (if (sel) 0.2f else 0.14f), cap = StrokeCap.Round)
+            glowSpot(screen((a.x + b.x) / 2, (a.y + b.y) / 2), k * 0.36f, pulse)
         }
         for (id in cornerSpots) {
             if (picked == Tap.Corner(id)) continue   // the preview piece is drawn there instead
             val v = board.vertices.getOrNull(id) ?: continue
-            val c = screen(v.x, v.y); val sel = picked == Tap.Corner(id)
-            drawCircle(if (sel) Color(0xFF4CD964) else glow, k * (if (sel) 0.26f else 0.2f), c)
-            drawCircle(Color.White, k * (if (sel) 0.26f else 0.2f), c, style = Stroke(max(1.5f, k * 0.03f)))
+            glowSpot(screen(v.x, v.y), k * 0.42f, pulse)
         }
         // the piece you would place, shown in your colour while you decide (tap it again to place it)
         val mine = Color(parseColor(game.players.getOrNull(game.you)?.color))
@@ -232,13 +228,13 @@ fun BoardCanvas(
         when (picked) {
             is Tap.Road -> board.edges.getOrNull(picked.id)?.let { e ->
                 val a = board.vertices[e.v[0]]; val b = board.vertices[e.v[1]]
-                drawLine(Color.White, screen(a.x, a.y), screen(b.x, b.y), strokeWidth = k * 0.2f * bob, cap = StrokeCap.Round)
-                drawLine(mine, screen(a.x, a.y), screen(b.x, b.y), strokeWidth = k * 0.14f * bob, cap = StrokeCap.Round)
+                drawLine(Color.White, screen(a.x, a.y), screen(b.x, b.y), strokeWidth = k * 0.33f * bob, cap = StrokeCap.Round)
+                drawLine(mine, screen(a.x, a.y), screen(b.x, b.y), strokeWidth = k * 0.22f * bob, cap = StrokeCap.Round)
             }
             is Tap.Corner -> board.vertices.getOrNull(picked.id)?.let { v ->
                 val c0 = screen(v.x, v.y)
-                drawCircle(Color.White.copy(alpha = 0.35f), k * 0.34f * bob, c0)
-                house(c0, k * 0.22f * bob, mine, previewKind == "city")
+                drawCircle(Color.White.copy(alpha = 0.35f), k * 0.5f * bob, c0)
+                house(c0, k * 0.36f * bob, mine, previewKind == "city")
             }
             else -> {}
         }
@@ -286,4 +282,16 @@ fun BoardPreview(board: Board, modifier: Modifier = Modifier) {
         val origin = Offset(size.width / 2f - (bounds.cx * k).toFloat(), size.height / 2f - (bounds.cy * k).toFloat())
         drawBoardArt(board, origin, k, measurer)
     }
+}
+
+/** A glowing circle: a soft golden halo that pulses, with a bright dot and a white rim in the middle. [r] is the halo's radius. */
+private fun DrawScope.glowSpot(c: Offset, r: Float, pulse: Float) {
+    drawCircle(
+        androidx.compose.ui.graphics.Brush.radialGradient(
+            0f to GOLD.copy(alpha = 0.85f * pulse), 0.55f to GOLD.copy(alpha = 0.4f * pulse), 1f to Color.Transparent, center = c, radius = r,
+        ),
+        r, c,
+    )
+    drawCircle(GOLD.copy(alpha = 0.5f + 0.5f * pulse), r * 0.36f, c)
+    drawCircle(Color.White, r * 0.36f, c, style = Stroke(max(1.5f, r * 0.07f)))
 }
