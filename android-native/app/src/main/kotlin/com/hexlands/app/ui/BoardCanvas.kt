@@ -267,7 +267,7 @@ private fun tone(c: Color, f: Float): Color =
  * A settlement (a cottage with a chimney) or a city (a big hall with a tall tower and a flag), in the player's colour: lit on the left and shaded on the right
  * so it reads as solid, with a darker roof, a door, windows and a soft shadow on the ground. [r] is about half the piece's width; (0, 0) is the corner it stands on.
  */
-private fun DrawScope.house(c: Offset, r: Float, color: Color, city: Boolean) {
+internal fun DrawScope.house(c: Offset, r: Float, color: Color, city: Boolean) {
     fun p(vararg pts: Pair<Float, Float>): Path = Path().apply {
         moveTo(c.x + pts[0].first * r, c.y + pts[0].second * r)
         for (i in 1 until pts.size) lineTo(c.x + pts[i].first * r, c.y + pts[i].second * r)
@@ -332,7 +332,7 @@ fun BoardPreview(board: Board, modifier: Modifier = Modifier) {
 }
 
 /** A glowing circle: a soft golden halo that pulses, with a bright dot and a white rim in the middle. [r] is the halo's radius. */
-private fun DrawScope.glowSpot(c: Offset, r: Float, pulse: Float) {
+internal fun DrawScope.glowSpot(c: Offset, r: Float, pulse: Float) {
     drawCircle(
         androidx.compose.ui.graphics.Brush.radialGradient(
             0f to GOLD.copy(alpha = 0.85f * pulse), 0.55f to GOLD.copy(alpha = 0.4f * pulse), 1f to Color.Transparent, center = c, radius = r,

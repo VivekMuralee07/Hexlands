@@ -50,13 +50,13 @@ internal val Paper = Color(0xFFF5F1E6)
 internal val Ink = Color(0xFF3C4A5E)
 
 // ---- small pictures for the panel ----
-private fun DrawScope.bankIcon(c: Color) {
+internal fun DrawScope.bankIcon(c: Color) {
     val w = size.width; val h = size.height
     drawPath(Path().apply { moveTo(w * 0.5f, h * 0.1f); lineTo(w * 0.92f, h * 0.38f); lineTo(w * 0.08f, h * 0.38f); close() }, c)
     for (i in 0 until 4) drawRect(c, Offset(w * (0.16f + i * 0.2f), h * 0.44f), androidx.compose.ui.geometry.Size(w * 0.1f, h * 0.34f))
     drawRect(c, Offset(w * 0.06f, h * 0.82f), androidx.compose.ui.geometry.Size(w * 0.88f, h * 0.09f))
 }
-private fun DrawScope.peopleIcon(c: Color) {
+internal fun DrawScope.peopleIcon(c: Color) {
     val w = size.width; val h = size.height
     fun person(cx: Float, top: Float, r: Float) {
         drawCircle(c, r, Offset(cx * w, top * h))
@@ -64,7 +64,7 @@ private fun DrawScope.peopleIcon(c: Color) {
     }
     person(0.5f, 0.32f, w * 0.13f); person(0.22f, 0.42f, w * 0.1f); person(0.78f, 0.42f, w * 0.1f)
 }
-private fun DrawScope.personIcon(c: Color) {
+internal fun DrawScope.personIcon(c: Color) {
     val w = size.width; val h = size.height
     drawCircle(c, w * 0.17f, Offset(w * 0.5f, h * 0.34f))
     drawPath(Path().apply { moveTo(w * 0.2f, h * 0.82f); quadraticTo(w * 0.5f, h * 0.38f, w * 0.8f, h * 0.82f); close() }, c)
@@ -73,7 +73,7 @@ internal fun DrawScope.checkIcon(c: Color) {
     val w = size.width; val h = size.height
     drawPath(Path().apply { moveTo(w * 0.62f, h * 0.55f); lineTo(w * 0.76f, h * 0.7f); lineTo(w * 0.98f, h * 0.38f) }, c, style = Stroke(w * 0.1f, cap = StrokeCap.Round))
 }
-private fun DrawScope.arrow(c: Color, down: Boolean) {
+internal fun DrawScope.arrow(c: Color, down: Boolean) {
     val w = size.width; val h = size.height
     val p = Path().apply {
         if (down) { moveTo(w * 0.35f, 0f); lineTo(w * 0.65f, 0f); lineTo(w * 0.65f, h * 0.5f); lineTo(w, h * 0.5f); lineTo(w * 0.5f, h); lineTo(0f, h * 0.5f); lineTo(w * 0.35f, h * 0.5f) }
@@ -96,7 +96,7 @@ internal fun RoundButton(description: String, enabled: Boolean = true, onClick: 
 }
 
 @Composable
-private fun Emblem(color: Color, icon: DrawScope.() -> Unit) {
+internal fun Emblem(color: Color, icon: DrawScope.() -> Unit) {
     Box(Modifier.size(46.dp).clip(CircleShape).background(color), contentAlignment = Alignment.Center) { Canvas(Modifier.size(28.dp)) { icon() } }
 }
 

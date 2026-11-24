@@ -311,6 +311,13 @@ The test build ("Hexlands (test)") checks GitHub Releases when it opens. If a ne
 - The first time, Android asks you to allow installing from Hexlands. If you installed an older test build (signed with a different key), uninstall it once and install the newest; after that no more reinstalling.
 - Play Store builds do not contain the updater.
 
+### Tutorial, rules and leaderboard in the app
+
+- **How to play** (front page, and the **i** window in a game) replays the web game's animated tutorial: the same recorded game and the same 15 chapters and captions. The recording is copied out of `tutorial.js` into `android-native/app/src/main/assets/tutorial.json`; after re-recording the web tutorial run `node android-native/tools/make-tutorial.js`. A test checks that every caption in `tutorial.js` is in the app.
+- The **i** window has the full rules (the web game's "How to play" text), costs, points and this game's settings.
+- **Leaderboard** and **My games** (front page) read `/api/leaderboard` and `/api/recent`, the same as the web game: Ranked, Multiplayer and All games, a period, a sort order, your standing, player details and the bots' results.
+- When a 7 is rolled and you hold too many cards, there is no window: tap the cards in your hand to pick the ones to give back, then tap the tick.
+
 ## Publish on Google Play
 
 You need: a Play Console developer account (one-time fee, identity checks), the live HTTPS site, and the signed `.aab` from PWABuilder (previous section).
