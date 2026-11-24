@@ -212,27 +212,16 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
                     Text("${d[0] + d[1]}", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, color = Gold)
                 }
             }
-            // The one button for the moment sits at the bottom corner of the board: Roll dice, then End turn in the same place. Cards you can afford show above it.
+            // The one button for the moment sits at the bottom corner of the board: Roll, then End in the same place.
             val free = game.phase == "main" && myTurn && game.subphase == null
             if (!spectating && !tradeOpen) Column(
                 Modifier.align(Alignment.BottomEnd).padding(12.dp), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 if (game.undo != null) GlassButton(onClick = { vm.act("undo") }) { Text("↶ Undo (${game.undo.left})", fontSize = 13.sp) }
-                if (free && game.rolled) {
-                    if (game.devLeft > 0 && game.canAfford(COST_DEV)) GoldButton(onClick = { vm.act("buyDev") }, padding = androidx.compose.foundation.layout.PaddingValues(16.dp, 8.dp)) { Text("Buy card", fontWeight = FontWeight.Bold) }
-                    val heist = game.heist
-                    if (heist != null && game.me?.heistBought != true && game.cities() >= heist.need && game.canAfford(heist.cost)) {
-                        GoldButton(onClick = { vm.act("buyHeist") }, padding = androidx.compose.foundation.layout.PaddingValues(16.dp, 8.dp)) { Text("Buy Heist card", fontWeight = FontWeight.Bold) }
-                    }
-                }
                 if (free) {
                     val pulse = if (LocalAnimate.current && !game.rolled) androidx.compose.animation.core.rememberInfiniteTransition(label = "roll").animateFloat(
-                        1f, 1.07f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(700), androidx.compose.animation.core.RepeatMode.Reverse), label = "p").value else 1f
-                    GoldButton(
-                        onClick = { vm.act(if (game.rolled) "endTurn" else "roll") },
-                        modifier = Modifier.height(52.dp).graphicsLayer { scaleX = pulse; scaleY = pulse },
-                        padding = androidx.compose.foundation.layout.PaddingValues(horizontal = 26.dp),
-                    ) { Text(if (game.rolled) "End turn" else "Roll dice", fontWeight = FontWeight.ExtraBold, fontSize = 17.sp) }
+                        1f, 1.08f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(700), androidx.compose.animation.core.RepeatMode.Reverse), label = "p").value else 1f
+                    RoundTurnButton(roll = !game.rolled, pulse = pulse) { vm.act(if (game.rolled) "endTurn" else "roll") }
                 }
             }
             if (game.phase == "ended" && game.winner != null && animate) Confetti()

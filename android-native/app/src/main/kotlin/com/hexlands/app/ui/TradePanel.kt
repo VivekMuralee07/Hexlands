@@ -39,6 +39,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hexlands.app.GameViewModel
 import com.hexlands.app.net.GameState
+import com.hexlands.app.net.canAfford
+import com.hexlands.app.net.cities
 import com.hexlands.app.net.RESOURCES
 import com.hexlands.app.net.hand
 import kotlinx.serialization.json.buildJsonObject
@@ -138,6 +140,19 @@ fun TradePanel(
                     }
                 }
                 GlassTextButton("Cancel offer") { vm.act("cancelTrade") }
+            }
+
+            // Cards you can pay for with what you hold appear here, and only then.
+            val heist = game.heist
+            val canBuyDev = canTrade && game.devLeft > 0 && game.canAfford(COST_DEV)
+            val canBuyHeist = canTrade && heist != null && game.me?.heistBought != true && game.cities() >= heist.need && game.canAfford(heist.cost)
+            if (canBuyDev || canBuyHeist) Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Paper).padding(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("You can buy", fontWeight = FontWeight.Bold, color = Ink, fontSize = 13.sp)
+                if (canBuyDev) GoldButton(onClick = { vm.act("buyDev") }, padding = androidx.compose.foundation.layout.PaddingValues(14.dp, 8.dp)) { Text("Development card", fontWeight = FontWeight.Bold, fontSize = 13.sp) }
+                if (canBuyHeist) GoldButton(onClick = { vm.act("buyHeist") }, padding = androidx.compose.foundation.layout.PaddingValues(14.dp, 8.dp)) { Text("Heist card", fontWeight = FontWeight.Bold, fontSize = 13.sp) }
             }
 
             // what you want: the bank and the players have every kind
