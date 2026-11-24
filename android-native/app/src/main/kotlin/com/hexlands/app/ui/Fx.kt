@@ -167,27 +167,6 @@ fun CloudLayer(modifier: Modifier = Modifier) {
 
 // ---- messages and moments, drawn over the game ----
 
-/** Coins hop from the top (the table) down to your hand when a trade goes through. */
-@Composable
-fun TradeCoins(trigger: Any?, modifier: Modifier = Modifier) {
-    val animate = LocalAnimate.current
-    if (trigger == null || !animate) return
-    Box(modifier.fillMaxSize()) {
-        for (i in 0 until 5) {
-            val prog = remember(trigger) { Animatable(0f) }
-            LaunchedEffect(trigger) { delay(i * 90L); prog.animateTo(1f, tween(900, easing = FastOutSlowInEasing)) }
-            if (prog.value in 0.001f..0.999f) Text(
-                "🪙", fontSize = 22.sp,
-                modifier = Modifier.align(Alignment.TopCenter).graphicsLayer {
-                    translationX = ((i - 2) * 36.dp.toPx()) * (1f - prog.value * 0.4f)
-                    translationY = (120.dp.toPx() + prog.value * (size.height.coerceAtLeast(1f) + 520.dp.toPx())) - 60.dp.toPx() * sin(prog.value * PI.toFloat())
-                    alpha = 1f - prog.value * 0.3f; rotationZ = prog.value * 360f
-                },
-            )
-        }
-    }
-}
-
 /** A development card turning over at the centre of the screen when you buy one (the back first, then the front). */
 @Composable
 fun DevReveal(tick: Int, title: String, modifier: Modifier = Modifier) {

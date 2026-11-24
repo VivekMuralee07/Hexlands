@@ -39,6 +39,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -211,8 +212,9 @@ private fun DiceChart(counts: List<Int>) {
     val animateIt = LocalAnimate.current
     val grow = remember { Animatable(if (animateIt) 0f else 1f) }
     LaunchedEffect(Unit) { if (grow.value < 1f) { delay(700); grow.animateTo(1f, tween(900, easing = FastOutSlowInEasing)) } }
-    Canvas(Modifier.fillMaxWidth().height(120.dp).semantics { contentDescription = "Dice rolls this game" }) {
-        val bw = size.width / 11f; val chartH = size.height - 26.dp.toPx()
+    val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+    Canvas(Modifier.fillMaxWidth().height(150.dp).semantics { contentDescription = "Dice rolls this game: " + (2..12).joinToString(", ") { "$it rolled ${counts.getOrElse(it) { 0 }} times" } }) {
+        val bw = size.width / 11f; val chartH = size.height - 18.dp.toPx() - 18.dp.toPx()   // room under the bars for the baseline and above them for the count
         for (n in 2..12) {
             val c = counts.getOrElse(n) { 0 }; val x = (n - 2) * bw
             val h = c.toFloat() / max * chartH * grow.value
@@ -220,6 +222,9 @@ private fun DiceChart(counts: List<Int>) {
             val col = when (n) { 7 -> Color(0xFFE0664F); 6, 8 -> Color(0xFFF0CD78); else -> Color(0xFF7FB3C2) }
             drawRoundRect(col, Offset(x + 4f, size.height - 18.dp.toPx() - h), Size(bw - 8f, h), androidx.compose.ui.geometry.CornerRadius(5f))
             drawCircle(Color.White.copy(alpha = 0.75f), 3.2f, Offset(x + bw / 2, size.height - 18.dp.toPx() - exp))
+            // how many times this number fell, on top of its bar
+            val label = measurer.measure("$c", TextStyle(fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color.White))
+            drawText(label, topLeft = Offset(x + bw / 2 - label.size.width / 2f, size.height - 18.dp.toPx() - h - label.size.height - 2f))
         }
     }
     Row(Modifier.fillMaxWidth()) { for (n in 2..12) Text("$n", Modifier.weight(1f), textAlign = TextAlign.Center, fontSize = 10.sp, color = FoamDim) }
