@@ -38,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -91,11 +92,12 @@ fun GoldButton(
         modifier.graphicsLayer { scaleX = scale; scaleY = scale }
             .shadow(if (enabled) 8.dp else 0.dp, PillShape, ambientColor = Color(0xFF7A4B00), spotColor = Color(0xFF7A4B00))
             .clip(PillShape).background(face)
+            // the gloss on the top half is painted, not a child: a child that fills half the height would make a button without a set height fill the screen
+            .drawBehind { if (enabled) drawRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.5f), Color.Transparent), endY = size.height * 0.5f), size = androidx.compose.ui.geometry.Size(size.width, size.height * 0.5f)) }
             .border(1.5.dp, if (enabled) Color(0xFF8A5A00).copy(alpha = 0.55f) else Color.Transparent, PillShape)
             .clickable(interactionSource = source, indication = null, enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        if (enabled) Box(Modifier.fillMaxWidth().fillMaxHeight(0.5f).align(Alignment.TopCenter).background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.5f), Color.Transparent))))
         CompositionLocalProvider(LocalContentColor provides if (enabled) Color(0xFF3A2A00) else Color(0xFF8FA0C0)) {
             Row(Modifier.padding(padding), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center, content = content)
         }

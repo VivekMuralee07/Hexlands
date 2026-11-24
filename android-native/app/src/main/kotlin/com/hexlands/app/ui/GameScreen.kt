@@ -9,6 +9,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -168,11 +170,18 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
 
     Column(Modifier.fillMaxSize()) {
         PlayersStrip(game)
-        Text(
-            (if (heistMode) "Heist: tap an opponent's settlement to steal it" else bannerText(game)) + if (ui.reconnecting) "  ·  Reconnecting…" else "",
-            Modifier.fillMaxWidth().background(NavyDark).padding(horizontal = 12.dp, vertical = 6.dp),
-            color = Gold, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
-        )
+        Row(Modifier.fillMaxWidth().background(NavyDark).padding(start = 12.dp, end = 4.dp, top = 2.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                (if (heistMode) "Heist: tap an opponent's settlement to steal it" else bannerText(game)) + if (ui.reconnecting) "  ·  Reconnecting…" else "",
+                Modifier.weight(1f).padding(vertical = 6.dp),
+                color = Gold, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
+            )
+            if (!spectating) {
+                HeaderIconButton(HeaderIcon.Log, "Game log") { dialog = GameDialog.Log }
+                HeaderIconButton(HeaderIcon.Info, "Game info") { dialog = GameDialog.Info }
+                HeaderIconButton(HeaderIcon.Leave, "Leave the game") { vm.leave() }
+            }
+        }
 
         Box(Modifier.weight(1f).fillMaxWidth()) {
             if (board == null) Text("Loading the board…", Modifier.align(Alignment.Center))
@@ -192,15 +201,38 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
             }
             if (tradeOpen && !spectating) TradePanel(
                 game, vm, tradeGive, tradeGet, canTrade, onClose = { tradeOpen = false },
-                modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
             )
             game.dice?.let { d ->
                 if (d.size == 2) Row(
-                    Modifier.align(Alignment.BottomStart).padding(8.dp).background(NavyDark.copy(alpha = 0.85f), RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 6.dp),
+                    Modifier.align(Alignment.TopStart).padding(8.dp).background(NavyDark.copy(alpha = 0.85f), RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     DiceView(d, roll = game.turnNumber to d)
                     Text("${d[0] + d[1]}", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, color = Gold)
+                }
+            }
+            // The one button for the moment sits at the bottom corner of the board: Roll dice, then End turn in the same place. Cards you can afford show above it.
+            val free = game.phase == "main" && myTurn && game.subphase == null
+            if (!spectating && !tradeOpen) Column(
+                Modifier.align(Alignment.BottomEnd).padding(12.dp), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (game.undo != null) GlassButton(onClick = { vm.act("undo") }) { Text("↶ Undo (${game.undo.left})", fontSize = 13.sp) }
+                if (free && game.rolled) {
+                    if (game.devLeft > 0 && game.canAfford(COST_DEV)) GoldButton(onClick = { vm.act("buyDev") }, padding = androidx.compose.foundation.layout.PaddingValues(16.dp, 8.dp)) { Text("Buy card", fontWeight = FontWeight.Bold) }
+                    val heist = game.heist
+                    if (heist != null && game.me?.heistBought != true && game.cities() >= heist.need && game.canAfford(heist.cost)) {
+                        GoldButton(onClick = { vm.act("buyHeist") }, padding = androidx.compose.foundation.layout.PaddingValues(16.dp, 8.dp)) { Text("Buy Heist card", fontWeight = FontWeight.Bold) }
+                    }
+                }
+                if (free) {
+                    val pulse = if (LocalAnimate.current && !game.rolled) androidx.compose.animation.core.rememberInfiniteTransition(label = "roll").animateFloat(
+                        1f, 1.07f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(700), androidx.compose.animation.core.RepeatMode.Reverse), label = "p").value else 1f
+                    GoldButton(
+                        onClick = { vm.act(if (game.rolled) "endTurn" else "roll") },
+                        modifier = Modifier.height(52.dp).graphicsLayer { scaleX = pulse; scaleY = pulse },
+                        padding = androidx.compose.foundation.layout.PaddingValues(horizontal = 26.dp),
+                    ) { Text(if (game.rolled) "End turn" else "Roll dice", fontWeight = FontWeight.ExtraBold, fontSize = 17.sp) }
                 }
             }
             if (game.phase == "ended" && game.winner != null && animate) Confetti()
@@ -228,12 +260,11 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
                 OutlinedButton(onClick = { vm.leave() }) { Text("Stop") }
             }
         } else {
-            HandRow(game) { k ->
+            HandRow(game, onDev = { dialog = GameDialog.Dev }) { k ->
                 if (!tradeOpen) { tradeOpen = true; picked = null }
                 // with the panel open, a card from your hand goes into what you give
                 if (canTrade && (tradeGet[k] ?: 0) == 0 && (tradeGive[k] ?: 0) < game.hand(k)) tradeGive[k] = (tradeGive[k] ?: 0) + 1
             }
-            ActionRow(game, myTurn, vm, onBank = { tradeOpen = !tradeOpen; picked = null }, onDev = { dialog = GameDialog.Dev }, onLog = { dialog = GameDialog.Log }, onInfo = { dialog = GameDialog.Info })
         }
     }
 
@@ -303,7 +334,7 @@ private fun PlayersStrip(game: GameState) {
 }
 
 @Composable
-private fun HandRow(game: GameState, onTapResource: (String) -> Unit) {
+private fun HandRow(game: GameState, onDev: () -> Unit, onTapResource: (String) -> Unit) {
     Row(Modifier.fillMaxWidth().background(NavyDark).padding(start = 8.dp, end = 14.dp, top = 12.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         RESOURCES.forEach { k ->
             val n = game.hand(k)
@@ -328,34 +359,26 @@ private fun HandRow(game: GameState, onTapResource: (String) -> Unit) {
                 )
             }
         }
+        DevTile(game.me?.dev?.size ?: 0, Modifier.weight(1f), onDev)
     }
 }
 
+/** The last card in the hand row: your development cards (and where the Heist card is bought). */
 @Composable
-private fun ActionRow(game: GameState, myTurn: Boolean, vm: GameViewModel, onBank: () -> Unit, onDev: () -> Unit, onLog: () -> Unit, onInfo: () -> Unit) {
-    val free = game.phase == "main" && myTurn && game.subphase == null
-    val devCards = game.me?.dev?.size ?: 0
-    Row(
-        Modifier.fillMaxWidth().background(NavyDark).horizontalScroll(rememberScrollState()).padding(horizontal = 6.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (free && !game.rolled) {
-            val pulse = if (LocalAnimate.current) androidx.compose.animation.core.rememberInfiniteTransition(label = "roll").animateFloat(
-                1f, 1.07f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(700), androidx.compose.animation.core.RepeatMode.Reverse), label = "p").value else 1f
-            GoldButton(onClick = { vm.act("roll") }, modifier = Modifier.height(48.dp).graphicsLayer { scaleX = pulse; scaleY = pulse }) { Text("Roll dice", fontWeight = FontWeight.Bold) }
+private fun DevTile(count: Int, modifier: Modifier, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(12.dp)
+    Box(modifier.aspectRatio(0.76f).clickable(onClick = onClick)) {
+        Column(
+            Modifier.fillMaxSize().clip(shape).background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xFF3F52A8), Color(0xFF222F6B))))
+                .border(1.5.dp, Color.White.copy(alpha = if (count > 0) 0.9f else 0.35f), shape),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+        ) {
+            Text("★", fontSize = 26.sp, color = Gold.copy(alpha = if (count > 0) 1f else 0.5f))
+            Text("Dev", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = if (count > 0) 1f else 0.6f))
         }
-        if (free && game.rolled) Button(onClick = { vm.act("endTurn") }, modifier = Modifier.height(48.dp)) { Text("End turn", fontWeight = FontWeight.Bold) }
-        if (game.undo != null) OutlinedButton(onClick = { vm.act("undo") }) { Text("↶ Undo (${game.undo.left})") }
-        OutlinedButton(onClick = onBank) { Text("Trade") }
-        val canBuy = free && game.rolled
-        if (canBuy && game.devLeft > 0 && game.canAfford(COST_DEV)) GoldButton(onClick = { vm.act("buyDev") }, modifier = Modifier.height(44.dp)) { Text("Buy card", fontWeight = FontWeight.Bold) }
-        val heist = game.heist
-        if (canBuy && heist != null && game.me?.heistBought != true && game.cities() >= heist.need && game.canAfford(heist.cost)) {
-            GoldButton(onClick = { vm.act("buyHeist") }, modifier = Modifier.height(44.dp)) { Text("Buy Heist card", fontWeight = FontWeight.Bold) }
-        }
-        if (devCards > 0) OutlinedButton(onClick = onDev) { Text("Cards ($devCards)") }
-        OutlinedButton(onClick = onLog) { Text("Log") }
-        OutlinedButton(onClick = onInfo) { Text("Info") }
-        TextButton(onClick = { vm.leave() }) { Text("Leave") }
+        if (count > 0) Box(
+            Modifier.align(Alignment.TopEnd).offset(x = 6.dp, y = (-6).dp).size(24.dp).clip(CircleShape).background(Color(0xFF1F3F9A)).border(1.5.dp, Gold, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) { Text("$count", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold) }
     }
 }
