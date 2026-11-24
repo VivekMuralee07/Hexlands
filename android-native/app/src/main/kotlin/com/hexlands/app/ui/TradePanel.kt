@@ -187,7 +187,10 @@ fun TradePanel(
                         giveKinds.forEach { k -> ResourceCard(k, Modifier.width(42.dp), count = give[k], onClick = { val n = (give[k] ?: 0) - 1; if (n <= 0) give.remove(k) else give[k] = n }) }
                     }
                 }
-                if (!canTrade) Text("You can trade on your turn, after you roll the dice.", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Ink)
+                Text(
+                    if (!canTrade) "You can trade on your turn, after you roll the dice." else "Pick what you want, then what you give.",
+                    fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Ink,
+                )
             }
 
             // the bank's prices for what you hold
