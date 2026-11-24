@@ -188,4 +188,12 @@ class ScreenshotTest {
         rule.onNodeWithText("China").assertExists()
         rule.onNodeWithText("Draw this map again").assertExists()   // China is the map in use
     }
+
+    @Test fun settlementsAndCitiesAreDrawnAsSolidPieces() {
+        val g0 = state("main")
+        // every other building becomes a city, so the picture shows both pieces for each player colour
+        val g = g0.copy(buildings = g0.buildings.entries.mapIndexed { i, (k, b) -> k to (if (i % 2 == 0) b.copy(type = "city") else b) }.toMap())
+        assertTrue("both kinds are there", g.buildings.values.any { it.type == "city" } && g.buildings.values.any { it.type == "settlement" })
+        shot("pieces") { BoardCanvas(board, g, emptySet(), emptySet(), emptySet(), null, {}, animate = false) }
+    }
 }
