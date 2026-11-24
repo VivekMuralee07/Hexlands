@@ -289,4 +289,11 @@ class ScreenshotTest {
         rule.waitForIdle()
         rule.onNodeWithContentDescription("Wood").assertDoesNotExist()
     }
+
+    @Test fun aMessageSaysTheRobberStrikesWhenA7IsRolled() {
+        val g = state("main").copy(dice = listOf(3, 4))
+        shot("strike") { GameScreen(ui(g), g, GameViewModel(app), animate = false, strikeAtStart = true) }
+        rule.onNodeWithText("The robber strikes!").assertExists()
+        rule.onNodeWithText("A 7 was rolled: nobody collects.").assertExists()
+    }
 }

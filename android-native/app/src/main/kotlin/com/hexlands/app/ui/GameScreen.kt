@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -122,7 +123,7 @@ private sealed interface GameDialog {
 }
 
 @Composable
-fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean = true, tradeOpenAtStart: Boolean = false, onTutorial: (() -> Unit)? = null) {
+fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean = true, tradeOpenAtStart: Boolean = false, onTutorial: (() -> Unit)? = null, strikeAtStart: Boolean = false) {
     val board = ui.board
     val context = LocalContext.current
     val spectating = game.spectator || ui.session?.spectator == true
@@ -188,6 +189,15 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
     var seenRoll by remember { mutableStateOf(rollSeq) }
     var flights by remember { mutableStateOf(emptyList<GainFlight>()) }
     val boardView = remember { BoardView() }
+    // A 7 was just rolled: the robber strikes. A message says so for a moment (a roll already on the screen when you arrive does not count).
+    var strike by remember { mutableStateOf(strikeAtStart) }
+    var seenStrikeRoll by remember { mutableStateOf(rollSeq) }
+    LaunchedEffect(rollSeq) {
+        if (rollSeq != null && rollSeq != seenStrikeRoll) {
+            seenStrikeRoll = rollSeq
+            if (game.lastRoll?.dice?.sum() == 7) { strike = true; delay(3200); strike = false }
+        }
+    }
     var rootPos by remember { mutableStateOf(Offset.Zero) }
     var boardBounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
     var stripBounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
@@ -261,6 +271,7 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
                 game, vm, tradeGive, tradeGet, canTrade, onClose = { tradeOpen = false },
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
             )
+            RobberStrikes(visible = strike, discardLimit = game.opts.discardLimit, modifier = Modifier.align(Alignment.Center))
             game.dice?.let { d ->
                 if (d.size == 2) Row(
                     Modifier.align(Alignment.TopStart).padding(8.dp).background(NavyDark.copy(alpha = 0.85f), RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 6.dp),
@@ -501,5 +512,29 @@ private fun TurnPill(game: GameState, modifier: Modifier = Modifier) {
         Box(Modifier.size(20.dp).clip(CircleShape).background(Color.White), contentAlignment = Alignment.Center) { Box(Modifier.size(10.dp).clip(CircleShape).background(color)) }
         Text(if (mine) "Your turn" else "${p.name}'s turn", fontWeight = FontWeight.ExtraBold, fontSize = 17.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (secs != null) Text("${secs / 60}:${(secs % 60).toString().padStart(2, '0')}", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.White.copy(alpha = 0.85f), maxLines = 1, softWrap = false)
+    }
+}
+
+/** The message when a 7 is rolled: the robber figure and "The robber strikes!", for everyone at the table. It pops in, stays a moment and goes. */
+@Composable
+private fun RobberStrikes(visible: Boolean, discardLimit: Int, modifier: Modifier = Modifier) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = visible, modifier = modifier,
+        enter = androidx.compose.animation.fadeIn(tween(200)) + androidx.compose.animation.scaleIn(androidx.compose.animation.core.spring(dampingRatio = 0.5f, stiffness = 300f), initialScale = 0.4f),
+        exit = androidx.compose.animation.fadeOut(tween(450)) + androidx.compose.animation.scaleOut(targetScale = 1.15f),
+    ) {
+        Column(
+            Modifier.padding(24.dp).widthIn(max = 280.dp).clip(RoundedCornerShape(20.dp)).background(Color(0xE60E0E16)).border(3.dp, Color(0xFFFF4A3D), RoundedCornerShape(20.dp)).padding(horizontal = 26.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            androidx.compose.foundation.Canvas(Modifier.size(84.dp)) {
+                // the figure's picture is 44 units wide and drawn up and to the left of the point it is given: centre it in this square
+                val u = size.width * 0.92f / 44f; val tl = (size.width - 44f * u) / 2f
+                robberFigure(Offset(tl + 58f * u, tl + 42f * u), u * 60f)
+            }
+            Text("The robber strikes!", fontWeight = FontWeight.ExtraBold, fontSize = 24.sp, color = Color(0xFFFF6B57))
+            Text("A 7 was rolled: nobody collects.", fontSize = 13.sp, color = Foam)
+            Text("Anyone holding more than $discardLimit cards must discard.", fontSize = 12.sp, color = FoamDim, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        }
     }
 }
