@@ -5,3 +5,5 @@ build/
 *.aab
 *.keystore
 *.jks
+# the test build's key is kept on purpose (see app/build.gradle.kts)
+!test-signing.jks

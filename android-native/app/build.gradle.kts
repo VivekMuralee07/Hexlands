@@ -14,11 +14,25 @@ android {
         applicationId = "com.vivek.hexlands_r2fs.twa"
         minSdk = 24
         targetSdk = 36
-        versionCode = 100
-        versionName = "2.0.0-native"
+        // CI numbers every build (1000 + the run number), so a newer build always has a higher number and can update the installed one.
+        versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 100
+        versionName = "2.0.0"
         // The game server. Override for a local server: ./gradlew assembleDebug -PserverUrl=http://10.0.2.2:3000
         val server = (project.findProperty("serverUrl") as String?) ?: "https://hexlands-r2fs.onrender.com"
         buildConfigField("String", "SERVER_URL", "\"$server\"")
+        // Where updates for the test build come from (GitHub Releases of this repository).
+        buildConfigField("String", "UPDATE_REPO", "\"vivekmuralee07/Hexlands\"")
+    }
+
+    // The test build is always signed with the same key (test-signing.jks, in the repository on purpose: it protects nothing, it only lets a new test build
+    // replace the installed one, so the app can update itself). The Play Store build is signed with your own upload key, never with this one.
+    signingConfigs {
+        create("testBuild") {
+            storeFile = rootProject.file("test-signing.jks")
+            storePassword = "hexlands-test"
+            keyAlias = "hexlands-test"
+            keyPassword = "hexlands-test"
+        }
     }
 
     buildFeatures {
@@ -30,10 +44,14 @@ android {
         debug {
             // The test build gets its own ID, so it installs next to the Play Store app instead of fighting it (the two are signed with different keys).
             applicationIdSuffix = ".debug"
-            versionNameSuffix = "-debug"
+            versionNameSuffix = "-test"
+            signingConfig = signingConfigs.getByName("testBuild")
+            // Only the test build updates itself; an app from the Play Store is updated by the Play Store.
+            buildConfigField("boolean", "SELF_UPDATE", "true")
         }
         release {
             isMinifyEnabled = false
+            buildConfigField("boolean", "SELF_UPDATE", "false")
         }
     }
 
