@@ -166,4 +166,27 @@ class ServerIntegrationTest {
         val rooms = api.rooms()
         assertTrue(rooms.rooms.isEmpty() && rooms.live.isEmpty() || rooms.rooms.isNotEmpty() || rooms.live.isNotEmpty())
     }
+
+    @Test
+    fun everyMapOfTheWebGameCanBeChosenInTheWaitingRoom() = runBlocking {
+        val list = api.maps().maps
+        // the 15 countries and Classic, plus the special maps (Blue Flame Cup, Hidden Vault, Hay Hollows, US 2.0)
+        val keys = list.map { it.key }.toSet()
+        for (k in listOf("classic", "india", "usa", "uk", "australia", "japan", "italy", "brazil", "france", "spain", "germany", "china", "canada", "mexico", "argentina", "newzealand", "flamecup", "hiddenvault", "hayhollows", "us2")) {
+            assertTrue("the server offers $k", k in keys)
+        }
+        assertEquals("every map has a name and a description", 0, list.count { it.name.isBlank() || it.blurb.isBlank() })
+        assertEquals(setOf("countries", "misc"), list.map { it.category }.toSet())
+
+        val room = api.create("Kira", public = false)
+        val session = Session(room.code, room.token)
+        val w = Watcher(api, session, scope)
+        w.until(what = "the waiting room") { it.phase == "lobby" }
+        for (m in list) {
+            api.act(session, "setMap") { put("preset", m.key) }
+            val board = withTimeout(15_000) { w.board.first { it != null && it.key == m.key }!! }
+            assertTrue("${m.key} has land", board.tiles.isNotEmpty() && board.vertices.isNotEmpty() && board.edges.isNotEmpty())
+            assertEquals(m.name, board.name)
+        }
+    }
 }

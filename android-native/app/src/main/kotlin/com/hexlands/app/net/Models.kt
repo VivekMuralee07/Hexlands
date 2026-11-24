@@ -229,6 +229,13 @@ data class LiveCard(
 @Serializable
 data class LivePlayer(val name: String = "", val bot: Boolean = false, val color: String? = null)
 
+/** A map the host can choose (the server's list: Classic, the countries, and the special maps). */
+@Serializable
+data class MapInfo(val key: String = "", val name: String = "", val blurb: String = "", val category: String = "misc")
+
+@Serializable
+data class MapsReply(val maps: List<MapInfo> = emptyList())
+
 @Serializable
 data class RoomsReply(val rooms: List<RoomCard> = emptyList(), val live: List<LiveCard> = emptyList())
 

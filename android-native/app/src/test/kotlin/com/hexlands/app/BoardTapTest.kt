@@ -17,7 +17,10 @@ import com.hexlands.app.net.GameState
 import com.hexlands.app.net.HexJson
 import com.hexlands.app.ui.BoardCanvas
 import com.hexlands.app.ui.HexlandsTheme
+import org.junit.Assert.assertTrue
 import com.hexlands.app.ui.Tap
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
@@ -130,5 +133,36 @@ class TwoTapPlacementTest {
         rule.onNodeWithText("Tap it again to build a settlement").assertExists()
         node.performTouchInput { click(at) }; rule.waitForIdle()
         rule.onNodeWithText("Tap it again to build a settlement").assertDoesNotExist()
+    }
+}
+
+/** Draws the board of every map the web game has (Classic, the countries, the special maps) and keeps a picture of each in app/build/screens/maps/. */
+@RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [34], qualifiers = "w411dp-h891dp-xxhdpi")
+class AllMapsTest {
+    @get:Rule val rule = createAndroidComposeRule<ComponentActivity>()
+    private fun text(name: String) = checkNotNull(javaClass.getResourceAsStream("/fixtures/$name.json")) { "run tools/make-fixtures.js" }.bufferedReader().readText()
+
+    @Test fun everyMapDrawsAndIsFitToTheScreen() {
+        val keys = HexJson.decodeFromString(com.hexlands.app.net.MapsReply.serializer(), text("maps")).maps.map { it.key }
+        assertTrue("all maps are there", keys.size >= 19)
+        val game = HexJson.decodeFromString(GameState.serializer(), text("lobby"))   // no pieces on the board, so any map can be shown with it
+        var board by androidx.compose.runtime.mutableStateOf(HexJson.decodeFromString(Board.serializer(), text("map_${keys.first()}")))
+        rule.setContent {
+            androidx.compose.runtime.CompositionLocalProvider(com.hexlands.app.ui.LocalAnimate provides false) {
+                HexlandsTheme { Box(Modifier.size(411.dp, 700.dp)) { BoardCanvas(board, game, emptySet(), emptySet(), emptySet(), null, {}, animate = false) } }
+            }
+        }
+        val dir = java.io.File("build/screens/maps").also { it.mkdirs() }
+        for (k in keys) {
+            board = HexJson.decodeFromString(Board.serializer(), text("map_$k"))
+            rule.waitForIdle()
+            assertTrue("$k has land", board.tiles.any { it.terrain != "fog" })
+            val view = rule.activity.window.decorView
+            val bmp = android.graphics.Bitmap.createBitmap(view.width, view.height, android.graphics.Bitmap.Config.ARGB_8888)
+            view.draw(android.graphics.Canvas(bmp))
+            java.io.File(dir, "$k.png").outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 90, it) }
+        }
     }
 }

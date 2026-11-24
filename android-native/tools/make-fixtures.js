@@ -93,4 +93,14 @@ save('ended', g.view(me));
   const s = g.view(-1);
   save('spectator', { ...s, spectator: true });
 }
+// 5. every map the web game has: the board of each preset, so the app can be checked against all of them
+{
+  const list = maps.presetList();
+  for (const m of list) {
+    const gg = new Game({ code: 'MAPS1', map: maps.generatePreset(m.key, 5), rng: maps.makeRng(6) });
+    gg.addPlayer('Kira', 't0');
+    save('map_' + m.key, gg.boardView());
+  }
+  save('maps', { maps: list });
+}
 console.log('wrote', fs.readdirSync(out).join(', '));

@@ -100,6 +100,9 @@ class HexApi(
 
     suspend fun rooms(): RoomsReply = get("/api/rooms")
 
+    /** Every map the game has. */
+    suspend fun maps(): MapsReply = get("/api/maps")
+
     // ---------- the live stream ----------
 
     /**
