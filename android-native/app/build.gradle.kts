@@ -50,6 +50,20 @@ android {
     }
 }
 
+// Robolectric (the screen tests) needs an Android runtime jar per SDK it simulates. By default it downloads them itself straight from
+// repo1.maven.org, which refuses big repeated downloads from shared build machines. Here Gradle fetches them like any other dependency (and caches
+// them), copies them into build/robolectric-runtime, and Robolectric is told to use only that folder.
+val robolectricRuntime by configurations.creating
+val copyRobolectricRuntime = tasks.register<Copy>("copyRobolectricRuntime") {
+    from(robolectricRuntime)
+    into(layout.buildDirectory.dir("robolectric-runtime"))
+}
+tasks.withType<Test>().configureEach {
+    dependsOn(copyRobolectricRuntime)
+    systemProperty("robolectric.offline", "true")
+    systemProperty("robolectric.dependency.dir", layout.buildDirectory.dir("robolectric-runtime").get().asFile.absolutePath)
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
@@ -75,4 +89,8 @@ dependencies {
     testImplementation(platform(libs.compose.bom))
     testImplementation(libs.compose.ui.test.junit4)
     debugImplementation(libs.compose.ui.test.manifest)
+
+    // The Android runtimes for Robolectric 4.14.1: SDK 34 (what the tests ask for) and SDK 35 (its newest).
+    robolectricRuntime("org.robolectric:android-all-instrumented:14-robolectric-10818077-i7")
+    robolectricRuntime("org.robolectric:android-all-instrumented:15-robolectric-12650502-i7")
 }
