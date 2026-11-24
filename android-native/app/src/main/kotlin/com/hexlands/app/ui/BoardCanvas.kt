@@ -225,8 +225,8 @@ fun BoardCanvas(
             val c = from + (to - from) * h + Offset(0f, -kotlin.math.sin(Math.PI.toFloat() * h) * k * 0.6f)
             robberFigure(c, k)
         }
-        // the spots the player may tap: transparent bubbles in the player's colour (on a road, at its middle)
-        val spotTint = game.players.getOrNull(game.you)?.color?.let { Color(parseColor(it)) } ?: GOLD
+        // the spots the player may tap: white transparent bubbles (on a road, at its middle)
+        val spotTint = Color.White
         for (id in roadSpots) {
             if (picked == Tap.Road(id)) continue   // the preview piece is drawn there instead
             val e = board.edges.getOrNull(id) ?: continue
@@ -360,13 +360,13 @@ fun BoardPreview(board: Board, modifier: Modifier = Modifier) {
 
 /**
  * A transparent bubble marking a place you may build: a glassy, see-through sphere (the board shows through it) that breathes gently, with a soft tint, a bright rim
- * and a small highlight, so it reads as "put a piece here". [r] is the bubble's radius and [tint] the colour of the glass (your colour while you build).
+ * and a small highlight, so it reads as "put a piece here". [r] is the bubble's radius and [tint] the colour of the glass (white).
  */
-internal fun DrawScope.bubbleSpot(c: Offset, r: Float, pulse: Float, tint: Color = GOLD) {
+internal fun DrawScope.bubbleSpot(c: Offset, r: Float, pulse: Float, tint: Color = Color.White) {
     val br = r * (0.86f + 0.14f * pulse)   // breathes between 86% and 100%
-    // the glass: nearly clear in the middle, a little tinted towards the edge
+    // the glass: nearly clear in the middle, a little frosted towards the edge
     drawCircle(
-        androidx.compose.ui.graphics.Brush.radialGradient(0f to Color.White.copy(alpha = 0.06f), 0.7f to tint.copy(alpha = 0.16f), 1f to tint.copy(alpha = 0.38f), center = c, radius = br),
+        androidx.compose.ui.graphics.Brush.radialGradient(0f to Color.White.copy(alpha = 0.06f), 0.7f to tint.copy(alpha = 0.14f), 1f to tint.copy(alpha = 0.32f), center = c, radius = br),
         br, c,
     )
     // the rim
