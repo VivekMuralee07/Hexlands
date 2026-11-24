@@ -61,6 +61,8 @@ fun rememberSecsLeft(game: GameState): Pair<Int, Float>? {
 @Composable
 fun MoveClock(game: GameState, modifier: Modifier = Modifier) {
     val (secs, frac) = rememberSecsLeft(game) ?: return
+    val mine = game.turn == game.you
+    LaunchedEffect(secs) { if (mine && secs in 1..5) com.hexlands.app.audio.Sound.play("tick") }
     val color = when { secs <= 5 -> Color(0xFFFF6B57); secs <= 10 -> Color(0xFFFFD23F); else -> Color(0xFF6CF08A) }
     val who = clockWho(game)
     Row(modifier.semantics { contentDescription = "$secs seconds left for $who" }, verticalAlignment = Alignment.CenterVertically) {

@@ -34,6 +34,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hexlands.app.ui.GameScreen
@@ -51,6 +56,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.hexlands.app.audio.Sound.init(this)
         enableEdgeToEdge()   // draw behind the status and navigation bars, so the sea fills the whole screen
         openInvite(intent)
         setContent { HexlandsTheme { App(vm) } }
@@ -80,7 +86,15 @@ private fun App(vm: GameViewModel) {
     BackHandler(enabled = page != null && ui.session == null) { page = if (page == "recent") "leaderboard" else null }
 
     LaunchedEffect(ui.message) {
-        ui.message?.let { snackbar.showSnackbar(it); vm.consumeMessage() }
+        ui.message?.let { com.hexlands.app.audio.Sound.play("error"); snackbar.showSnackbar(it); vm.consumeMessage() }
+    }
+    // the start and finish themes, when a game begins and when it ends
+    var prevPhase by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(ui.game?.phase) {
+        val ph = ui.game?.phase
+        if (prevPhase == "lobby" && ph == "setup") com.hexlands.app.audio.Sound.theme("start")
+        if (prevPhase != null && prevPhase != "ended" && ph == "ended") com.hexlands.app.audio.Sound.theme("finish")
+        prevPhase = ph
     }
     BackHandler(enabled = ui.session != null) {
         // Leaving is permanent in a running game (a bot takes the seat), so ask first.
@@ -89,7 +103,16 @@ private fun App(vm: GameViewModel) {
     // the tutorial can be opened from the front page and from the i window in a game; Back closes it first
     BackHandler(enabled = page == "tutorial") { page = null }
 
-    Box(Modifier.fillMaxSize().background(Navy)) {
+    Box(
+        Modifier.fillMaxSize().background(Navy).pointerInput(Unit) {
+            // a click sound for every tap anywhere (a touch that moves, like a drag or a pinch, is not a tap). It only watches; nothing is consumed.
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                val up = waitForUpOrCancellation(PointerEventPass.Initial)
+                if (up != null && (up.position - down.position).getDistance() < viewConfiguration.touchSlop) com.hexlands.app.audio.Sound.play("click")
+            }
+        },
+    ) {
         val game = ui.game
         val key = when { page == "tutorial" -> 4; ui.session == null -> 0; game == null -> 1; game.phase == "lobby" -> 2; else -> 3 }
         AnimatedContent(

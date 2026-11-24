@@ -215,6 +215,7 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
         }
     }
 
+    GameSounds(game)
     Box(Modifier.fillMaxSize().onGloballyPositioned { rootPos = it.positionInWindow() }) {
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.onGloballyPositioned { stripBounds = it.boundsInWindow() }) { PlayersStrip(game) }
