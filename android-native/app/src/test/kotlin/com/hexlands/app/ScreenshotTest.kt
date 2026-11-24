@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onFirst
@@ -104,6 +105,12 @@ class ScreenshotTest {
         val g = base.copy(players = base.players.mapIndexed { i, p -> p.copy(vp = points[i]) }, turnNumber = 87)
         val withDice = g.copy(diceCounts = listOf(0, 0, 2, 4, 6, 9, 12, 14, 11, 9, 8, 5, 3))
         shot("ended") { com.hexlands.app.ui.GameOverScreen(withDice, false, 5, 2, {}, {}, {}) }
+        rule.onNodeWithText("Bars show how often", substring = true).performScrollTo(); rule.waitForIdle()
+        run {
+            val view = rule.activity.window.decorView
+            val bmp = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888); view.draw(Canvas(bmp))
+            File("build/screens").also { it.mkdirs() }.let { d -> File(d, "ended-dice.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) } }
+        }
         rule.onNodeWithText("Final standings").assertExists()
         rule.onNodeWithText("Play again").assertExists()
         rule.onNodeWithText("View board").assertExists()

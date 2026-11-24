@@ -196,7 +196,7 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
     LaunchedEffect(rollSeq) {
         if (rollSeq != null && rollSeq != seenStrikeRoll) {
             seenStrikeRoll = rollSeq
-            if (game.lastRoll?.dice?.sum() == 7) { strike = true; delay(2000); strike = false }
+            if (game.lastRoll?.dice?.sum() == 7) { strike = true; delay(1000); strike = false }
         }
     }
     var rootPos by remember { mutableStateOf(Offset.Zero) }
@@ -204,11 +204,13 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
     var stripBounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
     var handBounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
     val flightsOn = animate && LocalAnimate.current
+    // the flights of the newest roll are worked out as the state arrives, so the hand can hold its counts back until each card lands
+    val rollFlights = remember(rollSeq, board, flightsOn) { if (flightsOn && board != null) gainFlights(board, game) else emptyList() }
     LaunchedEffect(rollSeq) {
         if (rollSeq != null && rollSeq != seenRoll) {
             seenRoll = rollSeq
             if (flightsOn && board != null) {
-                val list = gainFlights(board, game)
+                val list = rollFlights
                 flights = list
                 delay((list.maxOfOrNull { it.delayMs } ?: 0L) + FLIGHT_MS + 300L)
                 flights = emptyList()
@@ -216,17 +218,14 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
         }
     }
 
-    // The moments: coins on a trade, a card turning over on a purchase, a flourish for a played card, "+points" floating up, whose turn it is, and the beat before the results.
+    // The moments: a card turning over on a purchase, a flourish for a played card, "+points" floating up, whose turn it is, and the beat before the results.
     val prevFx = remember { arrayOfNulls<GameState>(1) }
-    var tradeKey by remember { mutableStateOf<Any?>(null) }
     var devTick by remember { mutableStateOf(0) }
     var flEmoji by remember { mutableStateOf<String?>(null) }; var flLabel by remember { mutableStateOf("") }; var flTick by remember { mutableStateOf(0) }
     var ptsWho by remember { mutableStateOf<String?>(null) }; var ptsN by remember { mutableStateOf(0) }; var ptsColor by remember { mutableStateOf(Gold) }; var ptsTick by remember { mutableStateOf(0) }
     LaunchedEffect(game) {
         val p = prevFx[0]; prevFx[0] = game
         if (p == null || p.phase == "lobby") return@LaunchedEffect
-        val newest = game.log.lastOrNull()
-        if (newest != null && newest != p.log.lastOrNull() && newest.text.contains(" traded ")) tradeKey = newest
         if (game.you >= 0 && (game.players.getOrNull(game.you)?.devCount ?: 0) > (p.players.getOrNull(game.you)?.devCount ?: 0)) devTick++
         game.players.forEachIndexed { i, pl ->
             val before = p.players.getOrNull(i) ?: return@forEachIndexed
@@ -303,7 +302,6 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
             )
             EndDim(active = game.phase == "ended" && !endReady && animate)
-            TradeCoins(tradeKey)
             DevReveal(devTick, "Development card", Modifier.align(Alignment.Center))
             PlayedFlourish(flEmoji, flLabel, flTick, Modifier.align(Alignment.Center))
             PointsFloat(ptsWho, ptsN, ptsColor, ptsTick, Modifier.align(Alignment.TopCenter).padding(top = 12.dp))
@@ -356,7 +354,7 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
             }
         } else {
             Box(Modifier.onGloballyPositioned { handBounds = it.boundsInWindow() }) {
-            HandRow(game, discardPick, onDev = { dialog = GameDialog.Dev }) { k ->
+            HandRow(game, discardPick, rollFlights, onDev = { dialog = GameDialog.Dev }) { k ->
                 if (needDiscard > 0) {
                     if (discardPick.values.sum() < needDiscard && (discardPick[k] ?: 0) < game.hand(k)) discardPick[k] = (discardPick[k] ?: 0) + 1
                     return@HandRow
@@ -491,24 +489,34 @@ private fun StatPair(n: Int, textColor: Color = Foam, icon: androidx.compose.ui.
 }
 
 @Composable
-private fun HandRow(game: GameState, discarding: Map<String, Int>, onDev: () -> Unit, onTapResource: (String) -> Unit) {
+private fun HandRow(game: GameState, discarding: Map<String, Int>, rollFlights: List<GainFlight>, onDev: () -> Unit, onTapResource: (String) -> Unit) {
     Row(Modifier.fillMaxWidth().background(NavyDark).padding(start = 8.dp, end = 14.dp, top = 12.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         RESOURCES.forEach { k ->
             val n = game.hand(k) - (discarding[k] ?: 0)   // cards you have picked to discard are taken out of the count at once
-            // When a hand count goes up the card bumps and a "+n" floats away from it.
+            // The count goes up when a card LANDS, not when the state arrives: cards a roll paid you are held back until each flying card reaches the hand, then the card flips and bumps.
             val gain = remember { Animatable(1f) }
             var shownGain by remember { mutableStateOf(0) }
-            var prev by remember { mutableStateOf(n) }
+            var shown by remember { mutableStateOf(n) }
+            var seenRoll by remember { mutableStateOf(game.lastRoll?.seq) }
             val animate = LocalAnimate.current
             LaunchedEffect(n) {
-                if (n > prev && animate) { shownGain = n - prev; gain.snapTo(0f); gain.animateTo(1f, tween(1000)) }
-                prev = n
+                val rolled = game.lastRoll?.seq != seenRoll
+                if (n <= shown || !animate) { shown = n; return@LaunchedEffect }
+                val landings = if (rolled) rollFlights.filter { it.player == game.you && it.res == k }.map { it.delayMs + FLIGHT_MS }.sorted() else emptyList()
+                val began = System.currentTimeMillis()
+                for (t in landings.take(n - shown)) {
+                    val wait = t - (System.currentTimeMillis() - began)
+                    if (wait > 0) delay(wait)
+                    shown += 1; shownGain = 1; gain.snapTo(0f); gain.animateTo(1f, tween(900))
+                }
+                if (shown < n) { shownGain = n - shown; shown = n; gain.snapTo(0f); gain.animateTo(1f, tween(1000)) }
             }
+            LaunchedEffect(game.lastRoll?.seq) { seenRoll = game.lastRoll?.seq }
             val bump = 1f + 0.18f * sin(Math.PI.toFloat() * gain.value)
             Box(Modifier.weight(1f)) {
                 ResourceCard(
-                    k, Modifier.fillMaxWidth().graphicsLayer { scaleX = bump; scaleY = bump }, count = n.takeIf { it > 0 }, label = RESOURCE_LABEL[k],
-                    dim = n == 0, goldBadge = true, chip = discarding[k]?.takeIf { it > 0 }?.let { "−$it" }, onClick = { onTapResource(k) },
+                    k, Modifier.fillMaxWidth().graphicsLayer { scaleX = bump; scaleY = bump }, count = shown.takeIf { it > 0 }, label = RESOURCE_LABEL[k],
+                    dim = shown == 0, goldBadge = true, chip = discarding[k]?.takeIf { it > 0 }?.let { "−$it" }, onClick = { onTapResource(k) },
                 )
                 if (gain.value < 1f) Text(
                     "+$shownGain", Modifier.align(Alignment.TopCenter).graphicsLayer { translationY = -gain.value * 56.dp.toPx() - 8.dp.toPx(); alpha = 1f - gain.value * gain.value },
