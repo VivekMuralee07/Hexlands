@@ -1,12 +1,21 @@
 package com.hexlands.app.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import com.hexlands.app.BuildConfig
+import com.hexlands.app.update.UpdateState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -20,6 +29,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -51,14 +61,28 @@ fun HomeScreen(ui: UiState, vm: GameViewModel) {
         if (name.trim().isEmpty()) vm.showMessage("Enter your name first.") else { vm.setName(name); then() }
     }
 
+    Box(Modifier.fillMaxSize()) {
+    SeaBackground()
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 20.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
     ) {
-        Text("Hexlands", fontSize = 44.sp, fontWeight = FontWeight.ExtraBold, color = Gold)
-        Text("Build, trade and settle the island", color = FoamDim)
-        Spacer(Modifier.height(4.dp))
+        Appear(0) { IslandHero(Modifier.fillMaxWidth(0.78f)) }
+        Appear(1) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    "HEXLANDS", fontSize = 40.sp, fontWeight = FontWeight.Black, letterSpacing = 4.sp,
+                    style = androidx.compose.ui.text.TextStyle(
+                        brush = Brush.verticalGradient(listOf(Color(0xFFFFF1A6), Color(0xFFFFC72E), Color(0xFFE08A00))),
+                        shadow = Shadow(Color(0xAA000000), Offset(0f, 6f), 14f),
+                    ),
+                )
+                Text("Build, trade and settle the island", color = Foam.copy(alpha = 0.85f))
+            }
+        }
+
+        UpdateCard(ui, vm)
 
         ui.notice?.let {
             Card(colors = CardDefaults.cardColors(containerColor = NavyDark), modifier = Modifier.fillMaxWidth()) {
@@ -69,39 +93,63 @@ fun HomeScreen(ui: UiState, vm: GameViewModel) {
             }
         }
 
-        OutlinedTextField(
-            value = name, onValueChange = { name = it.take(16) }, label = { Text("Your name") }, singleLine = true,
-            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words), modifier = Modifier.fillMaxWidth(),
-        )
+        Appear(2) {
+            OutlinedTextField(
+                value = name, onValueChange = { name = it.take(16) }, label = { Text("Your name") }, singleLine = true,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words), modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+            )
+        }
 
-        Button(onClick = { needName { vm.quickPlay() } }, enabled = !ui.busy, modifier = Modifier.fillMaxWidth().height(56.dp)) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Quick play", fontWeight = FontWeight.Bold)
-                Text("Join a public game with players from anywhere", fontSize = 11.sp)
+        Appear(3) {
+            GoldButton(onClick = { needName { vm.quickPlay() } }, enabled = !ui.busy, modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp)) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Quick play", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+                    Text("Join a public game with players from anywhere", fontSize = 11.sp)
+                }
             }
         }
 
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedButton(onClick = { showRooms = true; vm.loadRooms() }, modifier = Modifier.weight(1f)) { Text("Public rooms") }
-            OutlinedButton(onClick = { needName { vm.createRoom(publicRoom) } }, enabled = !ui.busy, modifier = Modifier.weight(1f)) { Text("Create a room") }
+        Appear(4) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                GlassButton(onClick = { showRooms = true; vm.loadRooms() }, modifier = Modifier.weight(1f)) { Text("Public rooms") }
+                GlassButton(onClick = { needName { vm.createRoom(publicRoom) } }, enabled = !ui.busy, modifier = Modifier.weight(1f)) { Text("Create a room") }
+            }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            FilterChip(selected = publicRoom, onClick = { publicRoom = true }, label = { Text("Public") })
-            FilterChip(selected = !publicRoom, onClick = { publicRoom = false }, label = { Text("Private") })
-            Text(if (publicRoom) "Anyone can find it" else "Only people with the code", color = FoamDim, fontSize = 12.sp)
+        Appear(5) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                FilterChip(selected = publicRoom, onClick = { publicRoom = true }, label = { Text("Public") })
+                FilterChip(selected = !publicRoom, onClick = { publicRoom = false }, label = { Text("Private") })
+                Text(if (publicRoom) "Anyone can find it" else "Only people with the code", color = FoamDim, fontSize = 12.sp)
+            }
         }
 
-        Text("or join a friend", color = FoamDim, fontSize = 13.sp)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
-                value = ui.joinCode, onValueChange = { vm.setJoinCode(it) }, label = { Text("Room code") }, singleLine = true,
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters), modifier = Modifier.weight(1f),
-            )
-            Button(onClick = { needName { vm.joinRoom(ui.joinCode) } }, enabled = !ui.busy && ui.joinCode.length == 5) { Text("Join") }
-            OutlinedButton(onClick = { vm.watchRoom(ui.joinCode) }, enabled = !ui.busy && ui.joinCode.length == 5) { Text("Watch") }
+        Appear(6) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("or join a friend", color = FoamDim, fontSize = 13.sp)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = ui.joinCode, onValueChange = { vm.setJoinCode(it) }, label = { Text("Room code") }, singleLine = true,
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters), modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(16.dp),
+                    )
+                    GoldButton(onClick = { needName { vm.joinRoom(ui.joinCode) } }, enabled = !ui.busy && ui.joinCode.length == 5) { Text("Join", fontWeight = FontWeight.Bold) }
+                    GlassButton(onClick = { vm.watchRoom(ui.joinCode) }, enabled = !ui.busy && ui.joinCode.length == 5) { Text("Watch") }
+                }
+            }
         }
 
         if (ui.busy) CircularProgressIndicator(color = Gold)
+
+        if (BuildConfig.SELF_UPDATE) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Version ${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})", color = FoamDim, fontSize = 11.sp)
+                TextButton(onClick = { vm.checkForUpdate(false) }, enabled = ui.update !is UpdateState.Checking && ui.update !is UpdateState.Downloading) {
+                    Text(if (ui.update is UpdateState.Checking) "Checking…" else "Check for updates", fontSize = 11.sp)
+                }
+            }
+        }
+    }
     }
 
     if (showRooms) RoomsDialog(ui, vm, onClose = { showRooms = false }, needName = ::needName)
@@ -147,4 +195,38 @@ private fun RoomsDialog(ui: UiState, vm: GameViewModel, onClose: () -> Unit, nee
             }
         },
     )
+}
+
+/** Shown on the test build when a newer build exists: what changed, a progress bar while it downloads, and the install button. */
+@Composable
+private fun UpdateCard(ui: UiState, vm: GameViewModel) {
+    val u = ui.update
+    if (!BuildConfig.SELF_UPDATE || u is UpdateState.Idle || u is UpdateState.Checking) return
+    Card(colors = CardDefaults.cardColors(containerColor = NavyDark.copy(alpha = 0.85f)), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            when (u) {
+                is UpdateState.UpToDate -> Text("You have the newest build.", color = Good)
+                is UpdateState.Failed -> {
+                    Text(u.message, color = Bad)
+                    TextButton(onClick = { vm.checkForUpdate(false) }) { Text("Try again") }
+                }
+                is UpdateState.Available -> {
+                    Text("A new build is ready (${u.info.versionCode})", fontWeight = FontWeight.Bold, color = Gold)
+                    if (u.info.notes.isNotBlank()) Text(u.info.notes.lines().first().take(120), fontSize = 12.sp, color = FoamDim)
+                    GoldButton(onClick = { vm.startUpdate() }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Update now" + if (u.info.sizeBytes > 0) " (${u.info.sizeBytes / 1_000_000} MB)" else "", fontWeight = FontWeight.Bold)
+                    }
+                }
+                is UpdateState.Downloading -> {
+                    Text("Downloading… ${u.percent}%", fontWeight = FontWeight.Bold)
+                    LinearProgressIndicator(progress = { u.percent / 100f }, Modifier.fillMaxWidth(), color = Gold)
+                }
+                is UpdateState.Ready -> {
+                    Text("Ready to install", fontWeight = FontWeight.Bold, color = Gold)
+                    GoldButton(onClick = { vm.installUpdate() }, modifier = Modifier.fillMaxWidth()) { Text("Install", fontWeight = FontWeight.Bold) }
+                }
+                else -> {}
+            }
+        }
+    }
 }

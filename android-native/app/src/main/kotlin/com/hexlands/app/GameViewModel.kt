@@ -10,12 +10,18 @@ import com.hexlands.app.net.HexApi
 import com.hexlands.app.net.RoomsReply
 import com.hexlands.app.net.Session
 import com.hexlands.app.net.StreamEvent
+import com.hexlands.app.update.UpdateInfo
+import com.hexlands.app.update.UpdateState
+import com.hexlands.app.update.Updater
+import okhttp3.OkHttpClient
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.put
@@ -35,10 +41,12 @@ data class UiState(
     val roomsError: String? = null,
     /** A room code from an invite link, ready to join. */
     val joinCode: String = "",
+    val update: UpdateState = UpdateState.Idle,
 )
 
-class GameViewModel(app: Application) : AndroidViewModel(app) {
+class GameViewModel(private val app: Application) : AndroidViewModel(app) {
     val prefs = Prefs(app)
+    private val updateHttp = OkHttpClient()
     private val api = HexApi(BuildConfig.SERVER_URL, prefs.pid)
 
     private val _ui = MutableStateFlow(UiState())
@@ -51,6 +59,7 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
         val code = prefs.sessionCode
         val token = prefs.sessionToken
         if (code != null && token != null) connect(Session(code, token))
+        if (BuildConfig.SELF_UPDATE) checkForUpdate()
     }
 
     val name: String get() = prefs.name
@@ -136,6 +145,54 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
             try { repeat(times) { api.act(s, "bankTrade") { put("give", give); put("get", get) } } }
             catch (e: ApiException) { _ui.update { it.copy(message = e.message) } }
         }
+    }
+
+    // ---------- updating the app (test build only) ----------
+
+    /** Looks for a newer build. [quiet] = true says nothing when there is none (the check at start-up); false shows "up to date" or the problem. */
+    fun checkForUpdate(quiet: Boolean = true) {
+        if (!BuildConfig.SELF_UPDATE) return
+        val now = _ui.value.update
+        if (now is UpdateState.Checking || now is UpdateState.Downloading) return
+        _ui.update { it.copy(update = UpdateState.Checking) }
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) { runCatching { Updater.fetchLatest(updateHttp, BuildConfig.UPDATE_REPO) } }
+            val next = result.fold(
+                onSuccess = { latest -> Updater.newerThan(BuildConfig.VERSION_CODE, latest)?.let { UpdateState.Available(it) } ?: if (quiet) UpdateState.Idle else UpdateState.UpToDate },
+                onFailure = { if (quiet) UpdateState.Idle else UpdateState.Failed("Could not check for updates. Check your connection.") },
+            )
+            _ui.update { it.copy(update = next) }
+        }
+    }
+
+    /** Downloads the new build, then hands it to Android's installer. */
+    fun startUpdate() {
+        val info: UpdateInfo = (_ui.value.update as? UpdateState.Available)?.info ?: (_ui.value.update as? UpdateState.Failed)?.let { lastInfo } ?: return
+        lastInfo = info
+        _ui.update { it.copy(update = UpdateState.Downloading(info, 0)) }
+        viewModelScope.launch {
+            Updater.download(updateHttp, info, Updater.updatesDir(app)).collect { r ->
+                r.fold(
+                    onSuccess = { (pct, file) ->
+                        if (file == null) _ui.update { it.copy(update = UpdateState.Downloading(info, pct)) }
+                        else { _ui.update { it.copy(update = UpdateState.Ready(info, file)) }; installUpdate() }
+                    },
+                    onFailure = { e -> _ui.update { it.copy(update = UpdateState.Failed(e.message ?: "The download failed.")) } },
+                )
+            }
+        }
+    }
+    private var lastInfo: UpdateInfo? = null
+
+    /** Starts Android's installer for the downloaded build; the first time, sends you to the setting that allows installing from this app. */
+    fun installUpdate() {
+        val ready = _ui.value.update as? UpdateState.Ready ?: return
+        if (!Updater.canInstall(app)) {
+            Updater.openInstallPermissionSettings(app)
+            _ui.update { it.copy(message = "Allow installing from Hexlands, then come back and tap Install.") }
+            return
+        }
+        Updater.install(app, ready.file)
     }
 
     // ---------- the room list ----------

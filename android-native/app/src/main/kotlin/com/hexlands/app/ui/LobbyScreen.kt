@@ -53,6 +53,8 @@ fun LobbyScreen(game: GameState, vm: GameViewModel) {
     val canStart = amHost && game.players.size >= 2 && (!needReady || allReady)
     val countdown = game.net?.countdown
 
+    Box(Modifier.fillMaxSize()) {
+    SeaBackground()
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -116,11 +118,12 @@ fun LobbyScreen(game: GameState, vm: GameViewModel) {
             Button(onClick = { vm.act("ready") { put("value", !me.ready) } }, modifier = Modifier.fillMaxWidth()) { Text(if (me.ready) "Not ready" else "I'm ready") }
         }
         if (amHost) {
-            Button(onClick = { vm.act("start") }, enabled = canStart, modifier = Modifier.fillMaxWidth()) { Text("Start game") }
+            GoldButton(onClick = { vm.act("start") }, enabled = canStart, modifier = Modifier.fillMaxWidth()) { Text("Start game", fontWeight = FontWeight.Bold) }
             if (game.players.size < 2) Text("Add a bot or share the code: you need at least one more player.", color = FoamDim, fontSize = 12.sp)
             else if (needReady && !allReady) Text("Waiting for everyone to tap \"I'm ready\".", color = FoamDim, fontSize = 12.sp)
         } else Text("The host starts the game.", color = FoamDim)
 
         TextButton(onClick = { vm.leave() }) { Text("Leave room") }
+    }
     }
 }

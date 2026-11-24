@@ -50,7 +50,7 @@ class ScreenshotTest {
     private val board get() = HexJson.decodeFromString(Board.serializer(), text("board"))
 
     private fun shot(name: String, content: @Composable () -> Unit) {
-        rule.setContent { HexlandsTheme { Box(Modifier.fillMaxSize().background(Navy)) { content() } } }
+        rule.setContent { androidx.compose.runtime.CompositionLocalProvider(com.hexlands.app.ui.LocalAnimate provides false) { HexlandsTheme { Box(Modifier.fillMaxSize().background(Navy)) { content() } } } }
         rule.waitForIdle()
         // Draw the activity's window onto a bitmap (Robolectric has real graphics, so this is what a phone would show).
         val view = rule.activity.window.decorView
