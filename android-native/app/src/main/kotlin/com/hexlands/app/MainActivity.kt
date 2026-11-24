@@ -40,6 +40,8 @@ import com.hexlands.app.ui.GameScreen
 import com.hexlands.app.ui.Gold
 import com.hexlands.app.ui.HexlandsTheme
 import com.hexlands.app.ui.HomeScreen
+import com.hexlands.app.ui.LeaderboardScreen
+import com.hexlands.app.ui.RecentGamesScreen
 import com.hexlands.app.ui.LobbyScreen
 import com.hexlands.app.ui.Navy
 
@@ -70,6 +72,9 @@ private fun App(vm: GameViewModel) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     var confirmLeave by remember { mutableStateOf(false) }
+    // full-screen pages opened from the front page: the leaderboard, your recent games, the tutorial
+    var page by remember { mutableStateOf<String?>(null) }
+    BackHandler(enabled = page != null && ui.session == null) { page = if (page == "recent") "leaderboard" else null }
 
     LaunchedEffect(ui.message) {
         ui.message?.let { snackbar.showSnackbar(it); vm.consumeMessage() }
@@ -90,7 +95,9 @@ private fun App(vm: GameViewModel) {
         // The front page and the waiting room draw the sea under the system bars themselves; the others keep inside them.
         Box(if (k == 0 || k == 2) Modifier.fillMaxSize() else Modifier.fillMaxSize().safeDrawingPadding()) {
         when {
-            ui.session == null -> HomeScreen(ui, vm)
+            ui.session == null && page == "leaderboard" -> LeaderboardScreen(ui, vm, onBack = { page = null }, onRecent = { page = "recent" })
+            ui.session == null && page == "recent" -> RecentGamesScreen(ui, vm, onBack = { page = "leaderboard" })
+            ui.session == null -> HomeScreen(ui, vm, onLeaderboard = { page = "leaderboard" }, onTutorial = { page = "tutorial" })
             game == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(color = Gold)

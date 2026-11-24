@@ -47,6 +47,10 @@ data class UiState(
     val maps: List<com.hexlands.app.net.MapInfo>? = null,
     /** A preview board for each map looked at so far (each from its own seed). */
     val previews: Map<String, com.hexlands.app.net.PreviewReply> = emptyMap(),
+    /** The leaderboard window: what it shows (kept while the app is open), the answer, and whether it is loading. */
+    val lbMode: String = "ranked", val lbPeriod: String = "all", val lbSort: String = "wins",
+    val lb: com.hexlands.app.net.LbReply? = null, val lbError: String? = null, val lbLoading: Boolean = false,
+    val recent: com.hexlands.app.net.RecentReply? = null, val recentError: String? = null,
 )
 
 class GameViewModel(private val app: Application) : AndroidViewModel(app) {
@@ -198,6 +202,27 @@ class GameViewModel(private val app: Application) : AndroidViewModel(app) {
             return
         }
         Updater.install(app, ready.file)
+    }
+
+    // ---------- the leaderboard ----------
+
+    fun loadLeaderboard(mode: String = _ui.value.lbMode, period: String = _ui.value.lbPeriod, sort: String = _ui.value.lbSort) {
+        _ui.update { it.copy(lbMode = mode, lbPeriod = period, lbSort = sort, lbLoading = true, lbError = null) }
+        viewModelScope.launch {
+            try {
+                val r = api.leaderboard(mode, period, sort)
+                // an answer for a list you have already left (you tapped another tab meanwhile) is dropped
+                _ui.update { if (it.lbMode == mode && it.lbPeriod == period && it.lbSort == sort) it.copy(lb = r, lbLoading = false) else it }
+            } catch (e: ApiException) { _ui.update { it.copy(lbError = "Could not load the leaderboard. Check your connection.", lbLoading = false) } }
+        }
+    }
+
+    fun loadRecent() {
+        _ui.update { it.copy(recentError = null) }
+        viewModelScope.launch {
+            try { _ui.update { it.copy(recent = api.recent()) } }
+            catch (e: ApiException) { _ui.update { it.copy(recentError = "Could not load your games. Try again in a moment.") } }
+        }
     }
 
     // ---------- choosing the map (the host, in the waiting room) ----------

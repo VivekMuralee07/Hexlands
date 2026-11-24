@@ -241,6 +241,44 @@ data class MapsReply(val maps: List<MapInfo> = emptyList())
 @Serializable
 data class PreviewReply(val seed: Long = 0, val board: Board = Board())
 
+// ---------- the leaderboard (the same data the web game shows) ----------
+
+@Serializable
+data class LbRow(
+    val rank: Int? = null, val name: String = "", val tag: String = "", val wins: Int = 0, val losses: Int = 0, val games: Int = 0,
+    val winRate: Int = 0, val avgVp: Double = 0.0, val bestVp: Int = 0,
+    val form: List<Int> = emptyList(),   // the last five results, newest first: 1 won, 0 lost
+    val streak: Int = 0, val lastPlayed: Long = 0, val favMap: String = "", val you: Boolean = false, val need: Int = 0,
+)
+
+@Serializable
+data class LbBotLevel(val level: String = "", val games: Int = 0, val wins: Int = 0, val losses: Int = 0, val winRate: Int = 0, val avgVp: Double = 0.0, val bestVp: Int = 0)
+
+@Serializable
+data class LbBots(val games: Int = 0, val botWins: Int = 0, val levels: List<LbBotLevel> = emptyList())
+
+@Serializable
+data class LbSummary(val games: Int = 0, val players: Int = 0, val avgTurns: Int = 0, val topMap: String = "")
+
+@Serializable
+data class LbReply(
+    val enabled: Boolean = false, val mode: String = "ranked", val sort: String = "wins", val period: String = "all",
+    val rows: List<LbRow> = emptyList(), val bots: LbBots? = null, val me: LbRow? = null, val total: Int = 0, val minGames: Int = 1,
+    val summary: LbSummary? = null, val error: String? = null,
+)
+
+@Serializable
+data class RecentWinner(val name: String = "", val vp: Int = 0, val bot: String? = null)
+
+@Serializable
+data class RecentGame(
+    val id: Int = 0, val at: Long = 0, val map: String = "", val turns: Int = 0, val target: Int = 10, val seats: Int = 0, val humans: Int = 0,
+    val ranked: Boolean = false, val vp: Int = 0, val won: Boolean = false, val left: Boolean = false, val winner: RecentWinner? = null,
+)
+
+@Serializable
+data class RecentReply(val enabled: Boolean = false, val games: List<RecentGame> = emptyList())
+
 @Serializable
 data class RoomsReply(val rooms: List<RoomCard> = emptyList(), val live: List<LiveCard> = emptyList())
 

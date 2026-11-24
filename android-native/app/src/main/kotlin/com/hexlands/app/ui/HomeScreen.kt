@@ -54,7 +54,7 @@ import com.hexlands.app.UiState
 import kotlinx.coroutines.delay
 
 @Composable
-fun HomeScreen(ui: UiState, vm: GameViewModel) {
+fun HomeScreen(ui: UiState, vm: GameViewModel, onLeaderboard: () -> Unit = {}, onTutorial: () -> Unit = {}) {
     var name by remember { mutableStateOf(vm.name) }
     var publicRoom by remember { mutableStateOf(true) }
     var showRooms by remember { mutableStateOf(false) }
@@ -130,6 +130,12 @@ fun HomeScreen(ui: UiState, vm: GameViewModel) {
             }
         }
 
+        Appear(5) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                GlassButton(onClick = onLeaderboard, modifier = Modifier.weight(1f)) { Text("🏆 Leaderboard") }
+                GlassButton(onClick = onTutorial, modifier = Modifier.weight(1f)) { Text("How to play") }
+            }
+        }
         Appear(6) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("or join a friend", color = FoamDim, fontSize = 13.sp)

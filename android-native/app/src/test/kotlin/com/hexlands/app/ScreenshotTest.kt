@@ -28,6 +28,7 @@ import com.hexlands.app.ui.GameScreen
 import com.hexlands.app.ui.Tap
 import com.hexlands.app.ui.HexlandsTheme
 import com.hexlands.app.ui.HomeScreen
+import com.hexlands.app.ui.LeaderboardScreen
 import com.hexlands.app.ui.LobbyScreen
 import com.hexlands.app.ui.Navy
 import com.hexlands.app.ui.ResultsBody
@@ -228,5 +229,37 @@ class ScreenshotTest {
         shot("rules") { androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.padding(12.dp)) { com.hexlands.app.ui.RulesText() } }
         rule.onNodeWithText("Rolling a 7").assertExists()
         rule.onNodeWithText("Desert makes nothing.").assertExists()
+    }
+
+    private val lbSample = com.hexlands.app.net.LbReply(
+        enabled = true, mode = "all", sort = "wins", total = 5, minGames = 3,
+        rows = listOf(
+            com.hexlands.app.net.LbRow(rank = 1, name = "Aarav", wins = 14, losses = 6, games = 20, winRate = 70, avgVp = 8.4, bestVp = 12, form = listOf(1, 1, 1, 0, 1), streak = 3, lastPlayed = System.currentTimeMillis() - 3 * 3600_000L, favMap = "India"),
+            com.hexlands.app.net.LbRow(rank = 2, name = "Meera", wins = 9, losses = 9, games = 18, winRate = 50, avgVp = 7.1, bestVp = 11, form = listOf(0, 1, 0, 0, 1), streak = 0, lastPlayed = System.currentTimeMillis() - 26 * 3600_000L, favMap = "Classic Island"),
+            com.hexlands.app.net.LbRow(rank = 3, name = "Vivek", wins = 7, losses = 8, games = 15, winRate = 47, avgVp = 6.9, bestVp = 10, form = listOf(1, 0), streak = 1, you = true, lastPlayed = System.currentTimeMillis() - 600_000L, favMap = "China"),
+        ),
+        summary = com.hexlands.app.net.LbSummary(games = 31, players = 5, avgTurns = 74, topMap = "Classic Island"),
+        bots = com.hexlands.app.net.LbBots(games = 12, botWins = 5, levels = listOf(
+            com.hexlands.app.net.LbBotLevel("easy", 6, 1, 5, 17, 5.2, 8), com.hexlands.app.net.LbBotLevel("medium", 4, 2, 2, 50, 7.0, 10), com.hexlands.app.net.LbBotLevel("hard", 2, 2, 0, 100, 10.0, 11))),
+    )
+
+    @Test fun theLeaderboardShowsStandingRankedPlayersAndBots() {
+        shot("leaderboard") { LeaderboardScreen(UiState(lb = lbSample, lbMode = "all"), GameViewModel(app), onBack = {}, onRecent = {}) }
+        rule.onNodeWithText("Leaderboard").assertExists()
+        rule.onNodeWithText("Rank #3 of 5").assertExists()
+        rule.onNodeWithText("Aarav").assertExists()
+        rule.onNodeWithText("Bots").assertExists()
+        rule.onNodeWithText("Rank and player").assertExists()
+    }
+
+    @Test fun myRecentGamesListsTheLastGames() {
+        val now = System.currentTimeMillis()
+        val r = com.hexlands.app.net.RecentReply(true, listOf(
+            com.hexlands.app.net.RecentGame(id = 2, at = now - 3600_000L, map = "India", turns = 61, target = 10, seats = 4, humans = 2, ranked = true, vp = 10, won = true),
+            com.hexlands.app.net.RecentGame(id = 1, at = now - 90_000_000L, map = "Classic Island", turns = 80, target = 10, seats = 4, humans = 1, vp = 7, won = false, winner = com.hexlands.app.net.RecentWinner("A bot", 10, "hard")),
+        ))
+        shot("recent") { com.hexlands.app.ui.RecentGamesScreen(UiState(recent = r), GameViewModel(app), onBack = {}) }
+        rule.onNodeWithText("Won · 10 of 10 points").assertExists()
+        rule.onNodeWithText("Hard bot won with 10").assertExists()
     }
 }
