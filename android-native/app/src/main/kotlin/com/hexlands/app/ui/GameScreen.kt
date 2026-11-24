@@ -9,6 +9,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -102,7 +104,6 @@ private fun buzz(context: Context) {
 
 private sealed interface GameDialog {
     data class Steal(val tile: Int, val victims: List<Pair<Int, String>>) : GameDialog
-    data class Bank(val give: String?) : GameDialog
     data object Dev : GameDialog
     data class Pick(val card: String) : GameDialog   // monopoly | yearOfPlenty
     data object Log : GameDialog
@@ -110,7 +111,7 @@ private sealed interface GameDialog {
 }
 
 @Composable
-fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean = true) {
+fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean = true, tradeOpenAtStart: Boolean = false) {
     val board = ui.board
     val context = LocalContext.current
     val spectating = game.spectator || ui.session?.spectator == true
@@ -119,6 +120,11 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
     var picked by remember { mutableStateOf<Tap?>(null) }
     var dialog by remember { mutableStateOf<GameDialog?>(null) }
     var showResults by remember { mutableStateOf(true) }
+    var tradeOpen by remember { mutableStateOf(tradeOpenAtStart) }
+    val tradeGive = remember { androidx.compose.runtime.mutableStateMapOf<String, Int>() }
+    val tradeGet = remember { androidx.compose.runtime.mutableStateMapOf<String, Int>() }
+    val canTrade = myTurn && game.phase == "main" && game.rolled && game.subphase == null
+    LaunchedEffect(game.turnNumber) { tradeGive.clear(); tradeGet.clear() }
     var heistMode by remember { mutableStateOf(false) }   // choosing an opponent's settlement to steal
 
     // A buzz when it becomes your move.
@@ -164,22 +170,58 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
 
     Column(Modifier.fillMaxSize()) {
         PlayersStrip(game)
-        Text(
-            (if (heistMode) "Heist: tap an opponent's settlement to steal it" else bannerText(game)) + if (ui.reconnecting) "  ·  Reconnecting…" else "",
-            Modifier.fillMaxWidth().background(NavyDark).padding(horizontal = 12.dp, vertical = 6.dp),
-            color = Gold, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
-        )
+        Row(Modifier.fillMaxWidth().background(NavyDark).padding(start = 12.dp, end = 4.dp, top = 2.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                (if (heistMode) "Heist: tap an opponent's settlement to steal it" else bannerText(game)) + if (ui.reconnecting) "  ·  Reconnecting…" else "",
+                Modifier.weight(1f).padding(vertical = 6.dp),
+                color = Gold, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
+            )
+            if (!spectating) {
+                HeaderIconButton(HeaderIcon.Log, "Game log") { dialog = GameDialog.Log }
+                HeaderIconButton(HeaderIcon.Info, "Game info") { dialog = GameDialog.Info }
+                HeaderIconButton(HeaderIcon.Leave, "Leave the game") { vm.leave() }
+            }
+        }
 
         Box(Modifier.weight(1f).fillMaxWidth()) {
             if (board == null) Text("Loading the board…", Modifier.align(Alignment.Center))
             else BoardCanvas(board, game, cornerSpots, roadSpots, hexSpots, pickedNow, ::onTap, animate = animate, previewKind = pickedKind)
+            // Hints sit on top of the board, never beside it: a bar that appeared below would shrink the board and move the spot you just tapped.
+            val hint = when {
+                pickedNow != null -> if (pickedKind == "heist") "Tap it again to steal this settlement" else "Tap it again to build a $pickedKind"
+                heistMode -> if (heistTargets.isEmpty()) "No opponent has a settlement to steal." else "Tap one of the glowing settlements."
+                else -> null
+            }
+            if (hint != null) Row(
+                Modifier.align(Alignment.TopCenter).padding(top = 6.dp).background(NavyDark.copy(alpha = 0.92f), RoundedCornerShape(14.dp)).padding(start = 14.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(hint, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Gold)
+                TextButton(onClick = { picked = null; heistMode = false }) { Text("Cancel") }
+            }
+            if (tradeOpen && !spectating) TradePanel(
+                game, vm, tradeGive, tradeGet, canTrade, onClose = { tradeOpen = false },
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
+            )
             game.dice?.let { d ->
                 if (d.size == 2) Row(
-                    Modifier.align(Alignment.BottomStart).padding(8.dp).background(NavyDark.copy(alpha = 0.85f), RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 6.dp),
+                    Modifier.align(Alignment.TopStart).padding(8.dp).background(NavyDark.copy(alpha = 0.85f), RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     DiceView(d, roll = game.turnNumber to d)
                     Text("${d[0] + d[1]}", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, color = Gold)
+                }
+            }
+            // The one button for the moment sits at the bottom corner of the board: Roll, then End in the same place.
+            val free = game.phase == "main" && myTurn && game.subphase == null
+            if (!spectating && !tradeOpen) Column(
+                Modifier.align(Alignment.BottomEnd).padding(12.dp), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (game.undo != null) GlassButton(onClick = { vm.act("undo") }) { Text("↶ Undo (${game.undo.left})", fontSize = 13.sp) }
+                if (free) {
+                    val pulse = if (LocalAnimate.current && !game.rolled) androidx.compose.animation.core.rememberInfiniteTransition(label = "roll").animateFloat(
+                        1f, 1.08f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(700), androidx.compose.animation.core.RepeatMode.Reverse), label = "p").value else 1f
+                    RoundTurnButton(roll = !game.rolled, pulse = pulse) { vm.act(if (game.rolled) "endTurn" else "roll") }
                 }
             }
             if (game.phase == "ended" && game.winner != null && animate) Confetti()
@@ -200,23 +242,6 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
             }
         }
 
-        if (heistMode && pickedNow == null) {
-            Row(Modifier.fillMaxWidth().background(NavyDark).padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(if (heistTargets.isEmpty()) "No opponent has a settlement to steal." else "Tap one of the glowing settlements.", Modifier.weight(1f), fontWeight = FontWeight.Bold)
-                OutlinedButton(onClick = { heistMode = false }) { Text("Cancel") }
-            }
-        }
-        // The spot you tapped shows a small preview piece on the board; tapping it again places it.
-        if (pickedNow != null) {
-            Row(Modifier.fillMaxWidth().background(NavyDark).padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    if (pickedKind == "heist") "Tap it again to steal this settlement" else "Tap it again to build a $pickedKind",
-                    Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Gold,
-                )
-                TextButton(onClick = { picked = null }) { Text("Cancel") }
-            }
-        }
-
         if (spectating) {
             Row(Modifier.fillMaxWidth().background(NavyDark).padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("You are watching. You see what every player sees.", Modifier.weight(1f), fontSize = 13.sp, color = FoamDim)
@@ -224,8 +249,11 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
                 OutlinedButton(onClick = { vm.leave() }) { Text("Stop") }
             }
         } else {
-            HandRow(game) { dialog = GameDialog.Bank(it) }
-            ActionRow(game, myTurn, vm, onBank = { dialog = GameDialog.Bank(null) }, onDev = { dialog = GameDialog.Dev }, onLog = { dialog = GameDialog.Log }, onInfo = { dialog = GameDialog.Info })
+            HandRow(game, onDev = { dialog = GameDialog.Dev }) { k ->
+                if (!tradeOpen) { tradeOpen = true; picked = null }
+                // with the panel open, a card from your hand goes into what you give
+                if (canTrade && (tradeGet[k] ?: 0) == 0 && (tradeGive[k] ?: 0) < game.hand(k)) tradeGive[k] = (tradeGive[k] ?: 0) + 1
+            }
         }
     }
 
@@ -238,7 +266,6 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
     }
     when (val d = dialog) {
         is GameDialog.Steal -> StealDialog(d.victims, onClose = { dialog = null }) { v -> dialog = null; vm.act("robber") { put("tile", d.tile); put("victim", v) } }
-        is GameDialog.Bank -> TradeDialog(game, vm, d.give, canTrade = myTurn && game.phase == "main" && game.rolled && game.subphase == null) { dialog = null }
         is GameDialog.Dev -> DevDialog(game, hasHeistTargets = heistTargets.isNotEmpty(), onClose = { dialog = null }, onBuyHeist = { dialog = null; vm.act("buyHeist") }) { card ->
             dialog = null
             when (card) {
@@ -296,8 +323,8 @@ private fun PlayersStrip(game: GameState) {
 }
 
 @Composable
-private fun HandRow(game: GameState, onTapResource: (String) -> Unit) {
-    Row(Modifier.fillMaxWidth().background(NavyDark).padding(horizontal = 6.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+private fun HandRow(game: GameState, onDev: () -> Unit, onTapResource: (String) -> Unit) {
+    Row(Modifier.fillMaxWidth().background(NavyDark).padding(start = 8.dp, end = 14.dp, top = 12.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         RESOURCES.forEach { k ->
             val n = game.hand(k)
             // When a hand count goes up the card bumps and a "+n" floats away from it.
@@ -311,49 +338,36 @@ private fun HandRow(game: GameState, onTapResource: (String) -> Unit) {
             }
             val bump = 1f + 0.18f * sin(Math.PI.toFloat() * gain.value)
             Box(Modifier.weight(1f)) {
-                Column(
-                    Modifier.fillMaxWidth().graphicsLayer { scaleX = bump; scaleY = bump }.clip(RoundedCornerShape(10.dp))
-                        .background((RESOURCE_COLOR[k] ?: Color.Gray).copy(alpha = if (n > 0) 1f else 0.35f))
-                        .clickable { onTapResource(k) }.padding(vertical = 6.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text("$n", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = Color.Black.copy(alpha = 0.85f))
-                    Text(RESOURCE_LABEL[k] ?: k, fontSize = 11.sp, color = Color.Black.copy(alpha = 0.8f))
-                }
+                ResourceCard(
+                    k, Modifier.fillMaxWidth().graphicsLayer { scaleX = bump; scaleY = bump }, count = n.takeIf { it > 0 }, label = RESOURCE_LABEL[k],
+                    dim = n == 0, goldBadge = true, onClick = { onTapResource(k) },
+                )
                 if (gain.value < 1f) Text(
                     "+$shownGain", Modifier.align(Alignment.TopCenter).graphicsLayer { translationY = -gain.value * 56.dp.toPx() - 8.dp.toPx(); alpha = 1f - gain.value * gain.value },
                     color = Good, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp,
                 )
             }
         }
+        DevTile(game.me?.dev?.size ?: 0, Modifier.weight(1f), onDev)
     }
 }
 
+/** The last card in the hand row: your development cards (and where the Heist card is bought). */
 @Composable
-private fun ActionRow(game: GameState, myTurn: Boolean, vm: GameViewModel, onBank: () -> Unit, onDev: () -> Unit, onLog: () -> Unit, onInfo: () -> Unit) {
-    val free = game.phase == "main" && myTurn && game.subphase == null
-    val devCards = game.me?.dev?.size ?: 0
-    Row(
-        Modifier.fillMaxWidth().background(NavyDark).horizontalScroll(rememberScrollState()).padding(horizontal = 6.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (free && !game.rolled) {
-            val pulse = if (LocalAnimate.current) androidx.compose.animation.core.rememberInfiniteTransition(label = "roll").animateFloat(
-                1f, 1.07f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(700), androidx.compose.animation.core.RepeatMode.Reverse), label = "p").value else 1f
-            GoldButton(onClick = { vm.act("roll") }, modifier = Modifier.height(48.dp).graphicsLayer { scaleX = pulse; scaleY = pulse }) { Text("Roll dice", fontWeight = FontWeight.Bold) }
+private fun DevTile(count: Int, modifier: Modifier, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(12.dp)
+    Box(modifier.aspectRatio(0.76f).clickable(onClick = onClick)) {
+        Column(
+            Modifier.fillMaxSize().clip(shape).background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xFF3F52A8), Color(0xFF222F6B))))
+                .border(1.5.dp, Color.White.copy(alpha = if (count > 0) 0.9f else 0.35f), shape),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+        ) {
+            Text("★", fontSize = 26.sp, color = Gold.copy(alpha = if (count > 0) 1f else 0.5f))
+            Text("Dev", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = if (count > 0) 1f else 0.6f))
         }
-        if (free && game.rolled) Button(onClick = { vm.act("endTurn") }, modifier = Modifier.height(48.dp)) { Text("End turn", fontWeight = FontWeight.Bold) }
-        if (game.undo != null) OutlinedButton(onClick = { vm.act("undo") }) { Text("↶ Undo (${game.undo.left})") }
-        OutlinedButton(onClick = onBank) { Text("Trade") }
-        val canBuy = free && game.rolled
-        if (canBuy && game.devLeft > 0 && game.canAfford(COST_DEV)) GoldButton(onClick = { vm.act("buyDev") }, modifier = Modifier.height(44.dp)) { Text("Buy card", fontWeight = FontWeight.Bold) }
-        val heist = game.heist
-        if (canBuy && heist != null && game.me?.heistBought != true && game.cities() >= heist.need && game.canAfford(heist.cost)) {
-            GoldButton(onClick = { vm.act("buyHeist") }, modifier = Modifier.height(44.dp)) { Text("Buy Heist card", fontWeight = FontWeight.Bold) }
-        }
-        if (devCards > 0) OutlinedButton(onClick = onDev) { Text("Cards ($devCards)") }
-        OutlinedButton(onClick = onLog) { Text("Log") }
-        OutlinedButton(onClick = onInfo) { Text("Info") }
-        TextButton(onClick = { vm.leave() }) { Text("Leave") }
+        if (count > 0) Box(
+            Modifier.align(Alignment.TopEnd).offset(x = 6.dp, y = (-6).dp).size(24.dp).clip(CircleShape).background(Color(0xFF1F3F9A)).border(1.5.dp, Gold, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) { Text("$count", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold) }
     }
 }

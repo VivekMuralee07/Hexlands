@@ -7,6 +7,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
@@ -98,5 +100,35 @@ class BoardTapTest {
         val notLegal = board.vertices.first { it.id !in legal }   // a corner next to a settlement is not offered
         tapAt(px(notLegal.x, notLegal.y))
         assertNull("a corner that is not glowing cannot be picked", tapped)
+    }
+}
+
+/** The whole two-tap flow on the real game screen: a first tap shows the preview and its hint, a second tap on the same spot places it. */
+@RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [34], qualifiers = "w411dp-h891dp-xxhdpi")
+class TwoTapPlacementTest {
+    @get:Rule val rule = createAndroidComposeRule<ComponentActivity>()
+    private fun text(name: String) = checkNotNull(javaClass.getResourceAsStream("/fixtures/$name.json")).bufferedReader().readText()
+    private val board = HexJson.decodeFromString(Board.serializer(), text("board"))
+
+    @Test fun tappingASpotTwiceGoesThroughPreviewThenPlace() {
+        val g = HexJson.decodeFromString(GameState.serializer(), text("setup"))
+        val ui = UiState(session = com.hexlands.app.net.Session("K7QXM", "t", false), board = board, game = g)
+        val vm = GameViewModel(androidx.test.core.app.ApplicationProvider.getApplicationContext())
+        rule.setContent { androidx.compose.runtime.CompositionLocalProvider(com.hexlands.app.ui.LocalAnimate provides false) { HexlandsTheme { com.hexlands.app.ui.GameScreen(ui, g, vm, animate = false) } } }
+        rule.waitForIdle()
+        val node = rule.onNodeWithTag("board")
+        val size = node.fetchSemanticsNode().size
+        val xs = board.vertices.map { it.x } + board.ports.map { it.x }; val ys = board.vertices.map { it.y } + board.ports.map { it.y }
+        val minX = xs.min() - 0.9; val maxX = xs.max() + 0.9; val minY = ys.min() - 0.9; val maxY = ys.max() + 0.9
+        val k = min(size.width / (maxX - minX).toFloat(), size.height / (maxY - minY).toFloat())
+        val v = board.vertices[g.legal!!.settlements.first()]
+        val at = Offset(size.width / 2f + ((v.x - (minX + maxX) / 2) * k).toFloat(), size.height / 2f + ((v.y - (minY + maxY) / 2) * k).toFloat())
+
+        node.performTouchInput { click(at) }; rule.waitForIdle()
+        rule.onNodeWithText("Tap it again to build a settlement").assertExists()
+        node.performTouchInput { click(at) }; rule.waitForIdle()
+        rule.onNodeWithText("Tap it again to build a settlement").assertDoesNotExist()
     }
 }

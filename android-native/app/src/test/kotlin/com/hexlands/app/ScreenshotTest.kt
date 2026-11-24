@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.test.core.app.ApplicationProvider
 import com.hexlands.app.net.Board
 import com.hexlands.app.net.GameState
@@ -118,24 +119,31 @@ class ScreenshotTest {
         shot("preview") { BoardCanvas(board, g, g.legal!!.settlements.toSet(), emptySet(), emptySet(), Tap.Corner(spot), {}, animate = false, previewKind = "settlement") }
     }
 
-    @Test fun theTradeWindowOffersPlayersAndTheBank() {
+    @Test fun theTradePanelShowsWhatYouWantWhatYouGiveAndTheBankRates() {
         val g = state("main")
-        shot("trade") { com.hexlands.app.ui.TradeDialog(g, GameViewModel(app), "wood", canTrade = true) {} }
-        rule.onNodeWithText("Send offer").assertExists()
-        rule.onNodeWithText("Bank").assertExists()
+        shot("trade") { GameScreen(ui(g), g, GameViewModel(app), animate = false, tradeOpenAtStart = true) }
+        rule.onNodeWithText("Tap what you want above").assertExists()
+        rule.onNodeWithText("Pick what you want, then what you give.").assertExists()
     }
 
-    @Test fun theBuyCardButtonAppearsWhenYouCanPayForIt() {
+    @Test fun theBuyOptionAppearsInTheTradePanelWhenYouCanPayForIt() {
         val rich = state("main")   // 3 wood, 3 brick, 2 sheep, 3 wheat, 3 ore: a development card is affordable
-        shot("buy-yes") { GameScreen(ui(rich), rich, GameViewModel(app), animate = false) }
-        rule.onNodeWithText("Buy card").assertExists()
+        shot("buy-yes") { GameScreen(ui(rich), rich, GameViewModel(app), animate = false, tradeOpenAtStart = true) }
+        rule.onNodeWithText("Development card").assertExists()
     }
 
-    @Test fun noBuyButtonsWithoutTheCards() {
+    @Test fun noBuyOptionWithoutTheCards() {
         val rich = state("main")
         val poor = rich.copy(me = rich.me!!.copy(res = emptyMap()))
-        shot("buy-no") { GameScreen(ui(poor), poor, GameViewModel(app), animate = false) }
+        shot("buy-no") { GameScreen(ui(poor), poor, GameViewModel(app), animate = false, tradeOpenAtStart = true) }
+        rule.onNodeWithText("Development card").assertDoesNotExist()
+        rule.onNodeWithText("Heist card").assertDoesNotExist()
+    }
+
+    @Test fun thereIsNoBuyButtonOutsideTheTradePanel() {
+        val rich = state("main")
+        shot("main-no-buy") { GameScreen(ui(rich), rich, GameViewModel(app), animate = false) }
         rule.onNodeWithText("Buy card").assertDoesNotExist()
-        rule.onNodeWithText("Buy Heist card").assertDoesNotExist()
+        rule.onNodeWithContentDescription("End your turn").assertExists()
     }
 }

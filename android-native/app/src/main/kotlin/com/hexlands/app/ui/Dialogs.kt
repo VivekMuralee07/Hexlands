@@ -1,6 +1,10 @@
 package com.hexlands.app.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -46,7 +50,7 @@ fun DiscardDialog(game: GameState, onSend: (Map<String, Int>) -> Unit) {
                 RESOURCES.forEach { k ->
                     val have = game.hand(k); val n = chosen[k] ?: 0
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("${RESOURCE_LABEL[k]} ($have)", Modifier.weight(1f))
+                        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) { ResourceIcon(k, 28.dp); Text("  $have", fontWeight = FontWeight.Bold) }
                         OutlinedButton(onClick = { chosen[k] = n - 1 }, enabled = n > 0) { Text("−") }
                         Text("$n", Modifier.padding(horizontal = 12.dp), fontWeight = FontWeight.Bold)
                         OutlinedButton(onClick = { chosen[k] = n + 1 }, enabled = n < have && total < need) { Text("+") }
@@ -68,42 +72,6 @@ fun StealDialog(victims: List<Pair<Int, String>>, onClose: () -> Unit, onPick: (
         confirmButton = {},
         dismissButton = { TextButton(onClick = onClose) { Text("Cancel") } },
     )
-}
-
-/** Trade with the bank (4 cards for 1, or 3 or 2 with a harbour). */
-@Composable
-fun BankPane(game: GameState, give0: String?, onTrade: (give: String, get: String, times: Int) -> Unit) {
-    var give by remember { mutableStateOf(give0 ?: RESOURCES.firstOrNull { game.hand(it) > 0 }) }
-    var get by remember { mutableStateOf<String?>(null) }
-    var times by remember { mutableStateOf(1) }
-    val ratio = give?.let { game.me?.ratios?.get(it) ?: 4 } ?: 4
-    val most = give?.let { game.hand(it) / ratio } ?: 0
-    val ok = give != null && get != null && give != get && times in 1..most && (game.bank[get] ?: 0) >= times
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("You give", fontWeight = FontWeight.Bold, color = Gold)
-        ChipRow(RESOURCES, give, label = { "${RESOURCE_LABEL[it]} ${game.hand(it)}" }) { give = it; times = 1 }
-        Text("You get", fontWeight = FontWeight.Bold, color = Gold)
-        ChipRow(RESOURCES.filter { it != give }, get, label = { RESOURCE_LABEL[it] ?: it }) { get = it }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("How many: $times", Modifier.weight(1f))
-            OutlinedButton(onClick = { times-- }, enabled = times > 1) { Text("−") }
-            OutlinedButton(onClick = { times++ }, enabled = times < most, modifier = Modifier.padding(start = 8.dp)) { Text("+") }
-        }
-        if (give != null) Text(
-            if (most == 0) "You need $ratio ${RESOURCE_LABEL[give]} for one card." else "Give ${ratio * times} ${RESOURCE_LABEL[give]} for $times ${get?.let { RESOURCE_LABEL[it] } ?: "…"}.",
-            fontSize = 13.sp, color = FoamDim,
-        )
-        GoldButton(onClick = { onTrade(give!!, get!!, times) }, enabled = ok, modifier = Modifier.fillMaxWidth()) { Text("Trade with the bank", fontWeight = FontWeight.Bold) }
-    }
-}
-
-@Composable
-internal fun ChipRow(items: List<String>, selected: String?, label: (String) -> String, onPick: (String) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        items.chunked(3).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { row.forEach { k -> FilterChip(selected = selected == k, onClick = { onPick(k) }, label = { Text(label(k), fontSize = 12.sp) }) } }
-        }
-    }
 }
 
 private val DEV_NAME = mapOf("knight" to "Knight", "vp" to "Victory point", "roadBuilding" to "Road Building", "yearOfPlenty" to "Year of Plenty", "monopoly" to "Monopoly", "heist" to "Heist")
@@ -174,8 +142,12 @@ fun PickResourcesDialog(title: String, count: Int, onClose: () -> Unit, onPick: 
         title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                RESOURCES.forEach { k -> OutlinedButton(onClick = { if (picks.value.size < count) picks.value = picks.value + k }, modifier = Modifier.fillMaxWidth()) { Text(RESOURCE_LABEL[k] ?: k) } }
-                Text("Chosen: ${picks.value.joinToString(", ") { RESOURCE_LABEL[it] ?: it }.ifEmpty { "none yet" }}", color = FoamDim)
+                RESOURCES.forEach { k -> OutlinedButton(onClick = { if (picks.value.size < count) picks.value = picks.value + k }, modifier = Modifier.fillMaxWidth()) { ResourceIcon(k, 28.dp) } }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Chosen:", color = FoamDim)
+                    if (picks.value.isEmpty()) Text("none yet", color = FoamDim)
+                    picks.value.forEach { ResourceIcon(it, 24.dp) }
+                }
             }
         },
         confirmButton = { Button(onClick = { onPick(picks.value) }, enabled = picks.value.size == count) { Text("OK") } },
@@ -270,7 +242,7 @@ fun DiamondBody(game: GameState, n: Int, picks: List<String>, onPick: (String) -
         RESOURCES.forEach { k ->
             val left = (game.bank[k] ?: 0) - picks.count { it == k }
             OutlinedButton(onClick = { onPick(k) }, enabled = picks.size < n && left > 0, modifier = Modifier.fillMaxWidth()) {
-                Text("${RESOURCE_LABEL[k]}   (${picks.count { it == k }} chosen, $left in the bank)")
+                ResourceIcon(k, 26.dp); Text("   ${picks.count { it == k }} chosen, $left in the bank")
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {

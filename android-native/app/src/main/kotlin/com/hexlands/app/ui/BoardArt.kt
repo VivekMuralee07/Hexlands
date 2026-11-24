@@ -6,6 +6,11 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.Modifier
+import com.hexlands.app.net.RESOURCE_LABEL
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
@@ -267,3 +272,7 @@ fun DrawScope.drawBoardArt(board: Board, origin: Offset, k: Float, measurer: Tex
         for (t in sorted) { val n = t.number ?: continue; withTransform({ translate(t.x.toFloat() * U, t.y.toFloat() * U) }) { token(n, measurer, u) } }
     }
 }
+
+/** A resource's picture at a small size, for lists and buttons. */
+@androidx.compose.runtime.Composable
+fun ResourceIcon(resource: String, size: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) = ResourceArt(resource, size, modifier, backdrop = false)
