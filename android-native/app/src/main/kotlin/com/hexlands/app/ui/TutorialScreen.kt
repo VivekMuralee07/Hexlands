@@ -138,11 +138,11 @@ private fun TutorialBoard(board: Board, scene: Scene, colors: List<Color>, me: I
         // a harbour and its two corners
         scene.port?.let { p ->
             drawCircle(Color(0xFFFFD23F).copy(alpha = pulse), k * 0.62f, fit.at(Pt(p.x, p.y)), style = Stroke(max(3f, k * 0.07f)))
-            p.vx.forEach { v -> glowSpot(fit.at(Pt(v[0], v[1])), k * 0.42f, pulse) }
+            p.vx.forEach { v -> bubbleSpot(fit.at(Pt(v[0], v[1])), k * 0.4f, pulse) }
         }
         // spots you may build on
-        for (id in scene.spotEdges) board.edges.getOrNull(id)?.let { e -> val a = board.vertices[e.v[0]]; val b = board.vertices[e.v[1]]; glowSpot(fit.at(Pt((a.x + b.x) / 2, (a.y + b.y) / 2)), k * 0.36f, pulse) }
-        for (id in scene.spotCorners) board.vertices.getOrNull(id)?.let { glowSpot(fit.at(Pt(it.x, it.y)), k * 0.42f, pulse) }
+        for (id in scene.spotEdges) board.edges.getOrNull(id)?.let { e -> val a = board.vertices[e.v[0]]; val b = board.vertices[e.v[1]]; bubbleSpot(fit.at(Pt((a.x + b.x) / 2, (a.y + b.y) / 2)), k * 0.34f, pulse) }
+        for (id in scene.spotCorners) board.vertices.getOrNull(id)?.let { bubbleSpot(fit.at(Pt(it.x, it.y)), k * 0.4f, pulse) }
         // the piece you are about to build, with a green tick
         scene.ghostRoad?.let { id -> board.edges.getOrNull(id)?.let { e ->
             val a = board.vertices[e.v[0]]; val b = board.vertices[e.v[1]]; val pa = fit.at(Pt(a.x, a.y)); val pb = fit.at(Pt(b.x, b.y))

@@ -201,7 +201,7 @@ fun BoardCanvas(
     ) {
         if (size.width == 0) return@Canvas
         val k = scale()
-        drawBoardArt(board, screen(0.0, 0.0), k, measurer)
+        drawBoardArt(board, screen(0.0, 0.0), k, measurer, sea = false)   // the sea behind it is the animated SeaBackground
         // roads
         for ((eid, seat) in game.roads) {
             val e = board.edges.getOrNull(eid.toIntOrNull() ?: continue) ?: continue
@@ -225,17 +225,18 @@ fun BoardCanvas(
             val c = from + (to - from) * h + Offset(0f, -kotlin.math.sin(Math.PI.toFloat() * h) * k * 0.6f)
             robberFigure(c, k)
         }
-        // the spots the player may tap: glowing circles (on a road, at its middle)
+        // the spots the player may tap: transparent bubbles in the player's colour (on a road, at its middle)
+        val spotTint = game.players.getOrNull(game.you)?.color?.let { Color(parseColor(it)) } ?: GOLD
         for (id in roadSpots) {
             if (picked == Tap.Road(id)) continue   // the preview piece is drawn there instead
             val e = board.edges.getOrNull(id) ?: continue
             val a = board.vertices[e.v[0]]; val b = board.vertices[e.v[1]]
-            glowSpot(screen((a.x + b.x) / 2, (a.y + b.y) / 2), k * 0.36f, pulse)
+            bubbleSpot(screen((a.x + b.x) / 2, (a.y + b.y) / 2), k * 0.34f, pulse, spotTint)
         }
         for (id in cornerSpots) {
             if (picked == Tap.Corner(id)) continue   // the preview piece is drawn there instead
             val v = board.vertices.getOrNull(id) ?: continue
-            glowSpot(screen(v.x, v.y), k * 0.42f, pulse)
+            bubbleSpot(screen(v.x, v.y), k * 0.4f, pulse, spotTint)
         }
         // the piece you would place, shown in your colour while you decide (tap it again to place it)
         val mine = Color(parseColor(game.players.getOrNull(game.you)?.color))
@@ -357,14 +358,21 @@ fun BoardPreview(board: Board, modifier: Modifier = Modifier) {
 }
 
 
-/** A glowing circle: a soft golden halo that pulses, with a bright dot and a white rim in the middle. [r] is the halo's radius. */
-internal fun DrawScope.glowSpot(c: Offset, r: Float, pulse: Float) {
+/**
+ * A transparent bubble marking a place you may build: a glassy, see-through sphere (the board shows through it) that breathes gently, with a soft tint, a bright rim
+ * and a small highlight, so it reads as "put a piece here". [r] is the bubble's radius and [tint] the colour of the glass (your colour while you build).
+ */
+internal fun DrawScope.bubbleSpot(c: Offset, r: Float, pulse: Float, tint: Color = GOLD) {
+    val br = r * (0.86f + 0.14f * pulse)   // breathes between 86% and 100%
+    // the glass: nearly clear in the middle, a little tinted towards the edge
     drawCircle(
-        androidx.compose.ui.graphics.Brush.radialGradient(
-            0f to GOLD.copy(alpha = 0.85f * pulse), 0.55f to GOLD.copy(alpha = 0.4f * pulse), 1f to Color.Transparent, center = c, radius = r,
-        ),
-        r, c,
+        androidx.compose.ui.graphics.Brush.radialGradient(0f to Color.White.copy(alpha = 0.06f), 0.7f to tint.copy(alpha = 0.16f), 1f to tint.copy(alpha = 0.38f), center = c, radius = br),
+        br, c,
     )
-    drawCircle(GOLD.copy(alpha = 0.5f + 0.5f * pulse), r * 0.36f, c)
-    drawCircle(Color.White, r * 0.36f, c, style = Stroke(max(1.5f, r * 0.07f)))
+    // the rim
+    drawCircle(Color.White.copy(alpha = 0.55f + 0.3f * pulse), br, c, style = Stroke(max(1.5f, br * 0.06f)))
+    drawCircle(tint.copy(alpha = 0.55f), br * 0.9f, c, style = Stroke(max(1f, br * 0.05f)))
+    // the shine: a bright arc at the top left and a small spot below it
+    drawArc(Color.White.copy(alpha = 0.85f), 200f, 62f, false, Offset(c.x - br * 0.72f, c.y - br * 0.72f), androidx.compose.ui.geometry.Size(br * 1.44f, br * 1.44f), style = Stroke(max(2f, br * 0.09f), cap = androidx.compose.ui.graphics.StrokeCap.Round))
+    drawCircle(Color.White.copy(alpha = 0.7f), br * 0.07f, Offset(c.x + br * 0.42f, c.y + br * 0.46f))
 }
