@@ -610,6 +610,27 @@ class Game {
       return this.board.vertices[v].edges.some(o => o !== e && this.roads[o] === pi);
     });
   }
+  // Where this player may build right now (vertex and edge ids), so a client does not have to know the rules to highlight spots. Empty lists when
+  // it is not their move, or the move is something else (rolling, the robber, discarding...). Roads and settlements need the cards in hand and a piece left.
+  legalFor(pi) {
+    const none = { settlements: [], cities: [], roads: [] };
+    const p = this.players[pi];
+    if (!p || this.phase === 'lobby' || this.phase === 'ended' || this.turn !== pi) return none;
+    if (this.phase === 'setup') {
+      if (this.setup.expect === 'settlement') {
+        const fog = this.board.fogFreeStart ? (v => this.board.vertices[v].hexes.some(h => this.board.tiles[h].fog)) : (() => false);
+        return { ...none, settlements: this.validSettlements(pi, false).filter(v => !fog(v)) };
+      }
+      return { ...none, roads: this.board.edges.filter(e => this.canRoad(pi, e.id, this.setup.last)).map(e => e.id) };
+    }
+    if (this.subphase === 'roadBuilding') return { ...none, roads: p.pieces.road > 0 ? this.validRoads(pi) : [] };
+    if (this.subphase || !this.rolled) return none;
+    return {
+      settlements: p.pieces.settlement > 0 && this.has(pi, COST.settlement) ? this.validSettlements(pi, true) : [],
+      cities: p.pieces.city > 0 && this.has(pi, COST.city) ? Object.keys(this.buildings).map(Number).filter(v => this.buildings[v].p === pi && this.buildings[v].type === 'settlement') : [],
+      roads: p.pieces.road > 0 && this.has(pi, COST.road) ? this.validRoads(pi) : [],
+    };
+  }
   validRoads(pi) { return this.board.edges.filter(e => this.canRoad(pi, e.id)).map(e => e.id); }
   validSettlements(pi, needRoad) { return this.board.vertices.filter(v => this.canSettle(pi, v.id, needRoad)).map(v => v.id); }
   tradeRatio(pi, res) {
@@ -1204,6 +1225,7 @@ class Game {
     return {
       code: this.code, phase: this.phase, you: pi, version: this.version, vpTarget: this.vpTarget, mapName: this.board.name,
       opts: this.opts, timer: this.timerView(), palette: PALETTE, events: this.events, devPile: { total: this.devTotal, played: this.devPlayedCount }, heist: { cost: COST.heist, need: this.heistNeed() }, cutRoads: this.cutOffRoads(),
+      legal: this.legalFor(pi),
       undo: this.setupUndo && this.setupUndo.pi === pi && this.setupUndo.sig === this.clockSig() && ((this.undoUsed || {})[pi] || 0) < MAX_UNDOS ? { left: MAX_UNDOS - ((this.undoUsed || {})[pi] || 0) } : null,
       robberOptions: this.subphase === 'robber' && pi === this.turn ? this.legalRobberTiles(pi) : null,
       players: this.players.map((p, i) => ({
