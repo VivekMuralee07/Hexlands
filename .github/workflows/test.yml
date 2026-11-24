@@ -69,6 +69,17 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       # The screen tests (Robolectric) need Android runtimes (about 350 MB). Gradle downloads them like any other dependency, and setup-gradle keeps
       # them between runs (see android-native/app/build.gradle.kts). Robolectric's own downloader, straight from repo1.maven.org, is refused from build machines.
+      # Maven Central answers "429 Too Many Requests" to big downloads from shared build machines now and then, so this download has its own step that
+      # tries again (a failed test run is never retried: only the download).
+      - name: Download the Android runtime for the screen tests
+        working-directory: android-native
+        run: |
+          for attempt in 1 2 3 4 5; do
+            ./gradlew --no-daemon -q :app:copyRobolectricRuntime && exit 0
+            echo "The download was refused (attempt $attempt of 5). Trying again in 60 seconds."
+            sleep 60
+          done
+          exit 1
       - name: Build and test the Android app
         working-directory: android-native
         run: ./gradlew --no-daemon assembleDebug testDebugUnitTest

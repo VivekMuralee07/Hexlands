@@ -90,7 +90,7 @@ dependencies {
     testImplementation(libs.compose.ui.test.junit4)
     debugImplementation(libs.compose.ui.test.manifest)
 
-    // The Android runtimes for Robolectric 4.14.1: SDK 34 (what the tests ask for) and SDK 35 (its newest).
+    // The Android runtime for Robolectric 4.14.1 at SDK 34, which is what the tests ask for (@Config(sdk = [34])). If a test ever asks for another SDK,
+    // add its runtime here (Robolectric 4.14.1: SDK 35 is 15-robolectric-12650502-i7).
     robolectricRuntime("org.robolectric:android-all-instrumented:14-robolectric-10818077-i7")
-    robolectricRuntime("org.robolectric:android-all-instrumented:15-robolectric-12650502-i7")
 }
