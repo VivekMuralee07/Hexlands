@@ -28,10 +28,10 @@ import kotlin.math.sin
 data class GainFlight(val res: String, val player: Int, val tile: Int?, val delayMs: Long)
 
 /** How long each card takes, and how long the next one waits: slow enough to watch. */
-const val FLIGHT_MS = 2000
-const val FLIGHT_GAP_MS = 380L
-/** The dice take about this long to tumble, so the cards set off after that. */
-const val AFTER_DICE_MS = 850L
+const val FLIGHT_MS = 1300
+const val FLIGHT_GAP_MS = 150L
+/** The cards set off the moment the dice are rolled (for every player, bots included), not after the dice have settled. */
+const val AFTER_DICE_MS = 0L
 
 private val TERRAIN_RES = mapOf("forest" to "wood", "hills" to "brick", "pasture" to "sheep", "fields" to "wheat", "mountains" to "ore")
 

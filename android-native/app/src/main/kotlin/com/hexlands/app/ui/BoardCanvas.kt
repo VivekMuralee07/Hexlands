@@ -216,7 +216,7 @@ fun BoardCanvas(
         // the hexes that paid out pulse after a roll
         if (anim && game.lastRoll != null) {
             val sum = game.lastRoll.dice.sum()
-            val pp = (clock - rollAt - 0.85f) / 2.4f
+            val pp = (clock - rollAt) / 2.0f   // the paying hexes light up as the dice are thrown
             if (sum != 7 && pp in 0f..1f) for (t in board.tiles) if (t.number == sum && t.id != robTo) paidPulse(screen(t.x, t.y), k, pp)
         }
         // roads
