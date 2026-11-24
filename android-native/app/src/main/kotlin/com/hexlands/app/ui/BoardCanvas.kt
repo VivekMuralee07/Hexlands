@@ -96,6 +96,7 @@ fun BoardCanvas(
     onTap: (Tap) -> Unit,
     modifier: Modifier = Modifier,
     animate: Boolean = true,
+    previewKind: String? = null,
 ) {
     val measurer = rememberTextMeasurer()
     var zoom by remember { mutableFloatStateOf(1f) }
@@ -140,6 +141,7 @@ fun BoardCanvas(
         var found: Tap? = null
         var best = Float.MAX_VALUE
         for (id in cornerSpots) {
+            if (picked == Tap.Corner(id)) continue
             val v = board.vertices.getOrNull(id) ?: continue
             val d = (screen(v.x, v.y) - at).getDistance()
             if (d < slop && d < best) { best = d; found = Tap.Corner(id) }
@@ -209,6 +211,7 @@ fun BoardCanvas(
         // the spots the player may tap
         val glow = GOLD.copy(alpha = pulse)
         for (id in roadSpots) {
+            if (picked == Tap.Road(id)) continue
             val e = board.edges.getOrNull(id) ?: continue
             val a = board.vertices[e.v[0]]; val b = board.vertices[e.v[1]]
             val sel = picked == Tap.Road(id)
@@ -219,6 +222,22 @@ fun BoardCanvas(
             val c = screen(v.x, v.y); val sel = picked == Tap.Corner(id)
             drawCircle(if (sel) Color(0xFF4CD964) else glow, k * (if (sel) 0.26f else 0.2f), c)
             drawCircle(Color.White, k * (if (sel) 0.26f else 0.2f), c, style = Stroke(max(1.5f, k * 0.03f)))
+        }
+        // the piece you would place, shown in your colour while you decide (tap it again to place it)
+        val mine = Color(parseColor(game.players.getOrNull(game.you)?.color))
+        val bob = if (anim) 1f + 0.08f * kotlin.math.sin(clock * 6f) else 1f
+        when (picked) {
+            is Tap.Road -> board.edges.getOrNull(picked.id)?.let { e ->
+                val a = board.vertices[e.v[0]]; val b = board.vertices[e.v[1]]
+                drawLine(Color.White, screen(a.x, a.y), screen(b.x, b.y), strokeWidth = k * 0.2f * bob, cap = StrokeCap.Round)
+                drawLine(mine, screen(a.x, a.y), screen(b.x, b.y), strokeWidth = k * 0.14f * bob, cap = StrokeCap.Round)
+            }
+            is Tap.Corner -> board.vertices.getOrNull(picked.id)?.let { v ->
+                val c0 = screen(v.x, v.y)
+                drawCircle(Color.White.copy(alpha = 0.35f), k * 0.34f * bob, c0)
+                house(c0, k * 0.22f * bob, mine, previewKind == "city")
+            }
+            else -> {}
         }
         for (id in hexSpots) {
             val t = board.tiles.getOrNull(id) ?: continue

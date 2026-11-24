@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithText
 import androidx.test.core.app.ApplicationProvider
 import com.hexlands.app.net.Board
 import com.hexlands.app.net.GameState
@@ -109,5 +110,32 @@ class ScreenshotTest {
         val targets = g.buildings.filter { (_, b) -> b.p != g.you && b.type == "settlement" }.keys.map { it.toInt() }.toSet()
         assertTrue("opponents have settlements", targets.size >= 3)
         shot("heist") { BoardCanvas(board, g, targets, emptySet(), emptySet(), Tap.Corner(targets.first()), {}, animate = false) }
+    }
+
+    @Test fun aTappedSpotShowsTheSmallPieceYouWouldPlace() {
+        val g = state("setup")
+        val spot = g.legal!!.settlements.first()
+        shot("preview") { BoardCanvas(board, g, g.legal!!.settlements.toSet(), emptySet(), emptySet(), Tap.Corner(spot), {}, animate = false, previewKind = "settlement") }
+    }
+
+    @Test fun theTradeWindowOffersPlayersAndTheBank() {
+        val g = state("main")
+        shot("trade") { com.hexlands.app.ui.TradeDialog(g, GameViewModel(app), "wood", canTrade = true) {} }
+        rule.onNodeWithText("Send offer").assertExists()
+        rule.onNodeWithText("Bank").assertExists()
+    }
+
+    @Test fun theBuyCardButtonAppearsWhenYouCanPayForIt() {
+        val rich = state("main")   // 3 wood, 3 brick, 2 sheep, 3 wheat, 3 ore: a development card is affordable
+        shot("buy-yes") { GameScreen(ui(rich), rich, GameViewModel(app), animate = false) }
+        rule.onNodeWithText("Buy card").assertExists()
+    }
+
+    @Test fun noBuyButtonsWithoutTheCards() {
+        val rich = state("main")
+        val poor = rich.copy(me = rich.me!!.copy(res = emptyMap()))
+        shot("buy-no") { GameScreen(ui(poor), poor, GameViewModel(app), animate = false) }
+        rule.onNodeWithText("Buy card").assertDoesNotExist()
+        rule.onNodeWithText("Buy Heist card").assertDoesNotExist()
     }
 }
