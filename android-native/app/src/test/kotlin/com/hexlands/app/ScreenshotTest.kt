@@ -262,4 +262,30 @@ class ScreenshotTest {
         rule.onNodeWithText("Won · 10 of 10 points").assertExists()
         rule.onNodeWithText("Hard bot won with 10").assertExists()
     }
+
+    @Test fun whereTheRobberMayGoIsShownByGlowingCirclesInsideThoseHexes() {
+        val g0 = state("main")
+        val spots = board.tiles.filter { it.terrain != "desert" && it.id != g0.robber }.map { it.id }
+        val g = g0.copy(rolled = true, subphase = "robber", robberOptions = spots, dice = listOf(3, 4))
+        shot("robber") { GameScreen(ui(g), g, GameViewModel(app), animate = false) }
+        rule.onNodeWithText("Move the robber: tap a glowing circle").assertExists()
+    }
+
+    @Test fun cardsFlyFromTheTilesToThePlayersAndThenAreGone() {
+        rule.mainClock.autoAdvance = false
+        val flights = listOf(
+            com.hexlands.app.ui.GainFlight("wood", 0, 3, delayMs = 0), com.hexlands.app.ui.GainFlight("ore", 0, 5, delayMs = 400),
+        )
+        rule.setContent {
+            HexlandsTheme { Box(Modifier.fillMaxSize().background(Navy)) {
+                com.hexlands.app.ui.GainFlights(flights, from = { androidx.compose.ui.geometry.Offset(300f, 1200f) }, to = { androidx.compose.ui.geometry.Offset(300f, 100f) })
+            } }
+        }
+        rule.mainClock.advanceTimeBy(1_000)          // mid-flight: the first card is on its way, the second has just started
+        rule.waitForIdle()
+        rule.onNodeWithContentDescription("Wood").assertExists()
+        rule.mainClock.advanceTimeBy(3_000)          // all landed
+        rule.waitForIdle()
+        rule.onNodeWithContentDescription("Wood").assertDoesNotExist()
+    }
 }

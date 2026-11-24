@@ -49,6 +49,9 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
+/** Lets the game screen ask where a board point is on the screen now (the board zooms and moves). */
+class BoardView { var toScreen: (Double, Double) -> Offset = { _, _ -> Offset.Zero } }
+
 /** What a tap on the board hit: a corner, a road spot, or a hex. Only spots the server says are legal can be hit. */
 sealed interface Tap {
     data class Corner(val id: Int) : Tap
@@ -99,6 +102,7 @@ fun BoardCanvas(
     modifier: Modifier = Modifier,
     animate: Boolean = true,
     previewKind: String? = null,
+    view: BoardView? = null,
 ) {
     val measurer = rememberTextMeasurer()
     var zoom by remember { mutableFloatStateOf(1f) }
@@ -139,6 +143,8 @@ fun BoardCanvas(
         val k = scale()
         return Offset(size.width / 2f + pan.x + ((x - bounds.cx) * k).toFloat(), size.height / 2f + pan.y + ((y - bounds.cy) * k).toFloat())
     }
+
+    view?.toScreen = { x, y -> screen(x, y) }   // so the screen can place things (the cards flying from the tiles) on the board
 
     val tapNow = rememberUpdatedState { at: Offset ->
         var found: Tap? = null
@@ -239,10 +245,21 @@ fun BoardCanvas(
             }
             else -> {}
         }
+        // where the robber may go: a glowing, see-through circle inside each of those hexes (the number underneath stays readable)
+        val hexGlow = 0.6f + 0.4f * pulse
         for (id in hexSpots) {
             val t = board.tiles.getOrNull(id) ?: continue
-            val c = screen(t.x, t.y); val sel = picked == Tap.Hex(id)
-            drawCircle(if (sel) Color(0xFF4CD964) else Color.White.copy(alpha = pulse), k * 0.78f, c, style = Stroke(max(2f, k * (if (sel) 0.1f else 0.06f))))
+            val c = screen(t.x, t.y)
+            val r = k * 0.8f   // the hex's inner radius is 0.87
+            drawCircle(
+                androidx.compose.ui.graphics.Brush.radialGradient(
+                    0f to Color.White.copy(alpha = 0.22f * hexGlow), 0.5f to Color(0xFFFFEB99).copy(alpha = 0.42f * hexGlow), 0.9f to Color(0xFFFFD23F).copy(alpha = 0.62f * hexGlow), 1f to Color.Transparent,
+                    center = c, radius = r,
+                ),
+                r, c,
+            )
+            drawCircle(Color(0xFFFFD23F).copy(alpha = 0.9f * hexGlow), r * 0.9f, c, style = Stroke(max(3f, k * 0.06f)))
+            drawCircle(Color.White.copy(alpha = 0.8f * hexGlow), r * 0.9f, c, style = Stroke(max(1.2f, k * 0.02f)))
         }
     }
     if (zoom != 1f || pan != Offset.Zero) {

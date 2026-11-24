@@ -86,8 +86,13 @@ data class GameState(
     val net: NetInfo? = null,
     val timer: TimerView? = null,
     val heist: HeistInfo? = null,
+    val lastRoll: LastRoll? = null,
     val cutRoads: List<Int> = emptyList(),   // roads an opposing settlement has cut off: they stay, but no longer link to your towns
 )
+
+/** The latest dice roll: the dice, what each player was paid (a map of resource to number per seat), and a counter that goes up with every roll. */
+@Serializable
+data class LastRoll(val dice: List<Int> = emptyList(), val gains: List<Map<String, Int>?> = emptyList(), val seq: Int = 0)
 
 @Serializable
 data class Options(
