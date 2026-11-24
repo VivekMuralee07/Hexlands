@@ -2,6 +2,7 @@ package com.hexlands.app.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -64,12 +65,16 @@ fun HomeScreen(ui: UiState, vm: GameViewModel) {
 
     Box(Modifier.fillMaxSize()) {
     SeaBackground()
+    // The column is at least as tall as the screen (so it is centred when there is room) and scrolls when there is not. A column forced to the screen
+    // height with centred content would push the top of a too-tall page out of reach.
+    BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
+    val screenHeight = maxHeight
     Column(
-        Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = screenHeight).padding(horizontal = 24.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
     ) {
-        Appear(0) { IslandHero(Modifier.fillMaxWidth(0.78f)) }
+        Appear(0) { IslandHero(Modifier.fillMaxWidth(0.68f)) }
         Appear(1) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
@@ -150,6 +155,7 @@ fun HomeScreen(ui: UiState, vm: GameViewModel) {
                 }
             }
         }
+    }
     }
     }
 
