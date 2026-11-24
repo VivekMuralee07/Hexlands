@@ -1,5 +1,7 @@
 package com.hexlands.app.tutorial
 
+import com.hexlands.app.ui.ruleText
+
 import com.hexlands.app.net.Port
 
 // What the tutorial player shows. A chapter is a few steps; a step is a caption and a short timeline of scenes (each scene replaces the one before).
@@ -57,7 +59,7 @@ data class Scene(
 
 data class Frame(val atMs: Long, val scene: Scene)
 data class TutStepScript(val caption: String, val durMs: Long, val frames: List<Frame>)
-data class Chapter(val title: String, val steps: List<TutStepScript>)
+data class Chapter(val title: String, val steps: List<TutStepScript>, val detail: String = "")
 
 private val RES5 = listOf("wood", "brick", "sheep", "wheat", "ore")
 private val RES_LABEL = mapOf("wood" to "Wood", "brick" to "Brick", "sheep" to "Sheep", "wheat" to "Hay", "ore" to "Ore")
@@ -314,5 +316,23 @@ fun buildChapters(r: TutorialRecord): List<Chapter> {
             PanelRow("Chat", note = "Be kind. Report or mute a message you don't like."),
         ))) })),
     ))
-    return ch
+    // the written explanation that goes with each chapter
+    val details = mapOf(
+        "The island" to ("Forest makes wood, hills make brick, pasture makes sheep, fields make hay and mountains make ore. Every tile has a number from 2 to 12; the dots under it show how often it comes up, so 6 and 8 (in red) are the best. The desert makes nothing and is where the robber starts."),
+        "Goal" to (ruleText("Goal")),
+        "Setup" to (ruleText("Setup")),
+        "Roll and collect" to (ruleText("Your turn")),
+        "Building" to (ruleText("Where pieces can go")),
+        "Trading" to ("Tap any card in your hand to open the trade panel. Tap what you want in the top row, then tap cards in your hand for what you give. To trade with the bank, give the number your rate asks for (4 to 1, or better with a harbor) and tap the bank button. To trade with players, tap the players button: each player accepts, declines or answers with a counter-offer, and you choose who to trade with."),
+        "Harbors: 3:1 and 2:1" to ("Harbors sit on the coast and each one touches two corners. Build a settlement or city on one of those corners to use it. A ? harbor makes every bank rate 3 to 1. A resource harbor (2:1) makes only that resource 2 to 1; your other cards keep their rate."),
+        "Buying from the trade window" to (ruleText("Development cards") + "\n\nBuy development cards and the Heist card from the trade panel: the buy buttons appear there only when you hold the cards to pay for them."),
+        "The robber and 7" to (ruleText("Rolling a 7")),
+        "Development cards" to (ruleText("Development cards")),
+        "Longest Road" to (ruleText("Bonuses")),
+        "The Heist" to (ruleText("Heist card")),
+        "Winning" to (ruleText("Goal")),
+        "Special maps" to ("Blue Flame Cup: fog hides tiles; a road that reaches the fog uncovers it and pays you, but a hidden cup burns all your wood, sheep and hay. Hidden Vault: a diamond 8 sits under the fog; when 8 is rolled its towns pick free cards. Hay Hollows: every tile starts as hay, and settling after setup turns the hay next to you into other resources. US 2.0: a giant 144-tile map; slide with one finger, pinch to zoom and tap Fit to see it all."),
+        "Playing online" to (ruleText("Host options") + "\n\n" + ruleText("Bots") + "\n\nQuick play joins an open public game. Create a room and share the code with friends. Everyone taps I\u0027m ready before the host can start. If you lose connection a bot plays for you until you come back; leaving on purpose gives your seat to a bot for good.")
+    )
+    return ch.map { it.copy(detail = details[it.title] ?: "") }
 }

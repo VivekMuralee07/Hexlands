@@ -74,10 +74,13 @@ class ScreenshotTest {
         UiState(session = Session("K7QXM", "t", spectator), board = board, game = game)
 
     @Test fun home() {
-        shot("home") { HomeScreen(UiState(), GameViewModel(app)) }
-        rule.onNodeWithContentDescription("How to play: tutorial and rules").assertExists()
-        rule.onNodeWithContentDescription("Sound effects on").assertExists()
-        rule.onNodeWithContentDescription("Music on").assertExists()
+        var opened = false
+        shot("home") { HomeScreen(UiState(), GameViewModel(app), onTutorial = { opened = true }) }
+        // a tap on the i must reach it (an earlier version had the page drawn over it, so nothing happened), and the sound switches are not on this page
+        rule.onNodeWithContentDescription("How to play: tutorial and rules").performClick(); rule.waitForIdle()
+        assertTrue("tapping the i opens How to play", opened)
+        rule.onNodeWithContentDescription("Sound effects on").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Music on").assertDoesNotExist()
     }
 
     @Test fun lobby() = shot("lobby") { LobbyScreen(state("lobby"), GameViewModel(app)) }
@@ -220,8 +223,8 @@ class ScreenshotTest {
 
     @Test fun theInfoWindowHasTheFullRulesCostsPointsAndSettings() {
         val g = state("main")
-        shot("info") { com.hexlands.app.ui.InfoDialog(g, onClose = {}, onTutorial = {}) }
-        rule.onNodeWithText("▶ Watch the animated tutorial").assertExists()
+        shot("info") { com.hexlands.app.ui.InfoDialog(g, onClose = {}) }
+        rule.onNodeWithText("▶ Watch the animated tutorial").assertDoesNotExist()   // the tutorial is on the front page only
         rule.onNodeWithText("Goal").assertExists()
         rule.onNodeWithText("Costs").performClick(); rule.waitForIdle()
         rule.onNodeWithText("Heist card").assertExists()

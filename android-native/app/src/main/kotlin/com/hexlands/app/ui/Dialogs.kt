@@ -143,10 +143,10 @@ fun LogDialog(game: GameState, onClose: () -> Unit) {
 
 /**
  * The "i" window: the rules of the game in detail. Rules (the full How to play text, the same as on the web game), costs, points and the settings of
- * this game each have a tab; the tutorial is one tap away.
+ * this game each have a tab.
  */
 @Composable
-fun InfoDialog(game: GameState, onClose: () -> Unit, onTutorial: (() -> Unit)? = null) {
+fun InfoDialog(game: GameState, onClose: () -> Unit) {
     var tab by remember { mutableStateOf(0) }
     val tabs = listOf("Rules", "Costs", "Points", "This game")
     AlertDialog(
@@ -160,10 +160,7 @@ fun InfoDialog(game: GameState, onClose: () -> Unit, onTutorial: (() -> Unit)? =
                 }
                 Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     when (tab) {
-                        0 -> {
-                            if (onTutorial != null) GoldButton(onClick = onTutorial, modifier = Modifier.fillMaxWidth()) { Text("▶ Watch the animated tutorial", fontWeight = FontWeight.Bold) }
-                            RulesText()
-                        }
+                        0 -> RulesText()
                         1 -> CostsList()
                         2 -> PointsList(game)
                         else -> ThisGame(game)
