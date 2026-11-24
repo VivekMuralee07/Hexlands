@@ -25,7 +25,7 @@ fun GameSounds(game: GameState, haptic: (String) -> Unit = {}) {
         if (roll != null && roll.seq != p.lastRoll?.seq) {
             Sound.play("dice")
             if (roll.dice.sum() == 7) { delay(900); Sound.play("seven"); haptic("seven") }
-            else if (roll.gains.getOrNull(game.you)?.values?.sum()?.let { it > 0 } == true) { delay(AFTER_DICE_MS + 1500); Sound.play("gain"); haptic("gain") }   // when the first card lands
+            else if (roll.gains.getOrNull(game.you)?.values?.sum()?.let { it > 0 } == true) { delay(AFTER_DICE_MS + FLIGHT_MS); Sound.play("gain"); haptic("gain") }   // when the first card lands
         }
         val (r0, s0, c0) = p.counts(); val (r1, s1, c1) = game.counts()
         val mineToPlace = p.you >= 0 && p.turn == p.you   // only your own pieces are felt, not everyone's

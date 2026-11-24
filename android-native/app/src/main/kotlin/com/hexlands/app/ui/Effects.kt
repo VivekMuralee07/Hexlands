@@ -56,7 +56,7 @@ fun DiceView(dice: List<Int>, roll: Any, modifier: Modifier = Modifier) {
     LaunchedEffect(roll) {
         if (!animate) return@LaunchedEffect
         val job = launch { while (true) { delay(70); tick++ } }
-        t.animateTo(1f, tween(750))
+        t.animateTo(1f, tween(500))
         job.cancel()
     }
     val rolling = t.value < 1f

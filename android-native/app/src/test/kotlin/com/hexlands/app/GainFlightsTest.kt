@@ -29,7 +29,7 @@ class GainFlightsTest {
         val f = gainFlights(board, game(listOf(mapOf("wood" to 2))))
         assertEquals(2, f.size)
         assertTrue(f.all { it.res == "wood" && it.player == 0 && it.tile == forest.id })
-        assertTrue("the cards set off one after another, after the dice", f[0].delayMs > 0 && f[1].delayMs > f[0].delayMs)
+        assertTrue("the first card sets off the moment the dice are rolled and the others follow one after another", f[0].delayMs == 0L && f[1].delayMs > f[0].delayMs)
     }
 
     @Test fun aSevenPaysNothing() {
