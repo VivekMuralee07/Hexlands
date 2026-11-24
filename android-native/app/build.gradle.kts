@@ -61,8 +61,17 @@ val copyRobolectricRuntime = tasks.register<Copy>("copyRobolectricRuntime") {
     from(robolectricRuntime35)
     into(layout.buildDirectory.dir("robolectric-runtime"))
 }
+// -PnoScreenTests=true runs only the tests that need no Android runtime (the server and card tests), without downloading anything for Robolectric.
+val noScreenTests = project.findProperty("noScreenTests") == "true"
 tasks.withType<Test>().configureEach {
-    dependsOn(copyRobolectricRuntime)
+    if (noScreenTests) {
+        filter {
+            excludeTestsMatching("com.hexlands.app.ScreenshotTest")
+            excludeTestsMatching("com.hexlands.app.BoardTapTest")
+        }
+    } else {
+        dependsOn(copyRobolectricRuntime)
+    }
     systemProperty("robolectric.offline", "true")
     systemProperty("robolectric.dependency.dir", layout.buildDirectory.dir("robolectric-runtime").get().asFile.absolutePath)
 }
