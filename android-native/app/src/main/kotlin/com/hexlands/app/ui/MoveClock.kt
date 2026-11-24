@@ -41,17 +41,26 @@ fun clockWho(g: GameState): String {
  * The move timer, as in the web game: a ring that empties, the time left, and whose step it is. Green, then yellow at 10 seconds and red at 5.
  * The server sends how long is left with each state; this counts down from there.
  */
+/** The seconds left on the move timer (counted down from what the server sent with the state), or null when there is no clock. */
 @Composable
-fun MoveClock(game: GameState, modifier: Modifier = Modifier) {
-    val tm = game.timer ?: return
-    val left0 = tm.left ?: return
-    if (tm.limit <= 0 || game.phase == "ended" || game.phase == "lobby") return
+fun rememberSecsLeft(game: GameState): Pair<Int, Float>? {
+    val tm = game.timer ?: return null
+    val left0 = tm.left ?: return null
+    if (tm.limit <= 0 || game.phase == "ended" || game.phase == "lobby") return null
     val received = remember(game) { System.currentTimeMillis() }
     var now by remember(game) { mutableLongStateOf(received) }
     if (LocalAnimate.current) LaunchedEffect(game) { while (true) { now = System.currentTimeMillis(); delay(250) } }
     val leftMs = (left0 - (now - received)).coerceAtLeast(0.0)
-    val secs = kotlin.math.ceil(leftMs / 1000.0).toInt()
-    val frac = (leftMs / (tm.limit * 1000.0)).toFloat().coerceIn(0f, 1f)
+    return kotlin.math.ceil(leftMs / 1000.0).toInt() to (leftMs / (tm.limit * 1000.0)).toFloat().coerceIn(0f, 1f)
+}
+
+/**
+ * The move timer, as in the web game: a ring that empties, the time left, and whose step it is. Green, then yellow at 10 seconds and red at 5.
+ * The server sends how long is left with each state; this counts down from there.
+ */
+@Composable
+fun MoveClock(game: GameState, modifier: Modifier = Modifier) {
+    val (secs, frac) = rememberSecsLeft(game) ?: return
     val color = when { secs <= 5 -> Color(0xFFFF6B57); secs <= 10 -> Color(0xFFFFD23F); else -> Color(0xFF6CF08A) }
     val who = clockWho(game)
     Row(modifier.semantics { contentDescription = "$secs seconds left for $who" }, verticalAlignment = Alignment.CenterVertically) {

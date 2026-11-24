@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.performClick
@@ -156,7 +157,7 @@ class ScreenshotTest {
     @Test fun theMoveTimerShowsTheTimeLeftAndWhoseStepItIs() {
         val g = state("main").copy(timer = com.hexlands.app.net.TimerView(setting = 30, limit = 30, left = 20000.0))
         shot("clock") { GameScreen(ui(g), g, GameViewModel(app), animate = false) }
-        rule.onNodeWithText("0:20").assertExists()
+        rule.onAllNodesWithText("0:20").onFirst().assertExists()
         rule.onNodeWithText("You").assertExists()
     }
 

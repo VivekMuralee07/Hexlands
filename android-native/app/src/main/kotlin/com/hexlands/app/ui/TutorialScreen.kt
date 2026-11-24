@@ -133,9 +133,7 @@ private fun TutorialBoard(board: Board, scene: Scene, colors: List<Color>, me: I
         for (pt in scene.extraHouses) house(fit.at(pt), k * 0.32f * pop("x${pt.x}"), colors.getOrElse(me) { Color.Gray }, false)
         // the robber
         board.tiles.getOrNull(m.robber)?.let { t ->
-            val c = fit.at(Pt(t.x, t.y)) + Offset(0f, -k * 0.05f)
-            drawCircle(Color(0xFF222222), k * 0.16f, c + Offset(0f, k * 0.14f)); drawCircle(Color(0xFF222222), k * 0.1f, c - Offset(0f, k * 0.08f))
-            drawCircle(Color.White.copy(alpha = 0.5f), k * 0.16f, c + Offset(0f, k * 0.14f), style = Stroke(max(1f, k * 0.015f)))
+            robberFigure(fit.at(Pt(t.x, t.y)), k)
         }
         // a harbour and its two corners
         scene.port?.let { p ->

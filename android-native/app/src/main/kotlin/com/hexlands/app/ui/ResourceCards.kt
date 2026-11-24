@@ -42,8 +42,7 @@ private val GOLD_RING = Color(0xFFFFD23F)
 private val CARD_TOP = mapOf("wood" to Color(0xFF47C255), "brick" to Color(0xFFE08A72), "sheep" to Color(0xFFA9DB2A), "wheat" to Color(0xFFF6BC57), "ore" to Color(0xFFA9C4BC))
 private val CARD_BOTTOM = mapOf("wood" to Color(0xFF1F8A2E), "brick" to Color(0xFFB45A44), "sheep" to Color(0xFF6F9F0B), "wheat" to Color(0xFFD38F2A), "ore" to Color(0xFF6C8C86))
 
-private fun DrawScope.logs() {
-    val s = size.minDimension
+private fun DrawScope.logs(s: Float = size.minDimension) {
     fun log(x: Float, y: Float) {
         val w = 0.58f * s; val h = 0.17f * s
         drawRoundRect(Color(0xFF5E3A1A), Offset(x * s, y * s + 2f), Size(w, h), CornerRadius(h / 2))
@@ -58,8 +57,7 @@ private fun DrawScope.logs() {
     log(0.14f, 0.62f); log(0.2f, 0.44f); log(0.12f, 0.26f)
 }
 
-private fun DrawScope.bricks() {
-    val s = size.minDimension
+private fun DrawScope.bricks(s: Float = size.minDimension) {
     fun brick(x: Float, y: Float) {
         val w = 0.27f * s; val h = 0.15f * s
         drawRoundRect(Color(0xFF7A2A18), Offset(x * s, y * s + 1.5f), Size(w, h), CornerRadius(h * 0.2f))
@@ -69,8 +67,7 @@ private fun DrawScope.bricks() {
     brick(0.14f, 0.64f); brick(0.43f, 0.64f); brick(0.28f, 0.47f); brick(0.57f, 0.47f); brick(0.14f, 0.3f); brick(0.43f, 0.3f); brick(0.3f, 0.13f)
 }
 
-private fun DrawScope.sheep() {
-    val s = size.minDimension
+private fun DrawScope.sheep(s: Float = size.minDimension) {
     fun p(x: Float, y: Float) = Offset(x * s, y * s)
     // legs and head first, then the fleece over them
     for (x in listOf(0.38f, 0.5f, 0.64f, 0.74f)) drawRoundRect(Color(0xFF2B2B2B), p(x - 0.02f, 0.62f), Size(0.05f * s, 0.18f * s), CornerRadius(3f))
@@ -82,8 +79,7 @@ private fun DrawScope.sheep() {
     drawCircle(Color.White, 0.02f * s, p(0.22f, 0.48f))
 }
 
-private fun DrawScope.wheat() {
-    val s = size.minDimension
+private fun DrawScope.wheat(s: Float = size.minDimension) {
     fun p(x: Float, y: Float) = Offset(x * s, y * s)
     val ink = Color(0xFF9A6A08); val gold = Color(0xFFF7C948)
     drawLine(ink, p(0.5f, 0.88f), p(0.5f, 0.2f), strokeWidth = 0.035f * s)
@@ -97,8 +93,7 @@ private fun DrawScope.wheat() {
     drawOval(ink, p(0.45f, 0.1f) - Offset(1.2f, 1.2f), Size(0.1f * s + 2.4f, 0.2f * s + 2.4f)); drawOval(gold, p(0.45f, 0.1f), Size(0.1f * s, 0.2f * s))
 }
 
-private fun DrawScope.ore() {
-    val s = size.minDimension
+private fun DrawScope.ore(s: Float = size.minDimension) {
     fun poly(vararg pts: Pair<Float, Float>) = Path().apply { moveTo(pts[0].first * s, pts[0].second * s); for (i in 1 until pts.size) lineTo(pts[i].first * s, pts[i].second * s); close() }
     val body = poly(0.14f to 0.74f, 0.24f to 0.46f, 0.5f to 0.26f, 0.78f to 0.4f, 0.88f to 0.74f, 0.5f to 0.86f)
     drawPath(body, Color(0xFF3F4A56), style = Stroke(3f))
@@ -162,4 +157,10 @@ fun ResourceCard(
             contentAlignment = Alignment.Center,
         ) { Text("$count", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold) }
     }
+}
+
+
+/** A resource's picture drawn into a square of side [s] whose top-left corner is the current origin (used on the harbours of the board). */
+internal fun DrawScope.resourceGlyph(resource: String, s: Float) {
+    when (resource) { "wood" -> logs(s); "brick" -> bricks(s); "sheep" -> sheep(s); "wheat" -> wheat(s); "ore" -> ore(s) }
 }
