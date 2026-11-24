@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -85,19 +86,19 @@ internal fun DrawScope.arrow(c: Color, down: Boolean) {
 
 /** A round button that holds one of the pictures above. */
 @Composable
-internal fun RoundButton(description: String, enabled: Boolean = true, onClick: () -> Unit, strong: Boolean = false, icon: DrawScope.() -> Unit) {
+internal fun RoundButton(description: String, enabled: Boolean = true, onClick: () -> Unit, strong: Boolean = false, icon: DrawScope.() -> Unit) {   // 44 dp: the panel is kept small so the map stays in view
     val face = if (!enabled) Brush.verticalGradient(listOf(Color(0xFF2E5C8E), Color(0xFF244B77))) else Brush.verticalGradient(listOf(Color(0xFF3FC3EA), Color(0xFF1B8FC4)))
     Box(
-        Modifier.size(56.dp).shadow(if (enabled) 6.dp else 0.dp, CircleShape).clip(CircleShape).background(face)
+        Modifier.size(44.dp).shadow(if (enabled) 5.dp else 0.dp, CircleShape).clip(CircleShape).background(face)
             .border(2.dp, Color.White.copy(alpha = if (enabled) 0.95f else 0.35f), CircleShape)
             .clickable(enabled = enabled, onClick = onClick).semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
-    ) { Canvas(Modifier.size(30.dp)) { icon() } }
+    ) { Canvas(Modifier.size(24.dp)) { icon() } }
 }
 
 @Composable
 internal fun Emblem(color: Color, icon: DrawScope.() -> Unit) {
-    Box(Modifier.size(46.dp).clip(CircleShape).background(color), contentAlignment = Alignment.Center) { Canvas(Modifier.size(28.dp)) { icon() } }
+    Box(Modifier.size(32.dp).clip(CircleShape).background(color), contentAlignment = Alignment.Center) { Canvas(Modifier.size(20.dp)) { icon() } }
 }
 
 /**
@@ -118,10 +119,13 @@ fun TradePanel(
     val offerOk = canTrade && give.values.sum() > 0 && get.values.sum() > 0 && giveKinds.none { it in getKinds }
 
     Row(modifier.padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (mine != null) Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Paper).padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Your offer is open", fontWeight = FontWeight.Bold, color = Ink)
-                Text("You give ${resText(mine.give)}.  You get ${resText(mine.get)}.", fontSize = 12.sp, color = Ink)
+        Column(Modifier.weight(1f).heightIn(max = 250.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            if (mine != null) Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Paper).padding(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Your offer is open", Modifier.weight(1f), fontWeight = FontWeight.Bold, color = Ink, fontSize = 13.sp)
+                    GlassTextButton("Cancel offer") { vm.act("cancelTrade") }
+                }
+                Text("You give ${resText(mine.give)}.  You get ${resText(mine.get)}.", fontSize = 11.sp, color = Ink)
                 game.players.forEachIndexed { i, p ->
                     if (i == game.you) return@forEachIndexed
                     val counter = mine.counters[i.toString()]
@@ -139,7 +143,6 @@ fun TradePanel(
                         }
                     }
                 }
-                GlassTextButton("Cancel offer") { vm.act("cancelTrade") }
             }
 
             // Cards you can pay for with what you hold appear here, and only then.
@@ -147,60 +150,57 @@ fun TradePanel(
             val canBuyDev = canTrade && game.devLeft > 0 && game.canAfford(COST_DEV)
             val canBuyHeist = canTrade && heist != null && game.me?.heistBought != true && game.cities() >= heist.need && game.canAfford(heist.cost)
             if (canBuyDev || canBuyHeist) Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Paper).padding(10.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Paper).padding(6.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("You can buy", fontWeight = FontWeight.Bold, color = Ink, fontSize = 13.sp)
-                if (canBuyDev) GoldButton(onClick = { vm.act("buyDev") }, padding = androidx.compose.foundation.layout.PaddingValues(14.dp, 8.dp)) { Text("Development card", fontWeight = FontWeight.Bold, fontSize = 13.sp) }
-                if (canBuyHeist) GoldButton(onClick = { vm.act("buyHeist") }, padding = androidx.compose.foundation.layout.PaddingValues(14.dp, 8.dp)) { Text("Heist card", fontWeight = FontWeight.Bold, fontSize = 13.sp) }
+                if (canBuyDev) GoldButton(onClick = { vm.act("buyDev") }, padding = androidx.compose.foundation.layout.PaddingValues(12.dp, 5.dp)) { Text("Development card", fontWeight = FontWeight.Bold, fontSize = 13.sp) }
+                if (canBuyHeist) GoldButton(onClick = { vm.act("buyHeist") }, padding = androidx.compose.foundation.layout.PaddingValues(12.dp, 5.dp)) { Text("Heist card", fontWeight = FontWeight.Bold, fontSize = 13.sp) }
             }
 
             // what you want: the bank and the players have every kind
-            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Paper).padding(horizontal = 10.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Canvas(Modifier.size(34.dp)) { bankIcon(Color(0xFF8C7A55)) }
-                Row(Modifier.weight(1f).padding(start = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Paper).padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Canvas(Modifier.size(26.dp)) { bankIcon(Color(0xFF8C7A55)) }
+                Row(Modifier.weight(1f).padding(start = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     RESOURCES.forEach { k ->
-                        ResourceCard(k, Modifier.weight(1f), count = get[k]?.takeIf { it > 0 }, onClick = { if ((give[k] ?: 0) == 0) get[k] = (get[k] ?: 0) + 1 })
+                        ResourceCard(k, Modifier.width(42.dp), count = get[k]?.takeIf { it > 0 }, onClick = { if ((give[k] ?: 0) == 0) get[k] = (get[k] ?: 0) + 1 })
                     }
                 }
             }
 
             // the offer so far
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Paper).padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Paper).padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Emblem(Color(0xFFDCE3EE)) { peopleIcon(Color(0xFF5B6B84)) }
-                    Canvas(Modifier.size(width = 26.dp, height = 32.dp)) { arrow(Color(0xFF2FB344), down = true) }
-                    if (getKinds.isEmpty()) Text("Tap what you want above", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Ink.copy(alpha = 0.75f))
+                    Canvas(Modifier.size(width = 18.dp, height = 22.dp)) { arrow(Color(0xFF2FB344), down = true) }
+                    if (getKinds.isEmpty()) Text("Tap what you want above", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Ink.copy(alpha = 0.75f))
                     else Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        getKinds.forEach { k -> ResourceCard(k, Modifier.width(56.dp), count = get[k], onClick = { val n = (get[k] ?: 0) - 1; if (n <= 0) get.remove(k) else get[k] = n }) }
+                        getKinds.forEach { k -> ResourceCard(k, Modifier.width(42.dp), count = get[k], onClick = { val n = (get[k] ?: 0) - 1; if (n <= 0) get.remove(k) else get[k] = n }) }
                     }
                 }
                 Box(Modifier.fillMaxWidth().height(1.dp).background(Ink.copy(alpha = 0.15f)))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Emblem(Color(0xFFD8392B)) { personIcon(Color.White) }
-                    Canvas(Modifier.size(width = 26.dp, height = 32.dp)) { arrow(Color(0xFFD8392B), down = false) }
-                    if (giveKinds.isEmpty()) Text("Tap cards in your hand", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Ink.copy(alpha = 0.75f))
+                    Canvas(Modifier.size(width = 18.dp, height = 22.dp)) { arrow(Color(0xFFD8392B), down = false) }
+                    if (giveKinds.isEmpty()) Text("Tap cards in your hand", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Ink.copy(alpha = 0.75f))
                     else Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        giveKinds.forEach { k -> ResourceCard(k, Modifier.width(56.dp), count = give[k], onClick = { val n = (give[k] ?: 0) - 1; if (n <= 0) give.remove(k) else give[k] = n }) }
+                        giveKinds.forEach { k -> ResourceCard(k, Modifier.width(42.dp), count = give[k], onClick = { val n = (give[k] ?: 0) - 1; if (n <= 0) give.remove(k) else give[k] = n }) }
                     }
                 }
-                Text(
-                    if (!canTrade) "You can trade on your turn, after you roll the dice." else "Pick what you want, then what you give.",
-                    fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Ink,
-                )
+                if (!canTrade) Text("You can trade on your turn, after you roll the dice.", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Ink)
             }
 
             // the bank's prices for what you hold
             val rates = RESOURCES.filter { game.hand(it) >= ratio(it) }
-            if (rates.isNotEmpty()) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(NavyDark).padding(horizontal = 10.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (rates.isNotEmpty()) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(NavyDark).padding(horizontal = 8.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 rates.forEach { k ->
-                    ResourceCard(k, Modifier.width(54.dp), count = game.hand(k) / ratio(k), chip = "${ratio(k)}:1", onClick = {
+                    ResourceCard(k, Modifier.width(42.dp), count = game.hand(k) / ratio(k), chip = "${ratio(k)}:1", onClick = {
                         if ((get[k] ?: 0) == 0) { val have = game.hand(k); val n = (give[k] ?: 0) + ratio(k); give[k] = if (n <= have) n else ratio(k) }
                     })
                 }
             }
         }
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             RoundButton("Trade with the bank", enabled = bankOk, onClick = {
                 val g = giveKinds.first(); val w = getKinds.first(); val times = get.getValue(w)
                 give.clear(); get.clear(); vm.bankTrade(g, w, times)

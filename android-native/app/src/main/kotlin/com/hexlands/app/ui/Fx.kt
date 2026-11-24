@@ -238,36 +238,6 @@ fun PointsFloat(who: String?, points: Int, color: Color, tick: Int, modifier: Mo
     )
 }
 
-/** A light sweep across the players' strip when the turn changes hands, and a banner that names whose move it is. */
-@Composable
-fun TurnSweep(turn: Int, modifier: Modifier = Modifier) {
-    val animate = LocalAnimate.current
-    val p = remember { Animatable(1f) }
-    var first by remember { mutableStateOf(true) }
-    LaunchedEffect(turn) { if (first) { first = false; return@LaunchedEffect }; if (animate) { p.snapTo(0f); p.animateTo(1f, tween(800, easing = FastOutSlowInEasing)) } }
-    if (p.value >= 1f) return
-    Canvas(modifier) {
-        val x = -size.width * 0.3f + p.value * size.width * 1.6f
-        drawRect(Brush.horizontalGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.32f), Color.Transparent), startX = x - size.width * 0.18f, endX = x + size.width * 0.18f))
-    }
-}
-
-@Composable
-fun TurnBanner(name: String?, mine: Boolean, color: Color, tick: Int, modifier: Modifier = Modifier) {
-    if (name == null) return
-    val p = remember(tick) { Animatable(0f) }
-    LaunchedEffect(tick) { p.animateTo(1f, tween(1300)) }
-    if (p.value >= 1f) return
-    val inP = FastOutSlowInEasing.transform((p.value * 4f).coerceAtMost(1f)); val outP = if (p.value > 0.75f) (p.value - 0.75f) * 4f else 0f
-    Text(
-        if (mine) "Your turn!" else "$name's turn",
-        modifier.graphicsLayer { translationX = (-1f + inP) * 220.dp.toPx() + outP * 220.dp.toPx(); alpha = 1f - outP }
-            .clip(RoundedCornerShape(50)).background(Brush.horizontalGradient(listOf(color.copy(alpha = 0.95f), color.copy(alpha = 0.6f)))).border(2.dp, Color.White.copy(alpha = 0.9f), RoundedCornerShape(50))
-            .padding(horizontal = 22.dp, vertical = 8.dp),
-        fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = Color.White,
-    )
-}
-
 /** Dims the board and rings the winner while the game ends, before the results come up. */
 @Composable
 fun EndDim(active: Boolean, modifier: Modifier = Modifier) {
