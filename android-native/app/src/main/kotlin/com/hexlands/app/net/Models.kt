@@ -85,6 +85,7 @@ data class GameState(
     val spectator: Boolean = false,
     val net: NetInfo? = null,
     val timer: TimerView? = null,
+    val heist: HeistInfo? = null,
 )
 
 @Serializable
@@ -173,6 +174,10 @@ data class Legal(
     val roads: List<Int> = emptyList(),
 )
 
+/** The Heist card: what it costs, and how many cities you need before you may buy it (once per game). */
+@Serializable
+data class HeistInfo(val cost: Map<String, Int> = emptyMap(), val need: Int = 3)
+
 @Serializable
 data class UndoInfo(val left: Int = 0)
 
@@ -241,4 +246,5 @@ fun parseColor(hex: String?): Long {
 fun GameState.myPlayer(): PlayerView? = players.getOrNull(you)
 fun GameState.isMyTurn(): Boolean = you >= 0 && turn == you
 fun GameState.hand(res: String): Int = me?.res?.get(res) ?: 0
+fun GameState.cities(): Int = 4 - (myPlayer()?.pieces?.city ?: 4)
 fun GameState.canAfford(cost: Map<String, Int>): Boolean = cost.all { (k, n) -> hand(k) >= n }

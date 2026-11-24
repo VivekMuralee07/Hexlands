@@ -57,14 +57,6 @@ sealed interface Tap {
 /** The spot the player has picked and not yet confirmed. */
 data class Picked(val tap: Tap)
 
-val TERRAIN_COLOR = mapOf(
-    "forest" to Color(0xFF2E7D32), "hills" to Color(0xFFC4572C), "pasture" to Color(0xFF8BC34A), "fields" to Color(0xFFF2C230),
-    "mountains" to Color(0xFF8E9AA6), "desert" to Color(0xFFE3D39A), "fog" to Color(0xFF4A5A70), "goblet" to Color(0xFF7B3FA0), "diamond" to Color(0xFF4DD0E1),
-)
-val RESOURCE_COLOR = mapOf(
-    "wood" to Color(0xFF2E7D32), "brick" to Color(0xFFC4572C), "sheep" to Color(0xFF8BC34A), "wheat" to Color(0xFFF2C230), "ore" to Color(0xFF8E9AA6),
-)
-private val SEA = Color(0xFF0A68A6)
 private val GOLD = Color(0xFFFFD23F)
 
 private class Bounds(val minX: Double, val minY: Double, val maxX: Double, val maxY: Double) {
@@ -164,36 +156,9 @@ fun BoardCanvas(
                 detectTapGestures(onTap = { tapNow.value(it) })
             },
     ) {
-        drawRect(SEA)
         if (size.width == 0) return@Canvas
         val k = scale()
-        // hexes
-        for (t in board.tiles) {
-            val pts = t.vertices.mapNotNull { board.vertices.getOrNull(it) }.map { screen(it.x, it.y) }
-            if (pts.size < 3) continue
-            val path = Path().apply { moveTo(pts[0].x, pts[0].y); for (i in 1 until pts.size) lineTo(pts[i].x, pts[i].y); close() }
-            drawPath(path, TERRAIN_COLOR[t.terrain] ?: Color(0xFF607080))
-            drawPath(path, Color.White.copy(alpha = 0.55f), style = Stroke(width = max(1f, k * 0.035f)))
-        }
-        // harbours
-        for (p in board.ports) {
-            val c = screen(p.x, p.y)
-            for (end in p.vx) if (end.size == 2) drawLine(Color.White.copy(alpha = 0.8f), c, screen(end[0], end[1]), strokeWidth = max(1f, k * 0.04f))
-            drawCircle(RESOURCE_COLOR[p.type] ?: Color(0xFFEEEEEE), k * 0.2f, c)
-            drawCircle(Color.White, k * 0.2f, c, style = Stroke(max(1f, k * 0.03f)))
-            centeredText(measurer, if (p.type == "any") "3:1" else "2:1", c, TextStyle(fontSize = (k * 0.17f).coerceIn(10f, 34f).toSp(), color = Color.Black, fontWeight = FontWeight.Bold))
-        }
-        // number tokens
-        for (t in board.tiles) {
-            val n = t.number ?: continue
-            val c = screen(t.x, t.y)
-            val hot = n == 6 || n == 8
-            drawCircle(Color(0xFFF7EFD6), k * 0.34f, c)
-            drawCircle(Color(0xFF8A7A50), k * 0.34f, c, style = Stroke(max(1f, k * 0.02f)))
-            centeredText(measurer, n.toString(), c - Offset(0f, k * 0.05f), TextStyle(fontSize = (k * 0.34f).coerceIn(14f, 60f).toSp(), color = if (hot) Color(0xFFC62828) else Color(0xFF222222), fontWeight = FontWeight.Bold))
-            val pips = 6 - abs(7 - n)
-            for (i in 0 until pips) drawCircle(if (hot) Color(0xFFC62828) else Color(0xFF444444), k * 0.022f, c + Offset((i - (pips - 1) / 2f) * k * 0.07f, k * 0.2f))
-        }
+        drawBoardArt(board, screen(0.0, 0.0), k, measurer)
         // roads
         for ((eid, seat) in game.roads) {
             val e = board.edges.getOrNull(eid.toIntOrNull() ?: continue) ?: continue

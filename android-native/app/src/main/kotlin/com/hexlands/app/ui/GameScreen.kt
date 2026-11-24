@@ -77,7 +77,7 @@ fun bannerText(g: GameState): String {
         "discard" -> { val n = g.pendingDiscards[g.you.toString()] ?: 0; if (n > 0) "A seven! Discard $n cards" else "A seven! Waiting for players to discard" }
         "robber" -> if (mine) "Move the robber: tap a ringed hex" else "$cur is moving the robber"
         "roadBuilding" -> if (mine) "Place ${g.freeRoads} free road${if (g.freeRoads == 1) "" else "s"}" else "$cur is placing free roads"
-        "diamond" -> "Choosing diamond cards…"
+        "diamond" -> { val n = g.pendingDiamond[g.you.toString()] ?: 0; if (n > 0) "The diamond opens! Choose $n cards from the bank" else "The diamond opens: players are choosing their cards" }
         else -> if (mine) (if (!g.rolled) "Your turn: roll the dice" else "Build, trade, or end your turn") else "$cur's turn"
     }
 }
@@ -113,6 +113,7 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
     var picked by remember { mutableStateOf<Tap?>(null) }
     var dialog by remember { mutableStateOf<GameDialog?>(null) }
     var showResults by remember { mutableStateOf(true) }
+    var heistMode by remember { mutableStateOf(false) }   // choosing an opponent's settlement to steal
 
     // A buzz when it becomes your move.
     val needs = needsMe(game)
@@ -122,8 +123,10 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
         wasNeeded = needs
     }
 
-    val cornerSpots = (legal.settlements + legal.cities).toSet()
-    val roadSpots = legal.roads.toSet()
+    val heistTargets = game.buildings.filter { (_, b) -> b.p != game.you && b.type == "settlement" }.keys.mapNotNull { it.toIntOrNull() }.toSet()
+    LaunchedEffect(myTurn, game.subphase) { if (!myTurn || game.subphase != null) heistMode = false }
+    val cornerSpots = if (heistMode) heistTargets else (legal.settlements + legal.cities).toSet()
+    val roadSpots = if (heistMode) emptySet() else legal.roads.toSet()
     val hexSpots = if (game.subphase == "robber" && myTurn) (game.robberOptions ?: emptyList()).toSet() else emptySet()
     val pickedNow = picked?.takeIf { (it is Tap.Corner && it.id in cornerSpots) || (it is Tap.Road && it.id in roadSpots) }
 
@@ -142,7 +145,7 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
     Column(Modifier.fillMaxSize()) {
         PlayersStrip(game)
         Text(
-            bannerText(game) + if (ui.reconnecting) "  ·  Reconnecting…" else "",
+            (if (heistMode) "Heist: tap an opponent's settlement to steal it" else bannerText(game)) + if (ui.reconnecting) "  ·  Reconnecting…" else "",
             Modifier.fillMaxWidth().background(NavyDark).padding(horizontal = 12.dp, vertical = 6.dp),
             color = Gold, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
         )
@@ -174,25 +177,32 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
             }
         }
 
+        if (heistMode && pickedNow == null) {
+            Row(Modifier.fillMaxWidth().background(NavyDark).padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(if (heistTargets.isEmpty()) "No opponent has a settlement to steal." else "Tap one of the glowing settlements.", Modifier.weight(1f), fontWeight = FontWeight.Bold)
+                OutlinedButton(onClick = { heistMode = false }) { Text("Cancel") }
+            }
+        }
         // Confirm the spot you tapped.
         if (pickedNow != null) {
             val what = when {
+                heistMode -> "heist"
                 pickedNow is Tap.Road -> "road"
                 pickedNow is Tap.Corner && pickedNow.id in legal.cities -> "city"
                 else -> "settlement"
             }
             Row(Modifier.fillMaxWidth().background(NavyDark).padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Build a $what here?", Modifier.weight(1f), fontWeight = FontWeight.Bold)
+                Text(if (what == "heist") "Steal this settlement?" else "Build a $what here?", Modifier.weight(1f), fontWeight = FontWeight.Bold)
                 OutlinedButton(onClick = { picked = null }) { Text("Cancel") }
                 Button(onClick = {
                     val p = pickedNow
                     picked = null
                     when (p) {
+                        is Tap.Corner -> if (what == "heist") { heistMode = false; vm.act("playDev") { put("card", "heist"); put("vertex", p.id) } } else vm.act(if (what == "city") "city" else "settle") { put("vertex", p.id) }
                         is Tap.Road -> vm.act("road") { put("edge", p.id) }
-                        is Tap.Corner -> vm.act(if (what == "city") "city" else "settle") { put("vertex", p.id) }
                         else -> {}
                     }
-                }) { Text("Build") }
+                }) { Text(if (what == "heist") "Steal" else "Build") }
             }
         }
 
@@ -212,12 +222,16 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
     if (!spectating && game.subphase == "discard" && (game.pendingDiscards[game.you.toString()] ?: 0) > 0) {
         DiscardDialog(game) { res -> vm.act("discard") { put("res", kotlinx.serialization.json.buildJsonObject { res.forEach { (k, n) -> if (n > 0) put(k, n) } }) } }
     }
+    if (!spectating && game.subphase == "diamond" && (game.pendingDiamond[game.you.toString()] ?: 0) > 0) {
+        DiamondDialog(game) { picks -> vm.act("diamond") { put("res", buildJsonArray { picks.forEach { add(it) } }) } }
+    }
     when (val d = dialog) {
         is GameDialog.Steal -> StealDialog(d.victims, onClose = { dialog = null }) { v -> dialog = null; vm.act("robber") { put("tile", d.tile); put("victim", v) } }
         is GameDialog.Bank -> BankDialog(game, d.give, onClose = { dialog = null }) { give, get, times -> dialog = null; vm.bankTrade(give, get, times) }
-        is GameDialog.Dev -> DevDialog(game, onClose = { dialog = null }) { card ->
+        is GameDialog.Dev -> DevDialog(game, hasHeistTargets = heistTargets.isNotEmpty(), onClose = { dialog = null }, onBuyHeist = { dialog = null; vm.act("buyHeist") }) { card ->
             dialog = null
             when (card) {
+                "heist" -> { heistMode = true; picked = null }
                 "monopoly", "yearOfPlenty" -> dialog = GameDialog.Pick(card)
                 else -> vm.act("playDev") { put("card", card) }
             }

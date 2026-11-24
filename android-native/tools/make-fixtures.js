@@ -52,6 +52,36 @@ while (g.subphase) { if (g.subphase === 'robber') g.act(me, { type: 'robber', ti
 g.players[me].res = { wood: 3, brick: 3, sheep: 2, wheat: 3, ore: 3 };
 save('main', g.view(me));
 
+// 3b. a Heist card in hand: three cities built (the engine counts pieces left), the card bought and ready to play
+{
+  const saved = { city: g.players[me].pieces.city, bought: g.players[me].heistBought, dev: g.players[me].dev.slice() };
+  g.players[me].pieces.city = 1; g.players[me].heistBought = true; g.players[me].dev = [{ type: 'heist', turn: 0 }, { type: 'knight', turn: 0 }, { type: 'knight', turn: g.turnNumber }];
+  save('heist', g.view(me));
+  g.players[me].pieces.city = saved.city; g.players[me].heistBought = saved.bought; g.players[me].dev = saved.dev;
+}
+
+// 3c. the Hidden Vault map: fog, with the diamond and a Blue Flame Cup uncovered; then the diamond opening
+{
+  const v = new Game({ code: 'VAULT', map: maps.generatePreset('hiddenvault', 5), rng: maps.makeRng(6) });
+  v.rng = maps.makeRng(7);
+  names.forEach((n, i) => v.addPlayer(n, 't' + i));
+  v.players.forEach((p, i) => { if (i > 0) p.bot = 'easy'; p.connected = true; });
+  v.act(0, { type: 'start' });
+  const m = v.indexOf('t0');
+  while (v.phase === 'setup') {
+    const pi = v.turn, x = v.view(pi).legal.settlements[0];
+    v.act(pi, { type: 'settle', vertex: x });
+    v.act(pi, { type: 'road', edge: v.view(pi).legal.roads[0] });
+  }
+  const d = v.board.tiles.findIndex(t => t.terrain === 'diamond'), cup = v.board.tiles.findIndex(t => t.terrain === 'goblet');
+  v.revealed.add(d); v.revealed.add(cup); v.boardVersion++;
+  save('board_vault', v.boardView());
+  save('vault', v.view(m));
+  v.players[m].res = { wood: 1, brick: 1, sheep: 1, wheat: 1, ore: 1 };
+  v.subphase = 'diamond'; v.pendingDiamond = { [m]: 3 };
+  save('diamond', v.view(m));
+}
+
 // 4. the end: results
 g.players[me].vp = 10;
 g.phase = 'ended'; g.winner = me;

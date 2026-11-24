@@ -15,7 +15,10 @@ import com.hexlands.app.net.Board
 import com.hexlands.app.net.GameState
 import com.hexlands.app.net.HexJson
 import com.hexlands.app.net.Session
+import com.hexlands.app.ui.BoardCanvas
+import com.hexlands.app.ui.DiamondBody
 import com.hexlands.app.ui.GameScreen
+import com.hexlands.app.ui.Tap
 import com.hexlands.app.ui.HexlandsTheme
 import com.hexlands.app.ui.HomeScreen
 import com.hexlands.app.ui.LobbyScreen
@@ -58,7 +61,7 @@ class ScreenshotTest {
         File(dir, "$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
-    private fun ui(game: GameState, spectator: Boolean = false) =
+    private fun ui(game: GameState, spectator: Boolean = false, board: Board = this.board) =
         UiState(session = Session("K7QXM", "t", spectator), board = board, game = game)
 
     @Test fun home() = shot("home") { HomeScreen(UiState(), GameViewModel(app)) }
@@ -87,5 +90,24 @@ class ScreenshotTest {
     @Test fun spectatorView() {
         val g = state("spectator")
         shot("spectator") { GameScreen(ui(g, spectator = true), g, GameViewModel(app), animate = false) }
+    }
+
+    @Test fun hiddenVaultWithTheDiamondAndTheBlueFlameCup() {
+        val b = HexJson.decodeFromString(Board.serializer(), text("board_vault"))
+        val g = state("vault")
+        assertTrue("the diamond and the cup are uncovered", b.tiles.any { it.terrain == "diamond" } && b.tiles.any { it.terrain == "goblet" } && b.tiles.any { it.terrain == "fog" })
+        shot("vault") { GameScreen(ui(g, board = b), g, GameViewModel(app), animate = false) }
+    }
+
+    @Test fun theDiamondPicker() {
+        val g = state("diamond")
+        shot("diamond") { DiamondBody(g, 3, listOf("wood", "ore"), {}, {}) }
+    }
+
+    @Test fun heistTargetsGlowOnOpponentSettlements() {
+        val g = state("heist")
+        val targets = g.buildings.filter { (_, b) -> b.p != g.you && b.type == "settlement" }.keys.map { it.toInt() }.toSet()
+        assertTrue("opponents have settlements", targets.size >= 3)
+        shot("heist") { BoardCanvas(board, g, targets, emptySet(), emptySet(), Tap.Corner(targets.first()), {}, animate = false) }
     }
 }

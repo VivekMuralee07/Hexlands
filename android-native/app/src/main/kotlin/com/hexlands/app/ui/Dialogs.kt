@@ -27,6 +27,8 @@ import androidx.compose.ui.unit.sp
 import com.hexlands.app.net.GameState
 import com.hexlands.app.net.RESOURCES
 import com.hexlands.app.net.RESOURCE_LABEL
+import com.hexlands.app.net.canAfford
+import com.hexlands.app.net.cities
 import com.hexlands.app.net.hand
 
 /** A seven was rolled and you hold too many cards: choose which to give back. Cannot be dismissed; the server asks for exactly this many. */
@@ -118,29 +120,46 @@ private val DEV_TEXT = mapOf(
     "roadBuilding" to "Build two roads for free.",
     "yearOfPlenty" to "Take any two resources from the bank.",
     "monopoly" to "Name a resource: every other player gives you all of theirs.",
-    "heist" to "Steal an opponent's settlement (play it from the web version for now).",
+    "heist" to "Steal an opponent's settlement and make it yours.",
 )
 
-/** Your development cards, and Play for the ones that can be played now. */
+/** Your development cards, Play for the ones that can be played now, and buying the Heist card (once per game, after enough cities). */
 @Composable
-fun DevDialog(game: GameState, onClose: () -> Unit, onPlay: (String) -> Unit) {
+fun DevDialog(game: GameState, hasHeistTargets: Boolean, onClose: () -> Unit, onBuyHeist: () -> Unit, onPlay: (String) -> Unit) {
     val cards = game.me?.dev ?: emptyList()
     val groups = cards.groupBy { it.type }
-    val canPlayNow = game.phase == "main" && game.isMine() && game.subphase == null && !game.devPlayed
+    val mine = game.isMine()
+    val canPlayNow = game.phase == "main" && mine && game.subphase == null && !game.devPlayed
+    val heist = game.heist
+    val cities = game.cities()
+    val boughtHeist = game.me?.heistBought == true
+    val canBuyHeist = !boughtHeist && heist != null && cities >= heist.need && mine && game.phase == "main" && game.rolled && game.subphase == null && game.canAfford(heist.cost)
     AlertDialog(
         onDismissRequest = onClose,
         title = { Text("Development cards") },
         text = {
-            if (groups.isEmpty()) Text("You have none yet. Buy one for sheep, hay and ore.")
-            else LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (heist != null && !boughtHeist) item {
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Heist card", Modifier.weight(1f), fontWeight = FontWeight.Bold)
+                            Button(onClick = onBuyHeist, enabled = canBuyHeist) { Text("Buy") }
+                        }
+                        Text("${DEV_TEXT["heist"]} Costs ${resText(heist.cost)}. You need ${heist.need} cities first (you have $cities), and you can buy it once per game.", fontSize = 12.sp, color = FoamDim)
+                    }
+                }
+                if (groups.isEmpty()) item { Text("You have no cards yet. Buy one for sheep, hay and ore.") }
                 items(groups.entries.toList()) { (type, list) ->
                     val ready = list.count { !it.fresh }
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("${DEV_NAME[type] ?: type} × ${list.size}", Modifier.weight(1f), fontWeight = FontWeight.Bold)
-                            val playable = type != "vp" && type != "heist" && canPlayNow && ready > 0
+                            val playable = type != "vp" && canPlayNow && ready > 0 && (type != "heist" || hasHeistTargets)
                             if (playable) Button(onClick = { onPlay(type) }) { Text("Play") }
-                            else if (type != "vp") Text(if (type == "heist") "" else if (ready == 0) "Next turn" else if (!canPlayNow) "On your turn" else "", fontSize = 12.sp, color = FoamDim)
+                            else if (type != "vp") Text(
+                                when { ready == 0 -> "Next turn"; !canPlayNow -> "On your turn"; type == "heist" && !hasHeistTargets -> "Nothing to steal"; else -> "" },
+                                fontSize = 12.sp, color = FoamDim,
+                            )
                         }
                         Text(DEV_TEXT[type] ?: "", fontSize = 12.sp, color = FoamDim)
                     }
@@ -234,5 +253,36 @@ fun ResultsBody(game: GameState, spectating: Boolean) {
             }
         }
         if (spectating) Text("You watched this game.", color = FoamDim, fontSize = 12.sp)
+    }
+}
+
+/** The diamond has opened: pick your cards from the bank (as many as you earned, or as many as the bank has). Cannot be dismissed. */
+@Composable
+fun DiamondDialog(game: GameState, onSend: (List<String>) -> Unit) {
+    val picks = remember { mutableStateOf(listOf<String>()) }
+    val need = game.pendingDiamond[game.you.toString()] ?: 0
+    val n = minOf(need, RESOURCES.sumOf { game.bank[it] ?: 0 })
+    AlertDialog(
+        onDismissRequest = {},
+        title = { Text("The diamond opens!") },
+        text = { DiamondBody(game, n, picks.value, onPick = { picks.value = picks.value + it }, onClear = { picks.value = emptyList() }) },
+        confirmButton = { Button(onClick = { onSend(picks.value) }, enabled = picks.value.size == n) { Text("Take cards") } },
+    )
+}
+
+@Composable
+fun DiamondBody(game: GameState, n: Int, picks: List<String>, onPick: (String) -> Unit, onClear: () -> Unit) {
+    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Choose $n card${if (n == 1) "" else "s"} from the bank. You can take the same kind more than once.")
+        RESOURCES.forEach { k ->
+            val left = (game.bank[k] ?: 0) - picks.count { it == k }
+            OutlinedButton(onClick = { onPick(k) }, enabled = picks.size < n && left > 0, modifier = Modifier.fillMaxWidth()) {
+                Text("${RESOURCE_LABEL[k]}   (${picks.count { it == k }} chosen, $left in the bank)")
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("${picks.size} of $n chosen", Modifier.weight(1f), color = if (picks.size == n) Good else FoamDim)
+            TextButton(onClick = onClear, enabled = picks.isNotEmpty()) { Text("Clear") }
+        }
     }
 }

@@ -39,55 +39,16 @@ import java.net.URL
  * It starts `node server.js` on a free port with an in-memory database, so nothing is stored. Skipped when `node` is not installed.
  */
 class ServerIntegrationTest {
-    private var process: Process? = null
-    private lateinit var base: String
+    private lateinit var server: TestServer
     private lateinit var api: HexApi
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val pid = "a".repeat(32)
 
     @Before
-    fun startServer() {
-        val root = generateSequence(File("").absoluteFile) { it.parentFile }.firstOrNull { File(it, "server.js").exists() && File(it, "game.js").exists() }
-        assumeTrue("the game server (server.js) was not found above ${File("").absolutePath}", root != null)
-        val node = runCatching { ProcessBuilder("node", "--version").redirectErrorStream(true).start().also { it.waitFor() }.exitValue() == 0 }.getOrDefault(false)
-        assumeTrue("node is not installed", node)
-        val port = ServerSocket(0).use { it.localPort }
-        base = "http://127.0.0.1:$port"
-        val pb = ProcessBuilder("node", "server.js").directory(root).redirectErrorStream(true)
-        pb.environment().apply { put("PORT", port.toString()); put("DB_PATH", ":memory:"); put("BOT_DELAY_MS", "0") }
-        process = pb.start()
-        Thread { process!!.inputStream.bufferedReader().forEachLine { } }.apply { isDaemon = true; start() }   // keep the pipe empty
-        val until = System.currentTimeMillis() + 20_000
-        while (System.currentTimeMillis() < until) {
-            val ok = runCatching { (URL("$base/healthz").openConnection() as HttpURLConnection).responseCode == 200 }.getOrDefault(false)
-            if (ok) break
-            Thread.sleep(100)
-        }
-        api = HexApi(base, pid)
-    }
+    fun startServer() { server = TestServer.startOrSkip(); api = HexApi(server.base, pid) }
 
     @After
-    fun stopServer() { scope.cancel(); process?.destroy() }
-
-    /** Collects the live stream of a session: the newest board and state. */
-    private class Watcher(api: HexApi, session: Session, scope: CoroutineScope) {
-        val state = MutableStateFlow<GameState?>(null)
-        val board = MutableStateFlow<Board?>(null)
-        val closed = MutableStateFlow<String?>(null)
-        init {
-            api.events(session).onEach {
-                when (it) {
-                    is StreamEvent.StateMsg -> state.value = it.state
-                    is StreamEvent.BoardMsg -> board.value = it.board
-                    is StreamEvent.Closed -> closed.value = it.reason
-                    else -> {}
-                }
-            }.launchIn(scope)
-        }
-        suspend fun until(timeoutMs: Long = 15_000, what: String = "the state", pred: (GameState) -> Boolean): GameState =
-            try { withTimeout(timeoutMs) { state.first { it != null && pred(it) }!! } }
-            catch (e: kotlinx.coroutines.TimeoutCancellationException) { throw AssertionError("timed out waiting for $what; last state: phase=${state.value?.phase} turn=${state.value?.turn}") }
-    }
+    fun stopServer() { scope.cancel(); if (::server.isInitialized) server.close() }
 
     @Test
     fun playsThroughSetupAndTheFirstTurnsAgainstBots() = runBlocking {
