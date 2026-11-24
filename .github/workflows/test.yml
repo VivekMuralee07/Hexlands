@@ -67,6 +67,22 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
+      # The screen tests (Robolectric) download an Android runtime (about 350 MB) from Maven Central the first time. Maven Central sometimes refuses
+      # those big repeated downloads from shared build machines (HTTP 429), which failed all the screen tests at once. So: keep the files between
+      # runs, and fetch them in their own step that tries again, before the real tests start.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: robolectric-${{ hashFiles('android-native/gradle/libs.versions.toml') }}
+      - name: Download the Android runtime for the screen tests
+        working-directory: android-native
+        run: |
+          for attempt in 1 2 3 4; do
+            ./gradlew --no-daemon -q :app:testDebugUnitTest --tests '*BoardTapTest*' && exit 0
+            echo "The tests could not run (attempt $attempt of 4), usually because the download was refused. Trying again in 30 seconds."
+            sleep 30
+          done
+          exit 1
       - name: Build and test the Android app
         working-directory: android-native
         run: ./gradlew --no-daemon assembleDebug testDebugUnitTest
