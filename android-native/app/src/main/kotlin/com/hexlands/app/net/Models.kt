@@ -87,6 +87,7 @@ data class GameState(
     val timer: TimerView? = null,
     val heist: HeistInfo? = null,
     val lastRoll: LastRoll? = null,
+    val diceCounts: List<Int> = emptyList(),   // how often each total (index 2 to 12) was rolled this game
     val cutRoads: List<Int> = emptyList(),   // roads an opposing settlement has cut off: they stay, but no longer link to your towns
 )
 
@@ -121,6 +122,7 @@ data class PlayerView(
     val roadLen: Int = 0,
     val stats: Stats = Stats(),
     val res: Map<String, Int>? = null,     // only in a finished game
+    val devReveal: List<String>? = null,   // the development cards held, shown only in a finished game (hidden Victory Point cards count)
 )
 
 @Serializable
@@ -133,6 +135,11 @@ data class Stats(
     val bankTrades: Int = 0,
     val playerTrades: Int = 0,
     val sevens: Int = 0,
+    val lostToRobber: Int = 0,
+    val discarded: Int = 0,
+    val devBought: Int = 0,
+    val devPlayed: Int = 0,
+    val robberOn: Int = 0,           // times the robber was set on a tile where this player had a town
 )
 
 @Serializable

@@ -65,18 +65,27 @@ data class Picked(val tap: Tap)
 
 private val GOLD = Color(0xFFFFD23F)
 
-private class Bounds(val minX: Double, val minY: Double, val maxX: Double, val maxY: Double) {
+/** The part of the board that must be on the screen, in board units. */
+internal class Bounds(val minX: Double, val minY: Double, val maxX: Double, val maxY: Double) {
     val w get() = maxX - minX
     val h get() = maxY - minY
     val cx get() = (minX + maxX) / 2
     val cy get() = (minY + maxY) / 2
 }
 
-private fun boundsOf(board: Board): Bounds {
-    val xs = board.vertices.map { it.x } + board.ports.map { it.x }
-    val ys = board.vertices.map { it.y } + board.ports.map { it.y }
-    if (xs.isEmpty()) return Bounds(-1.0, -1.0, 1.0, 1.0)
-    return Bounds(xs.min() - 0.9, ys.min() - 0.9, xs.max() + 0.9, ys.max() + 0.9)
+/**
+ * The board fitted as tightly as it can be: the hex corners with a little room for the coast, and the harbour ships (which stand out from the coast, with a mast above
+ * them) where they stick out. The margin used to be the same on every side and 0.9 wide, which left a wide empty frame round the island.
+ */
+internal fun boundsOf(board: Board): Bounds {
+    if (board.vertices.isEmpty()) return Bounds(-1.0, -1.0, 1.0, 1.0)
+    var minX = board.vertices.minOf { it.x } - 0.45; var maxX = board.vertices.maxOf { it.x } + 0.45
+    var minY = board.vertices.minOf { it.y } - 0.45; var maxY = board.vertices.maxOf { it.y } + 0.45
+    for (p in board.ports) {
+        minX = minOf(minX, p.x - 0.55); maxX = maxOf(maxX, p.x + 0.55)
+        minY = minOf(minY, p.y - 0.85); maxY = maxOf(maxY, p.y + 0.5)
+    }
+    return Bounds(minX, minY, maxX, maxY)
 }
 
 private fun distToSegment(p: Offset, a: Offset, b: Offset): Float {

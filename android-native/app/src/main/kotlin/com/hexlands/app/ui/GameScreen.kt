@@ -123,7 +123,7 @@ private sealed interface GameDialog {
 }
 
 @Composable
-fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean = true, tradeOpenAtStart: Boolean = false, onTutorial: (() -> Unit)? = null, strikeAtStart: Boolean = false) {
+fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean = true, tradeOpenAtStart: Boolean = false, strikeAtStart: Boolean = false) {
     val board = ui.board
     val context = LocalContext.current
     val spectating = game.spectator || ui.session?.spectator == true
@@ -195,7 +195,7 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
     LaunchedEffect(rollSeq) {
         if (rollSeq != null && rollSeq != seenStrikeRoll) {
             seenStrikeRoll = rollSeq
-            if (game.lastRoll?.dice?.sum() == 7) { strike = true; delay(3200); strike = false }
+            if (game.lastRoll?.dice?.sum() == 7) { strike = true; delay(2000); strike = false }
         }
     }
     var rootPos by remember { mutableStateOf(Offset.Zero) }
@@ -380,11 +380,16 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
             }
         }
         is GameDialog.Log -> LogDialog(game) { dialog = null }
-        is GameDialog.Info -> InfoDialog(game, onClose = { dialog = null }, onTutorial = onTutorial?.let { open -> { dialog = null; open() } })
+        is GameDialog.Info -> InfoDialog(game, onClose = { dialog = null })
         null -> {}
     }
     if (game.phase == "ended" && showResults) {
-        ResultsDialog(game, spectating, onAgain = { vm.act("rematch") }, onLeave = { vm.leave() }, onClose = { showResults = false })
+        val won = !spectating && game.winner == game.you
+        LaunchedEffect(game.code, game.turnNumber) { if (!spectating) vm.prefs.recordResult("${game.code}-${game.turnNumber}", won) }
+        GameOverScreen(
+            game, spectating, vm.prefs.recordGames, vm.prefs.recordWins,
+            onAgain = { vm.act("rematch") }, onLeave = { vm.leave() }, onViewBoard = { showResults = false },
+        )
     }
     LaunchedEffect(game.phase) { if (game.phase == "ended") showResults = true }
 }

@@ -28,6 +28,7 @@ import com.hexlands.app.ui.GameOptions
 import com.hexlands.app.ui.GameScreen
 import com.hexlands.app.ui.Tap
 import com.hexlands.app.ui.HexlandsTheme
+import com.hexlands.app.ui.finishingOrder
 import com.hexlands.app.ui.HomeScreen
 import com.hexlands.app.ui.LeaderboardScreen
 import com.hexlands.app.ui.LobbyScreen
@@ -74,10 +75,13 @@ class ScreenshotTest {
         UiState(session = Session("K7QXM", "t", spectator), board = board, game = game)
 
     @Test fun home() {
-        shot("home") { HomeScreen(UiState(), GameViewModel(app)) }
-        rule.onNodeWithContentDescription("How to play: tutorial and rules").assertExists()
-        rule.onNodeWithContentDescription("Sound effects on").assertExists()
-        rule.onNodeWithContentDescription("Music on").assertExists()
+        var opened = false
+        shot("home") { HomeScreen(UiState(), GameViewModel(app), onTutorial = { opened = true }) }
+        // a tap on the i must reach it (an earlier version had the page drawn over it, so nothing happened), and the sound switches are not on this page
+        rule.onNodeWithContentDescription("How to play: tutorial and rules").performClick(); rule.waitForIdle()
+        assertTrue("tapping the i opens How to play", opened)
+        rule.onNodeWithContentDescription("Sound effects on").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Music on").assertDoesNotExist()
     }
 
     @Test fun lobby() = shot("lobby") { LobbyScreen(state("lobby"), GameViewModel(app)) }
@@ -98,7 +102,12 @@ class ScreenshotTest {
         val base = state("ended")
         val points = listOf(10, 6, 7, 5)   // the fixture game is only a few turns old: give the finished game believable scores
         val g = base.copy(players = base.players.mapIndexed { i, p -> p.copy(vp = points[i]) }, turnNumber = 87)
-        shot("ended") { ResultsBody(g, spectating = false) }
+        val withDice = g.copy(diceCounts = listOf(0, 0, 2, 4, 6, 9, 12, 14, 11, 9, 8, 5, 3))
+        shot("ended") { com.hexlands.app.ui.GameOverScreen(withDice, false, 5, 2, {}, {}, {}) }
+        rule.onNodeWithText("Final standings").assertExists()
+        rule.onNodeWithText("Play again").assertExists()
+        rule.onNodeWithText("View board").assertExists()
+        assertEquals(0, withDice.finishingOrder().first().let { if (it == withDice.winner) 0 else 1 })
     }
 
     @Test fun spectatorView() {
@@ -220,8 +229,8 @@ class ScreenshotTest {
 
     @Test fun theInfoWindowHasTheFullRulesCostsPointsAndSettings() {
         val g = state("main")
-        shot("info") { com.hexlands.app.ui.InfoDialog(g, onClose = {}, onTutorial = {}) }
-        rule.onNodeWithText("▶ Watch the animated tutorial").assertExists()
+        shot("info") { com.hexlands.app.ui.InfoDialog(g, onClose = {}) }
+        rule.onNodeWithText("▶ Watch the animated tutorial").assertDoesNotExist()   // the tutorial is on the front page only
         rule.onNodeWithText("Goal").assertExists()
         rule.onNodeWithText("Costs").performClick(); rule.waitForIdle()
         rule.onNodeWithText("Heist card").assertExists()

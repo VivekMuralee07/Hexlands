@@ -30,6 +30,15 @@ class Prefs(context: Context) {
         get() = p.getBoolean("vibrate", true)
         set(v) { p.edit().putBoolean("vibrate", v).apply() }
 
+    /** Your record on this device: games finished and games won. A game is counted once (the key is the room and its turn number). */
+    val recordGames: Int get() = p.getInt("recordGames", 0)
+    val recordWins: Int get() = p.getInt("recordWins", 0)
+    fun recordResult(key: String, won: Boolean) {
+        val seen = (p.getString("recordSeen", "") ?: "").split(",").filter { it.isNotEmpty() }
+        if (key in seen) return
+        p.edit().putString("recordSeen", (seen + key).takeLast(30).joinToString(",")).putInt("recordGames", recordGames + 1).putInt("recordWins", recordWins + if (won) 1 else 0).apply()
+    }
+
     private fun newPid(): String {
         val bytes = ByteArray(16).also { SecureRandom().nextBytes(it) }
         return bytes.joinToString("") { "%02x".format(it) }

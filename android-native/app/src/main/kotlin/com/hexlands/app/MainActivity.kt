@@ -100,8 +100,6 @@ private fun App(vm: GameViewModel) {
         // Leaving is permanent in a running game (a bot takes the seat), so ask first.
         if (ui.game?.phase == "lobby" || ui.session?.spectator == true) vm.leave() else confirmLeave = true
     }
-    // the tutorial can be opened from the front page and from the i window in a game; Back closes it first
-    BackHandler(enabled = page == "tutorial") { page = null }
 
     Box(
         Modifier.fillMaxSize().background(Navy).pointerInput(Unit) {
@@ -141,7 +139,7 @@ private fun App(vm: GameViewModel) {
                 }
             }
             game.phase == "lobby" -> LobbyScreen(game, vm)
-            else -> GameScreen(ui, game, vm, onTutorial = { page = "tutorial" })
+            else -> GameScreen(ui, game, vm)
         }
         }
         }

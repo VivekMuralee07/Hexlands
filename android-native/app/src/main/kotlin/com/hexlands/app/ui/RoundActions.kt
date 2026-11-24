@@ -58,16 +58,16 @@ fun RoundTurnButton(roll: Boolean, pulse: Float, onClick: () -> Unit) {
     val face = if (roll) Brush.verticalGradient(listOf(Color(0xFFFFE27A), Color(0xFFFFB81C), Color(0xFFE08A00)))
     else Brush.verticalGradient(listOf(Color(0xFF45D77D), Color(0xFF1FAE5B), Color(0xFF127A41)))
     Box(
-        Modifier.size(82.dp).graphicsLayer { scaleX = pulse; scaleY = pulse }.shadow(10.dp, CircleShape).clip(CircleShape).background(face)
-            .border(3.dp, Color.White.copy(alpha = 0.95f), CircleShape).clickable(onClick = onClick)
+        Modifier.size(64.dp).graphicsLayer { scaleX = pulse; scaleY = pulse }.shadow(10.dp, CircleShape).clip(CircleShape).background(face)
+            .border(2.5.dp, Color.White.copy(alpha = 0.95f), CircleShape).clickable(onClick = onClick)
             .semantics { contentDescription = if (roll) "Roll the dice" else "End your turn" },
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Canvas(Modifier.size(38.dp)) { if (roll) diceIcon() else skipIcon() }
+            Canvas(Modifier.size(28.dp)) { if (roll) diceIcon() else skipIcon() }
             Text(
-                if (roll) "Roll" else "End", Modifier.padding(top = 2.dp).then(if (roll) Modifier else Modifier.background(Color(0xFF0E5A30), RoundedCornerShape(50)).padding(horizontal = 10.dp)),
-                fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = if (roll) Color(0xFF4A2E00) else Color.White,
+                if (roll) "Roll" else "End", Modifier.padding(top = 2.dp).then(if (roll) Modifier else Modifier.background(Color(0xFF0E5A30), RoundedCornerShape(50)).padding(horizontal = 8.dp)),
+                fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = if (roll) Color(0xFF4A2E00) else Color.White,
             )
         }
     }

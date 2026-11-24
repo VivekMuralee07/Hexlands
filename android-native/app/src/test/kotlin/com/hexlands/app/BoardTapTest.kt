@@ -45,12 +45,9 @@ class BoardTapTest {
     // The canvas is 300 x 500 dp at 3x: 900 x 1500 px. The board is fitted to it with the same maths as BoardCanvas.
     private val w = 900f
     private val h = 1500f
-    private val xs = board.vertices.map { it.x } + board.ports.map { it.x }
-    private val ys = board.vertices.map { it.y } + board.ports.map { it.y }
-    private val minX = xs.min() - 0.9; private val maxX = xs.max() + 0.9
-    private val minY = ys.min() - 0.9; private val maxY = ys.max() + 0.9
-    private val k = min(w / (maxX - minX).toFloat(), h / (maxY - minY).toFloat())
-    private fun px(x: Double, y: Double) = Offset(w / 2 + ((x - (minX + maxX) / 2) * k).toFloat(), h / 2 + ((y - (minY + maxY) / 2) * k).toFloat())
+    private val bounds = com.hexlands.app.ui.boundsOf(board)
+    private val k = min(w / bounds.w.toFloat(), h / bounds.h.toFloat())
+    private fun px(x: Double, y: Double) = Offset(w / 2 + ((x - bounds.cx) * k).toFloat(), h / 2 + ((y - bounds.cy) * k).toFloat())
 
     private var tapped: Tap? = null
 
@@ -123,11 +120,10 @@ class TwoTapPlacementTest {
         rule.waitForIdle()
         val node = rule.onNodeWithTag("board")
         val size = node.fetchSemanticsNode().size
-        val xs = board.vertices.map { it.x } + board.ports.map { it.x }; val ys = board.vertices.map { it.y } + board.ports.map { it.y }
-        val minX = xs.min() - 0.9; val maxX = xs.max() + 0.9; val minY = ys.min() - 0.9; val maxY = ys.max() + 0.9
-        val k = min(size.width / (maxX - minX).toFloat(), size.height / (maxY - minY).toFloat())
+        val bounds = com.hexlands.app.ui.boundsOf(board)
+        val k = min(size.width / bounds.w.toFloat(), size.height / bounds.h.toFloat())
         val v = board.vertices[g.legal!!.settlements.first()]
-        val at = Offset(size.width / 2f + ((v.x - (minX + maxX) / 2) * k).toFloat(), size.height / 2f + ((v.y - (minY + maxY) / 2) * k).toFloat())
+        val at = Offset(size.width / 2f + ((v.x - bounds.cx) * k).toFloat(), size.height / 2f + ((v.y - bounds.cy) * k).toFloat())
 
         node.performTouchInput { click(at) }; rule.waitForIdle()
         rule.onNodeWithText("Tap it again to build a settlement").assertExists()

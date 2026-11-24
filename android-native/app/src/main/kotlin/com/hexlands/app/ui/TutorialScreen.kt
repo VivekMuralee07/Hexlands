@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -71,13 +74,10 @@ import kotlin.math.sin
 
 /** Where board units land on the stage: the whole board fitted to [size] (the same fit as the game's board). */
 private class Fit(board: Board, size: IntSize) {
-    private val xs = board.vertices.map { it.x } + board.ports.map { it.x }
-    private val ys = board.vertices.map { it.y } + board.ports.map { it.y }
-    private val minX = (xs.minOrNull() ?: -1.0) - 0.9; private val maxX = (xs.maxOrNull() ?: 1.0) + 0.9
-    private val minY = (ys.minOrNull() ?: -1.0) - 0.9; private val maxY = (ys.maxOrNull() ?: 1.0) + 0.9
+    private val bounds = boundsOf(board)
     // the stage keeps the top for the player chips and the bottom for the hand, so the board is fitted into the middle
-    val k = if (size.width == 0) 1f else min(size.width / (maxX - minX).toFloat(), size.height * 0.62f / (maxY - minY).toFloat())
-    val origin = Offset(size.width / 2f - (((minX + maxX) / 2) * k).toFloat(), size.height * 0.47f - (((minY + maxY) / 2) * k).toFloat())
+    val k = if (size.width == 0) 1f else min(size.width / bounds.w.toFloat(), size.height * 0.62f / bounds.h.toFloat())
+    val origin = Offset(size.width / 2f - (bounds.cx * k).toFloat(), size.height * 0.47f - (bounds.cy * k).toFloat())
     fun at(p: Pt) = Offset(origin.x + (p.x * k).toFloat(), origin.y + (p.y * k).toFloat())
 }
 
@@ -362,6 +362,17 @@ fun TutorialScreen(record: TutorialRecord, onClose: () -> Unit, startChapter: In
         }
         Column(Modifier.fillMaxWidth().background(NavyDark).padding(horizontal = 14.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(step.caption, Modifier.fillMaxWidth().semantics { contentDescription = step.caption }, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            // the written explanation of this chapter, from the rules (tap the heading to fold it away)
+            if (ch.detail.isNotBlank()) {
+                var open by remember(chIdx) { mutableStateOf(true) }
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color.White.copy(alpha = 0.07f)).padding(horizontal = 10.dp, vertical = 6.dp)) {
+                    Row(Modifier.fillMaxWidth().clickable { open = !open }, verticalAlignment = Alignment.CenterVertically) {
+                        Text("About this chapter", Modifier.weight(1f), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Gold)
+                        Text(if (open) "▴" else "▾", color = Gold)
+                    }
+                    if (open) Text(ch.detail, Modifier.heightIn(max = 104.dp).verticalScroll(rememberScrollState()).padding(top = 4.dp), fontSize = 12.sp, color = FoamDim)
+                }
+            }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterHorizontally)) {
                 chapters.forEachIndexed { i, c ->
                     Box(Modifier.size(width = 18.dp, height = 18.dp).clickable { go(i, 0) }.semantics { contentDescription = c.title }, contentAlignment = Alignment.Center) {

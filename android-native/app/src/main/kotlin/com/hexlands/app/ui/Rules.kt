@@ -55,6 +55,9 @@ private val SECTIONS = listOf(
     Section("Bots", listOf("The host can fill empty seats with Easy, Medium or Hard bots, up to 4 players in total.")),
 )
 
+/** The written rules of one section of the How to play text, as plain text (for the tutorial's explanations). */
+internal fun ruleText(title: String): String = SECTIONS.firstOrNull { it.title == title }?.paragraphs?.joinToString("\n\n") ?: ""
+
 private val TERRAIN_FOR = mapOf("wood" to "Forest", "brick" to "Hills", "sheep" to "Pasture", "wheat" to "Fields", "ore" to "Mountains")
 
 /** The full rules, as on the web game's "How to play" window, with the costs and resources shown as pictures. */
