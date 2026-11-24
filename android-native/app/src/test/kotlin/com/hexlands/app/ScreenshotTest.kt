@@ -118,11 +118,11 @@ class ScreenshotTest {
         shot("preview") { BoardCanvas(board, g, g.legal!!.settlements.toSet(), emptySet(), emptySet(), Tap.Corner(spot), {}, animate = false, previewKind = "settlement") }
     }
 
-    @Test fun theTradeWindowOffersPlayersAndTheBank() {
+    @Test fun theTradePanelShowsWhatYouWantWhatYouGiveAndTheBankRates() {
         val g = state("main")
-        shot("trade") { com.hexlands.app.ui.TradeDialog(g, GameViewModel(app), "wood", canTrade = true) {} }
-        rule.onNodeWithText("Send offer").assertExists()
-        rule.onNodeWithText("Bank").assertExists()
+        shot("trade") { GameScreen(ui(g), g, GameViewModel(app), animate = false, tradeOpenAtStart = true) }
+        rule.onNodeWithText("Tap what you want above").assertExists()
+        rule.onNodeWithText("Pick what you want, then what you give.").assertExists()
     }
 
     @Test fun theBuyCardButtonAppearsWhenYouCanPayForIt() {

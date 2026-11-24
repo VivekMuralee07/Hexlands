@@ -273,22 +273,6 @@ fun DrawScope.drawBoardArt(board: Board, origin: Offset, k: Float, measurer: Tex
     }
 }
 
-private val RESOURCE_TERRAIN = mapOf("wood" to "forest", "brick" to "hills", "sheep" to "pasture", "wheat" to "fields", "ore" to "mountains")
-
-/** The picture for a resource: a log tree for wood, bricks, a sheep, wheat for hay, mountains for ore. Same drawings as on the board. */
+/** A resource's picture at a small size, for lists and buttons. */
 @androidx.compose.runtime.Composable
-fun ResourceIcon(resource: String, size: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) {
-    val kind = RESOURCE_TERRAIN[resource] ?: return
-    val label = RESOURCE_LABEL[resource] ?: resource
-    androidx.compose.foundation.Canvas(modifier.size(size).semantics { contentDescription = label }) {
-        val shapes = SHAPES[kind] ?: return@Canvas
-        val base = TERRAIN_COLOR[kind] ?: return@Canvas
-        val ink = Color(base.red * 0.45f, base.green * 0.45f, base.blue * 0.45f)
-        val s = this.size.minDimension / 34f
-        withTransform({ translate(this.size.width / 2f, this.size.height / 2f); scale(s, s, Offset.Zero) }) {
-            for (p in shapes) prim(p, ink, Stroke(3.2f, join = StrokeJoin.Round))
-            for (p in shapes) prim(p, Color(0xFFFFFDF3), Fill)
-            if (kind == "pasture") drawCircle(ink, 1.2f, Offset(-12.5f, -2f))
-        }
-    }
-}
+fun ResourceIcon(resource: String, size: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) = ResourceArt(resource, size, modifier, backdrop = false)

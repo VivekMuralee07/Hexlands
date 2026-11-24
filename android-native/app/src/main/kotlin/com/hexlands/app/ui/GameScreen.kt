@@ -102,7 +102,6 @@ private fun buzz(context: Context) {
 
 private sealed interface GameDialog {
     data class Steal(val tile: Int, val victims: List<Pair<Int, String>>) : GameDialog
-    data class Bank(val give: String?) : GameDialog
     data object Dev : GameDialog
     data class Pick(val card: String) : GameDialog   // monopoly | yearOfPlenty
     data object Log : GameDialog
@@ -110,7 +109,7 @@ private sealed interface GameDialog {
 }
 
 @Composable
-fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean = true) {
+fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean = true, tradeOpenAtStart: Boolean = false) {
     val board = ui.board
     val context = LocalContext.current
     val spectating = game.spectator || ui.session?.spectator == true
@@ -119,6 +118,11 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
     var picked by remember { mutableStateOf<Tap?>(null) }
     var dialog by remember { mutableStateOf<GameDialog?>(null) }
     var showResults by remember { mutableStateOf(true) }
+    var tradeOpen by remember { mutableStateOf(tradeOpenAtStart) }
+    val tradeGive = remember { androidx.compose.runtime.mutableStateMapOf<String, Int>() }
+    val tradeGet = remember { androidx.compose.runtime.mutableStateMapOf<String, Int>() }
+    val canTrade = myTurn && game.phase == "main" && game.rolled && game.subphase == null
+    LaunchedEffect(game.turnNumber) { tradeGive.clear(); tradeGet.clear() }
     var heistMode by remember { mutableStateOf(false) }   // choosing an opponent's settlement to steal
 
     // A buzz when it becomes your move.
@@ -186,6 +190,10 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
                 Text(hint, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Gold)
                 TextButton(onClick = { picked = null; heistMode = false }) { Text("Cancel") }
             }
+            if (tradeOpen && !spectating) TradePanel(
+                game, vm, tradeGive, tradeGet, canTrade, onClose = { tradeOpen = false },
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
+            )
             game.dice?.let { d ->
                 if (d.size == 2) Row(
                     Modifier.align(Alignment.BottomStart).padding(8.dp).background(NavyDark.copy(alpha = 0.85f), RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 6.dp),
@@ -220,8 +228,12 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
                 OutlinedButton(onClick = { vm.leave() }) { Text("Stop") }
             }
         } else {
-            HandRow(game) { dialog = GameDialog.Bank(it) }
-            ActionRow(game, myTurn, vm, onBank = { dialog = GameDialog.Bank(null) }, onDev = { dialog = GameDialog.Dev }, onLog = { dialog = GameDialog.Log }, onInfo = { dialog = GameDialog.Info })
+            HandRow(game) { k ->
+                if (!tradeOpen) { tradeOpen = true; picked = null }
+                // with the panel open, a card from your hand goes into what you give
+                if (canTrade && (tradeGet[k] ?: 0) == 0 && (tradeGive[k] ?: 0) < game.hand(k)) tradeGive[k] = (tradeGive[k] ?: 0) + 1
+            }
+            ActionRow(game, myTurn, vm, onBank = { tradeOpen = !tradeOpen; picked = null }, onDev = { dialog = GameDialog.Dev }, onLog = { dialog = GameDialog.Log }, onInfo = { dialog = GameDialog.Info })
         }
     }
 
@@ -234,7 +246,6 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
     }
     when (val d = dialog) {
         is GameDialog.Steal -> StealDialog(d.victims, onClose = { dialog = null }) { v -> dialog = null; vm.act("robber") { put("tile", d.tile); put("victim", v) } }
-        is GameDialog.Bank -> TradeDialog(game, vm, d.give, canTrade = myTurn && game.phase == "main" && game.rolled && game.subphase == null) { dialog = null }
         is GameDialog.Dev -> DevDialog(game, hasHeistTargets = heistTargets.isNotEmpty(), onClose = { dialog = null }, onBuyHeist = { dialog = null; vm.act("buyHeist") }) { card ->
             dialog = null
             when (card) {
@@ -293,7 +304,7 @@ private fun PlayersStrip(game: GameState) {
 
 @Composable
 private fun HandRow(game: GameState, onTapResource: (String) -> Unit) {
-    Row(Modifier.fillMaxWidth().background(NavyDark).padding(horizontal = 6.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Row(Modifier.fillMaxWidth().background(NavyDark).padding(start = 8.dp, end = 14.dp, top = 12.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         RESOURCES.forEach { k ->
             val n = game.hand(k)
             // When a hand count goes up the card bumps and a "+n" floats away from it.
@@ -307,15 +318,10 @@ private fun HandRow(game: GameState, onTapResource: (String) -> Unit) {
             }
             val bump = 1f + 0.18f * sin(Math.PI.toFloat() * gain.value)
             Box(Modifier.weight(1f)) {
-                Column(
-                    Modifier.fillMaxWidth().graphicsLayer { scaleX = bump; scaleY = bump }.clip(RoundedCornerShape(10.dp))
-                        .background((RESOURCE_COLOR[k] ?: Color.Gray).copy(alpha = if (n > 0) 1f else 0.35f))
-                        .clickable { onTapResource(k) }.padding(vertical = 6.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text("$n", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = Color.Black.copy(alpha = 0.85f))
-                    ResourceIcon(k, 30.dp)
-                }
+                ResourceCard(
+                    k, Modifier.fillMaxWidth().graphicsLayer { scaleX = bump; scaleY = bump }, count = n.takeIf { it > 0 }, label = RESOURCE_LABEL[k],
+                    dim = n == 0, goldBadge = true, onClick = { onTapResource(k) },
+                )
                 if (gain.value < 1f) Text(
                     "+$shownGain", Modifier.align(Alignment.TopCenter).graphicsLayer { translationY = -gain.value * 56.dp.toPx() - 8.dp.toPx(); alpha = 1f - gain.value * gain.value },
                     color = Good, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp,

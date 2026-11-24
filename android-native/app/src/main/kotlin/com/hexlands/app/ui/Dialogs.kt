@@ -74,54 +74,6 @@ fun StealDialog(victims: List<Pair<Int, String>>, onClose: () -> Unit, onPick: (
     )
 }
 
-/** Trade with the bank (4 cards for 1, or 3 or 2 with a harbour). */
-@Composable
-fun BankPane(game: GameState, give0: String?, onTrade: (give: String, get: String, times: Int) -> Unit) {
-    var give by remember { mutableStateOf(give0 ?: RESOURCES.firstOrNull { game.hand(it) > 0 }) }
-    var get by remember { mutableStateOf<String?>(null) }
-    var times by remember { mutableStateOf(1) }
-    val ratio = give?.let { game.me?.ratios?.get(it) ?: 4 } ?: 4
-    val most = give?.let { game.hand(it) / ratio } ?: 0
-    val ok = give != null && get != null && give != get && times in 1..most && (game.bank[get] ?: 0) >= times
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("You give", fontWeight = FontWeight.Bold, color = Gold)
-        ChipRow(RESOURCES, give, label = { "${game.hand(it)}" }) { give = it; times = 1 }
-        Text("You get", fontWeight = FontWeight.Bold, color = Gold)
-        ChipRow(RESOURCES.filter { it != give }, get, label = { RESOURCE_LABEL[it] ?: it }) { get = it }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("How many: $times", Modifier.weight(1f))
-            OutlinedButton(onClick = { times-- }, enabled = times > 1) { Text("−") }
-            OutlinedButton(onClick = { times++ }, enabled = times < most, modifier = Modifier.padding(start = 8.dp)) { Text("+") }
-        }
-        if (give != null) Text(
-            if (most == 0) "You need $ratio ${RESOURCE_LABEL[give]} for one card." else "Give ${ratio * times} ${RESOURCE_LABEL[give]} for $times ${get?.let { RESOURCE_LABEL[it] } ?: "…"}.",
-            fontSize = 13.sp, color = FoamDim,
-        )
-        GoldButton(onClick = { onTrade(give!!, get!!, times) }, enabled = ok, modifier = Modifier.fillMaxWidth()) { Text("Trade with the bank", fontWeight = FontWeight.Bold) }
-    }
-}
-
-@Composable
-internal fun ChipRow(items: List<String>, selected: String?, label: (String) -> String, onPick: (String) -> Unit) {
-    // Each resource is a coloured tile with its picture; the small text under it (a count, say) comes from [label] only when it is not just the name.
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        items.forEach { k ->
-            val sel = selected == k
-            androidx.compose.foundation.layout.Column(
-                Modifier.weight(1f).clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
-                    .background((RESOURCE_COLOR[k] ?: androidx.compose.ui.graphics.Color.Gray).copy(alpha = if (sel) 1f else 0.55f))
-                    .border(if (sel) 3.dp else 0.dp, if (sel) Gold else androidx.compose.ui.graphics.Color.Transparent, androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
-                    .clickable { onPick(k) }.padding(vertical = 6.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                ResourceIcon(k, 32.dp)
-                val text = label(k)
-                if (text != (RESOURCE_LABEL[k] ?: k)) Text(text, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.85f))
-            }
-        }
-    }
-}
-
 private val DEV_NAME = mapOf("knight" to "Knight", "vp" to "Victory point", "roadBuilding" to "Road Building", "yearOfPlenty" to "Year of Plenty", "monopoly" to "Monopoly", "heist" to "Heist")
 private val DEV_TEXT = mapOf(
     "knight" to "Move the robber and steal a card. Three knights played earn Largest Army.",
