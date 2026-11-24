@@ -78,7 +78,7 @@ jobs:
           name: hexlands-test-apk
           path: android-native/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
-      # 2. The screen tests (Robolectric) need an Android runtime (about 150 MB). Gradle downloads it like any other dependency and Robolectric runs
+      # 2. The screen tests (Robolectric) need Android runtimes (about 350 MB). Gradle downloads it like any other dependency and Robolectric runs
       # offline from build/robolectric-runtime (see android-native/app/build.gradle.kts). Maven Central answers "429 Too Many Requests" to big downloads
       # from shared build machines now and then, so the download has its own step that tries again (a failed test run is never retried).
       - name: Download the Android runtime for the screen tests
