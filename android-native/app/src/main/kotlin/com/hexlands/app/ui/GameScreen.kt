@@ -56,6 +56,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -90,12 +91,12 @@ fun bannerText(g: GameState): String {
     if (g.phase == "setup") {
         val s = g.setup
         return if (mine) {
-            if (s?.expect == "settlement") "Place your ${if (s.round == 1) "first" else "second"} settlement on a glowing corner" else "Place a road next to that settlement"
+            if (s?.expect == "settlement") "Place your ${if (s.round == 1) "first" else "second"} settlement in a bubble" else "Place a road next to that settlement"
         } else "$cur is placing a ${s?.expect ?: "piece"}"
     }
     return when (g.subphase) {
         "discard" -> { val n = g.pendingDiscards[g.you.toString()] ?: 0; if (n > 0) "A seven! Discard $n cards" else "A seven! Waiting for players to discard" }
-        "robber" -> if (mine) "Move the robber: tap a glowing circle" else "$cur is moving the robber"
+        "robber" -> if (mine) "Move the robber: tap a glowing hex" else "$cur is moving the robber"
         "roadBuilding" -> if (mine) "Place ${g.freeRoads} free road${if (g.freeRoads == 1) "" else "s"}" else "$cur is placing free roads"
         "diamond" -> { val n = g.pendingDiamond[g.you.toString()] ?: 0; if (n > 0) "The diamond opens! Choose $n cards from the bank" else "The diamond opens: players are choosing their cards" }
         else -> if (mine) (if (!g.rolled) "Your turn: roll the dice" else "Build, trade, or end your turn") else "$cur's turn"
@@ -215,7 +216,16 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
         }
     }
 
-    GameSounds(game)
+    GameSounds(game) { kind -> if (vm.prefs.vibrate) Haptics.play(context, kind) }
+    // Longest Road or Largest Army changes hands: a short message says who took it.
+    var award by remember { mutableStateOf<AwardNote?>(null) }
+    val prevAwards = remember { arrayOfNulls<GameState>(1) }
+    LaunchedEffect(game.longestRoad, game.largestArmy) {
+        val before = prevAwards[0]; prevAwards[0] = game
+        if (before == null) return@LaunchedEffect
+        val note = awardNote(before, game) ?: return@LaunchedEffect
+        award = note; delay(2600); if (award == note) award = null
+    }
     Box(Modifier.fillMaxSize().onGloballyPositioned { rootPos = it.positionInWindow() }) {
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.onGloballyPositioned { stripBounds = it.boundsInWindow() }) { PlayersStrip(game) }
@@ -249,7 +259,7 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
 
         Box(Modifier.weight(1f).fillMaxWidth().onGloballyPositioned { boardBounds = it.boundsInWindow() }) {
             if (board == null) Text("Loading the board…", Modifier.align(Alignment.Center))
-            else BoardCanvas(board, game, cornerSpots, roadSpots, hexSpots, pickedNow, ::onTap, animate = animate, previewKind = pickedKind, view = boardView)
+            else { SeaBackground(); BoardCanvas(board, game, cornerSpots, roadSpots, hexSpots, pickedNow, ::onTap, animate = animate, previewKind = pickedKind, view = boardView) }
             // Hints sit on top of the board, never beside it: a bar that appeared below would shrink the board and move the spot you just tapped.
             val hint = when {
                 pickedNow != null -> if (pickedKind == "heist") "Tap it again to steal this settlement" else "Tap it again to build a $pickedKind"
@@ -272,6 +282,7 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
                 game, vm, tradeGive, tradeGet, canTrade, onClose = { tradeOpen = false },
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
             )
+            AwardBanner(award, modifier = Modifier.align(Alignment.TopCenter).padding(top = 64.dp))
             RobberStrikes(visible = strike, discardLimit = game.opts.discardLimit, modifier = Modifier.align(Alignment.Center))
             game.dice?.let { d ->
                 if (d.size == 2) Row(
@@ -541,6 +552,48 @@ private fun RobberStrikes(visible: Boolean, discardLimit: Int, modifier: Modifie
             Text("The robber strikes!", fontWeight = FontWeight.ExtraBold, fontSize = 24.sp, color = Color(0xFFFF6B57))
             Text("A 7 was rolled: nobody collects.", fontSize = 13.sp, color = Foam)
             Text("Anyone holding more than $discardLimit cards must discard.", fontSize = 12.sp, color = FoamDim, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        }
+    }
+}
+
+/** What the message says when an award moves: which one, who has it now, and from whom. */
+data class AwardNote(val emoji: String, val title: String, val who: String, val detail: String, val color: Color)
+
+fun awardNote(before: GameState, now: GameState): AwardNote? {
+    fun player(i: Int) = now.players.getOrNull(i)
+    val lr = now.longestRoad
+    if (lr != null && lr.p != before.longestRoad?.p) {
+        val from = before.longestRoad?.let { player(it.p)?.name }
+        return AwardNote("🛣️", "Longest Road", player(lr.p)?.name ?: "Someone", "${lr.len ?: 5} roads in a row" + (from?.let { " · took it from $it" } ?: ""), player(lr.p)?.color?.let { Color(parseColor(it)) } ?: Gold)
+    }
+    val la = now.largestArmy
+    if (la != null && la.p != before.largestArmy?.p) {
+        val from = before.largestArmy?.let { player(it.p)?.name }
+        return AwardNote("🛡️", "Largest Army", player(la.p)?.name ?: "Someone", "${la.size ?: 3} knights" + (from?.let { " · took it from $it" } ?: ""), player(la.p)?.color?.let { Color(parseColor(it)) } ?: Gold)
+    }
+    return null
+}
+
+/** A short gold-trimmed message that slides in from the top: "Longest Road: Kira (6 roads in a row)". */
+@Composable
+private fun AwardBanner(note: AwardNote?, modifier: Modifier = Modifier) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = note != null, modifier = modifier,
+        enter = androidx.compose.animation.slideInVertically(androidx.compose.animation.core.spring(dampingRatio = 0.55f, stiffness = 300f)) { -it } + androidx.compose.animation.fadeIn(tween(200)),
+        exit = androidx.compose.animation.slideOutVertically(tween(300)) { -it } + androidx.compose.animation.fadeOut(tween(300)),
+    ) {
+        val n = note ?: return@AnimatedVisibility
+        Row(
+            Modifier.padding(horizontal = 16.dp).clip(RoundedCornerShape(18.dp))
+                .background(Brush.verticalGradient(listOf(Color(0xF2223466), Color(0xF20E1A3C)))).border(2.dp, Brush.verticalGradient(listOf(Color(0xFFFFE27A), Color(0xFFE08A00))), RoundedCornerShape(18.dp))
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(Modifier.size(40.dp).clip(CircleShape).background(n.color).border(2.dp, Color.White, CircleShape), contentAlignment = Alignment.Center) { Text(n.emoji, fontSize = 20.sp) }
+            Column {
+                Text("${n.title}: ${n.who}", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = Gold, maxLines = 1)
+                Text("${n.detail} · +2 points", fontSize = 11.sp, color = Foam, maxLines = 1)
+            }
         }
     }
 }

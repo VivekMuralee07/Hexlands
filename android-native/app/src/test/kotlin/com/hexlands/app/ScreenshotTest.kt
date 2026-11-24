@@ -110,6 +110,18 @@ class ScreenshotTest {
         assertEquals(0, withDice.finishingOrder().first().let { if (it == withDice.winner) 0 else 1 })
     }
 
+    @Test fun awardsAnnounceWhoTookThem() {
+        val g = state("main")
+        val withRoad = g.copy(longestRoad = com.hexlands.app.net.Holder(p = 1, len = 6))
+        val n = com.hexlands.app.ui.awardNote(g.copy(longestRoad = null), withRoad)!!
+        assertEquals("Longest Road", n.title); assertTrue(n.detail.contains("6 roads"))
+        val stolen = com.hexlands.app.ui.awardNote(withRoad, g.copy(longestRoad = com.hexlands.app.net.Holder(p = 0, len = 7)))!!
+        assertTrue("says who it was taken from", stolen.detail.contains("took it from"))
+        val army = com.hexlands.app.ui.awardNote(g.copy(largestArmy = null), g.copy(largestArmy = com.hexlands.app.net.Holder(p = 0, size = 3)))!!
+        assertEquals("Largest Army", army.title)
+        assertEquals("no change, no message", null, com.hexlands.app.ui.awardNote(withRoad, withRoad))
+    }
+
     @Test fun spectatorView() {
         val g = state("spectator")
         shot("spectator") { GameScreen(ui(g, spectator = true), g, GameViewModel(app), animate = false) }
@@ -283,7 +295,7 @@ class ScreenshotTest {
         val spots = board.tiles.filter { it.terrain != "desert" && it.id != g0.robber }.map { it.id }
         val g = g0.copy(rolled = true, subphase = "robber", robberOptions = spots, dice = listOf(3, 4))
         shot("robber") { GameScreen(ui(g), g, GameViewModel(app), animate = false) }
-        rule.onNodeWithText("Move the robber: tap a glowing circle").assertExists()
+        rule.onNodeWithText("Move the robber: tap a glowing hex").assertExists()
     }
 
     @Test fun cardsFlyFromTheTilesToThePlayersAndThenAreGone() {
