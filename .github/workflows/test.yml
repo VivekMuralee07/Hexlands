@@ -67,10 +67,20 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
-      # The screen tests (Robolectric) need Android runtimes (about 350 MB). Gradle downloads them like any other dependency, and setup-gradle keeps
-      # them between runs (see android-native/app/build.gradle.kts). Robolectric's own downloader, straight from repo1.maven.org, is refused from build machines.
-      # Maven Central answers "429 Too Many Requests" to big downloads from shared build machines now and then, so this download has its own step that
-      # tries again (a failed test run is never retried: only the download).
+      # 1. Build the app and keep the APK, before any test runs: a failing test must not stop you from getting the app.
+      - name: Build the app
+        working-directory: android-native
+        run: ./gradlew --no-daemon assembleDebug
+      # The test app, ready to install on a phone: Actions tab, open this run, Artifacts, hexlands-test-apk (a zip with app-debug.apk inside).
+      - name: Keep the test app (APK)
+        uses: actions/upload-artifact@v4
+        with:
+          name: hexlands-test-apk
+          path: android-native/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+      # 2. The screen tests (Robolectric) need an Android runtime (about 150 MB). Gradle downloads it like any other dependency and Robolectric runs
+      # offline from build/robolectric-runtime (see android-native/app/build.gradle.kts). Maven Central answers "429 Too Many Requests" to big downloads
+      # from shared build machines now and then, so the download has its own step that tries again (a failed test run is never retried).
       - name: Download the Android runtime for the screen tests
         working-directory: android-native
         run: |
@@ -80,16 +90,19 @@ jobs:
             sleep 60
           done
           exit 1
-      - name: Build and test the Android app
+      - name: Test the Android app
         working-directory: android-native
-        run: ./gradlew --no-daemon assembleDebug testDebugUnitTest
-      # The test app, ready to install on a phone: Actions tab, open this run, Artifacts, hexlands-test-apk (a zip with app-debug.apk inside).
-      - name: Keep the test app (APK)
-        uses: actions/upload-artifact@v4
-        with:
-          name: hexlands-test-apk
-          path: android-native/app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 30
+        run: ./gradlew --no-daemon testDebugUnitTest
+      # If the tests fail: say why, right here in the log.
+      - name: Show why the tests failed
+        if: failure()
+        working-directory: android-native
+        run: |
+          echo "--- the runtime folder:"; ls -la app/build/robolectric-runtime || true
+          echo "--- what the tests reported:"
+          grep -h -A6 "<failure" app/build/test-results/testDebugUnitTest/*.xml | head -60 || true
+          echo "--- what Robolectric logged:"
+          grep -h -i -B1 -A2 "unable to locate\|no such directory\|missing the dependency\|robolectric" app/build/test-results/testDebugUnitTest/*.xml | grep -v "^--$" | head -40 || true
       - name: Keep the screen pictures
         if: always()
         uses: actions/upload-artifact@v4
