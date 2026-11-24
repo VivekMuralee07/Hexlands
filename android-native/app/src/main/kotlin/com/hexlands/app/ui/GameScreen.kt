@@ -222,7 +222,6 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
     var devTick by remember { mutableStateOf(0) }
     var flEmoji by remember { mutableStateOf<String?>(null) }; var flLabel by remember { mutableStateOf("") }; var flTick by remember { mutableStateOf(0) }
     var ptsWho by remember { mutableStateOf<String?>(null) }; var ptsN by remember { mutableStateOf(0) }; var ptsColor by remember { mutableStateOf(Gold) }; var ptsTick by remember { mutableStateOf(0) }
-    var turnName by remember { mutableStateOf<String?>(null) }; var turnMine by remember { mutableStateOf(false) }; var turnColor by remember { mutableStateOf(Gold) }; var turnTick by remember { mutableStateOf(0) }
     LaunchedEffect(game) {
         val p = prevFx[0]; prevFx[0] = game
         if (p == null || p.phase == "lobby") return@LaunchedEffect
@@ -233,9 +232,6 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
             val before = p.players.getOrNull(i) ?: return@forEachIndexed
             if (pl.stats.devPlayed > before.stats.devPlayed) { val knight = pl.knights > before.knights; flEmoji = if (knight) "⚔️" else "🃏"; flLabel = "${pl.name} played ${if (knight) "a Knight" else "a card"}"; flTick++ }
             if (pl.vp > before.vp && game.phase != "ended") { ptsWho = pl.name; ptsN = pl.vp - before.vp; ptsColor = game.colorOf(i); ptsTick++ }
-        }
-        if (game.turn != p.turn && (game.phase == "main" || game.phase == "setup")) {
-            turnName = game.players.getOrNull(game.turn)?.name; turnMine = game.turn == game.you && game.you >= 0; turnColor = game.colorOf(game.turn); turnTick++
         }
     }
     var endReady by remember { mutableStateOf(!animate) }
@@ -252,7 +248,7 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
     }
     Box(Modifier.fillMaxSize().onGloballyPositioned { rootPos = it.positionInWindow() }) {
     Column(Modifier.fillMaxSize()) {
-        Box(Modifier.onGloballyPositioned { stripBounds = it.boundsInWindow() }) { PlayersStrip(game); TurnSweep(game.turn, Modifier.matchParentSize()) }
+        Box(Modifier.onGloballyPositioned { stripBounds = it.boundsInWindow() }) { PlayersStrip(game) }
         // whose turn it is, and the move timer
         if (game.phase == "setup" || game.phase == "main") Row(Modifier.fillMaxWidth().background(NavyDark).padding(start = 10.dp, end = 12.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             TurnPill(game)
@@ -311,7 +307,6 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
             DevReveal(devTick, "Development card", Modifier.align(Alignment.Center))
             PlayedFlourish(flEmoji, flLabel, flTick, Modifier.align(Alignment.Center))
             PointsFloat(ptsWho, ptsN, ptsColor, ptsTick, Modifier.align(Alignment.TopCenter).padding(top = 12.dp))
-            TurnBanner(turnName, turnMine, turnColor, turnTick, Modifier.align(Alignment.TopStart).padding(top = 120.dp, start = 12.dp))
             AwardBanner(award, modifier = Modifier.align(Alignment.TopCenter).padding(top = 64.dp))
             RobberStrikes(visible = strike, discardLimit = game.opts.discardLimit, modifier = Modifier.align(Alignment.Center))
             game.dice?.let { d ->
