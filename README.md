@@ -49,7 +49,7 @@ Requires Node.js 18 or newer.
 
 ```bash
 npm start            # http://localhost:3000
-npm test             # 192 tests: rules, full simulated games, matchmaking, leaderboard, saved games, and browser screen tests (about a minute)
+npm test             # 194 tests: rules, full simulated games, matchmaking, leaderboard, saved games, and browser screen tests (about a minute)
 ```
 
 GitHub Actions (`.github/workflows/test.yml`) runs `npm test` on Node 22 for every pull request and every push to `main`, and a newer push cancels an older run. To stop a failing run from being merged, turn on branch protection for `main` (Settings, Branches) and require the **npm test** check.
@@ -275,6 +275,29 @@ Notes:
 - The launcher icon, splash screen and status bar colour are already set to the Hexlands icon and colours.
 - The same Render notes apply: a sleeping free server makes the first launch slow, and without internet the app shows the "could not reach the game server" page.
 
+## Native Android app (Kotlin)
+
+`android-native/` is a real Android app written in Kotlin with Jetpack Compose: its own screens and its own board drawing, not a web page in a wrapper. It talks to the same game server as the web app (the server still holds every rule; the app only draws and sends actions), so web and Android players can share a room.
+
+**What is in this first version:** home (quick play, create a room, join with a code, public rooms), waiting room (share invite, bots, ready, start), the board (pan and pinch-zoom with a Fit button) with glowing spots where you may build, setup and building (settlements, cities, roads, with a confirm step), rolling, the robber (with choosing whom to steal from), discarding on a seven, bank trading, buying and playing development cards, accepting or declining another player's trade offer, Undo in the opening turns, the ship's log, game info, results and Play again, watching a game (from the public list or with a code), invite links (`/room/CODE` opens in the app), a buzz when it is your move, coming back to your game after the app was closed.
+
+**Not yet in the app (use the web version for these):** offering your own trade and counter-offers, the Heist card and the diamond cards on special maps, chat and reactions, the leaderboard and recent games, the tutorial, sound, and push notifications while the app is closed. Each is a screen on top of the same server calls; the server already supports them.
+
+**Build it** (Android Studio, or the command line; Java 17 and the Android SDK are needed):
+
+```
+cd android-native
+./gradlew assembleDebug          # app/build/outputs/apk/debug/app-debug.apk
+./gradlew testDebugUnitTest      # tests (see below)
+./gradlew assembleDebug -PserverUrl=http://10.0.2.2:3000   # a server on your computer, from the Android emulator
+```
+
+**Tests** (`./gradlew testDebugUnitTest`): `ServerIntegrationTest` starts the real Node server (needs `node` on the path; skipped without it) and plays through setup and the first turns against bots, watches as a spectator, and checks the server's error messages, all through the same Kotlin code the app uses. `ScreenshotTest` draws every screen on the computer from real game data (Robolectric, no phone) and writes a picture of each to `android-native/app/build/screens/`; open them to see what a player sees. The data comes from `node android-native/tools/make-fixtures.js` (run it again if the server's JSON changes).
+
+**Where the server's rules show up:** the server sends `legal` (the corners and roads you may build on right now) in every game state, so the app needs no rules of its own. Building with the web app is unchanged.
+
+**Releasing it:** the app uses the same application ID as the Play Store app made with PWABuilder (`com.vivek.hexlands_r2fs.twa`), so it can update that listing as a new version, but only if it is signed with the same key you uploaded then (Play App Signing keeps the real key; you sign with your upload key). Make a release bundle with `./gradlew bundleRelease`, and sign it in Android Studio (Build, Generate Signed Bundle) or with your own signing setup. Raise `versionCode` in `android-native/app/build.gradle.kts` for each upload. Nothing about the Data safety answers changes: the app sends the same anonymous player ID and game data as the web app.
+
 ## Publish on Google Play
 
 You need: a Play Console developer account (one-time fee, identity checks), the live HTTPS site, and the signed `.aab` from PWABuilder (previous section).
@@ -352,6 +375,7 @@ Not covered: the map is read as a picture, so a screen-reader user hears what ca
 ## Project layout
 
 ```
+android-native/   The native Android app (Kotlin, Jetpack Compose); see "Native Android app" above
 screenshots.js    `npm run screenshots`: retakes the store and install screenshots from the real app
 server.js         HTTP server, rooms, live updates (SSE), matchmaking, limits, filters, bot and move-clock timing
 game.js           Rules engine; the server is the only authority on game state
