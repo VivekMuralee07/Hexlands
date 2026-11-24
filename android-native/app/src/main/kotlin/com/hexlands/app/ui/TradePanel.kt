@@ -46,8 +46,8 @@ import com.hexlands.app.net.hand
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
-private val Paper = Color(0xFFF5F1E6)
-private val Ink = Color(0xFF3C4A5E)
+internal val Paper = Color(0xFFF5F1E6)
+internal val Ink = Color(0xFF3C4A5E)
 
 // ---- small pictures for the panel ----
 private fun DrawScope.bankIcon(c: Color) {
@@ -69,7 +69,7 @@ private fun DrawScope.personIcon(c: Color) {
     drawCircle(c, w * 0.17f, Offset(w * 0.5f, h * 0.34f))
     drawPath(Path().apply { moveTo(w * 0.2f, h * 0.82f); quadraticTo(w * 0.5f, h * 0.38f, w * 0.8f, h * 0.82f); close() }, c)
 }
-private fun DrawScope.checkIcon(c: Color) {
+internal fun DrawScope.checkIcon(c: Color) {
     val w = size.width; val h = size.height
     drawPath(Path().apply { moveTo(w * 0.62f, h * 0.55f); lineTo(w * 0.76f, h * 0.7f); lineTo(w * 0.98f, h * 0.38f) }, c, style = Stroke(w * 0.1f, cap = StrokeCap.Round))
 }
@@ -85,7 +85,7 @@ private fun DrawScope.arrow(c: Color, down: Boolean) {
 
 /** A round button that holds one of the pictures above. */
 @Composable
-private fun RoundButton(description: String, enabled: Boolean = true, onClick: () -> Unit, strong: Boolean = false, icon: DrawScope.() -> Unit) {
+internal fun RoundButton(description: String, enabled: Boolean = true, onClick: () -> Unit, strong: Boolean = false, icon: DrawScope.() -> Unit) {
     val face = if (!enabled) Brush.verticalGradient(listOf(Color(0xFF2E5C8E), Color(0xFF244B77))) else Brush.verticalGradient(listOf(Color(0xFF3FC3EA), Color(0xFF1B8FC4)))
     Box(
         Modifier.size(56.dp).shadow(if (enabled) 6.dp else 0.dp, CircleShape).clip(CircleShape).background(face)

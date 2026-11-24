@@ -111,7 +111,7 @@ private sealed interface GameDialog {
 }
 
 @Composable
-fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean = true, tradeOpenAtStart: Boolean = false) {
+fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean = true, tradeOpenAtStart: Boolean = false, onTutorial: (() -> Unit)? = null) {
     val board = ui.board
     val context = LocalContext.current
     val spectating = game.spectator || ui.session?.spectator == true
@@ -120,6 +120,10 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
     var picked by remember { mutableStateOf<Tap?>(null) }
     var dialog by remember { mutableStateOf<GameDialog?>(null) }
     var showResults by remember { mutableStateOf(true) }
+    // A seven was rolled and you hold too many cards: you pick the ones to give back by tapping them in your hand.
+    val needDiscard = if (!spectating && game.subphase == "discard") (game.pendingDiscards[game.you.toString()] ?: 0) else 0
+    val discardPick = remember { androidx.compose.runtime.mutableStateMapOf<String, Int>() }
+    LaunchedEffect(needDiscard) { discardPick.clear() }
     var tradeOpen by remember { mutableStateOf(tradeOpenAtStart) }
     val tradeGive = remember { androidx.compose.runtime.mutableStateMapOf<String, Int>() }
     val tradeGet = remember { androidx.compose.runtime.mutableStateMapOf<String, Int>() }
@@ -209,7 +213,12 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
                 Text(hint, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Gold)
                 TextButton(onClick = { picked = null; heistMode = false }) { Text("Cancel") }
             }
-            if (tradeOpen && !spectating) TradePanel(
+            if (needDiscard > 0) DiscardPanel(
+                game, needDiscard, discardPick,
+                onSend = { vm.act("discard") { put("res", kotlinx.serialization.json.buildJsonObject { discardPick.forEach { (k, n) -> if (n > 0) put(k, n) } }) } },
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
+            )
+            if (tradeOpen && needDiscard == 0 && !spectating) TradePanel(
                 game, vm, tradeGive, tradeGet, canTrade, onClose = { tradeOpen = false },
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
             )
@@ -259,7 +268,11 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
                 OutlinedButton(onClick = { vm.leave() }) { Text("Stop") }
             }
         } else {
-            HandRow(game, onDev = { dialog = GameDialog.Dev }) { k ->
+            HandRow(game, discardPick, onDev = { dialog = GameDialog.Dev }) { k ->
+                if (needDiscard > 0) {
+                    if (discardPick.values.sum() < needDiscard && (discardPick[k] ?: 0) < game.hand(k)) discardPick[k] = (discardPick[k] ?: 0) + 1
+                    return@HandRow
+                }
                 if (!tradeOpen) { tradeOpen = true; picked = null }
                 // with the panel open, a card from your hand goes into what you give
                 if (canTrade && (tradeGet[k] ?: 0) == 0 && (tradeGive[k] ?: 0) < game.hand(k)) tradeGive[k] = (tradeGive[k] ?: 0) + 1
@@ -268,9 +281,6 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
     }
 
     // ---------- windows ----------
-    if (!spectating && game.subphase == "discard" && (game.pendingDiscards[game.you.toString()] ?: 0) > 0) {
-        DiscardDialog(game) { res -> vm.act("discard") { put("res", kotlinx.serialization.json.buildJsonObject { res.forEach { (k, n) -> if (n > 0) put(k, n) } }) } }
-    }
     if (!spectating && game.subphase == "diamond" && (game.pendingDiamond[game.you.toString()] ?: 0) > 0) {
         DiamondDialog(game) { picks -> vm.act("diamond") { put("res", buildJsonArray { picks.forEach { add(it) } }) } }
     }
@@ -295,7 +305,7 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
             }
         }
         is GameDialog.Log -> LogDialog(game) { dialog = null }
-        is GameDialog.Info -> InfoDialog(game) { dialog = null }
+        is GameDialog.Info -> InfoDialog(game, onClose = { dialog = null }, onTutorial = onTutorial?.let { open -> { dialog = null; open() } })
         null -> {}
     }
     if (game.phase == "ended" && showResults) {
@@ -333,10 +343,10 @@ private fun PlayersStrip(game: GameState) {
 }
 
 @Composable
-private fun HandRow(game: GameState, onDev: () -> Unit, onTapResource: (String) -> Unit) {
+private fun HandRow(game: GameState, discarding: Map<String, Int>, onDev: () -> Unit, onTapResource: (String) -> Unit) {
     Row(Modifier.fillMaxWidth().background(NavyDark).padding(start = 8.dp, end = 14.dp, top = 12.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         RESOURCES.forEach { k ->
-            val n = game.hand(k)
+            val n = game.hand(k) - (discarding[k] ?: 0)   // cards you have picked to discard are taken out of the count at once
             // When a hand count goes up the card bumps and a "+n" floats away from it.
             val gain = remember { Animatable(1f) }
             var shownGain by remember { mutableStateOf(0) }
@@ -350,7 +360,7 @@ private fun HandRow(game: GameState, onDev: () -> Unit, onTapResource: (String) 
             Box(Modifier.weight(1f)) {
                 ResourceCard(
                     k, Modifier.fillMaxWidth().graphicsLayer { scaleX = bump; scaleY = bump }, count = n.takeIf { it > 0 }, label = RESOURCE_LABEL[k],
-                    dim = n == 0, goldBadge = true, onClick = { onTapResource(k) },
+                    dim = n == 0, goldBadge = true, chip = discarding[k]?.takeIf { it > 0 }?.let { "−$it" }, onClick = { onTapResource(k) },
                 )
                 if (gain.value < 1f) Text(
                     "+$shownGain", Modifier.align(Alignment.TopCenter).graphicsLayer { translationY = -gain.value * 56.dp.toPx() - 8.dp.toPx(); alpha = 1f - gain.value * gain.value },

@@ -258,5 +258,6 @@ fun parseColor(hex: String?): Long {
 fun GameState.myPlayer(): PlayerView? = players.getOrNull(you)
 fun GameState.isMyTurn(): Boolean = you >= 0 && turn == you
 fun GameState.hand(res: String): Int = me?.res?.get(res) ?: 0
+fun GameState.totalCards(): Int = RESOURCES.sumOf { hand(it) }
 fun GameState.cities(): Int = 4 - (myPlayer()?.pieces?.city ?: 4)
 fun GameState.canAfford(cost: Map<String, Int>): Boolean = cost.all { (k, n) -> hand(k) >= n }

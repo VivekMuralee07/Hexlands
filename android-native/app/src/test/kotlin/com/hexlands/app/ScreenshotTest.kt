@@ -14,6 +14,8 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import com.hexlands.app.net.Board
 import com.hexlands.app.net.GameState
@@ -195,5 +197,36 @@ class ScreenshotTest {
         val g = g0.copy(buildings = g0.buildings.entries.mapIndexed { i, (k, b) -> k to (if (i % 2 == 0) b.copy(type = "city") else b) }.toMap())
         assertTrue("both kinds are there", g.buildings.values.any { it.type == "city" } && g.buildings.values.any { it.type == "settlement" })
         shot("pieces") { BoardCanvas(board, g, emptySet(), emptySet(), emptySet(), null, {}, animate = false) }
+    }
+
+    @Test fun aSevenMakesYouPickCardsFromYourHandWithNoWindow() {
+        val g0 = state("main")   // 14 cards in hand
+        val g = g0.copy(rolled = true, subphase = "discard", pendingDiscards = mapOf(g0.you.toString() to 7))
+        shot("discard") { GameScreen(ui(g), g, GameViewModel(app), animate = false) }
+        rule.onNodeWithText("The robber strikes!").assertExists()
+        rule.onNodeWithText("0 of 7").assertExists()
+        rule.onAllNodes(androidx.compose.ui.test.hasContentDescription("Wood", substring = true)).onFirst().performClick()   // tap the Wood card in the hand
+        rule.waitForIdle()
+        rule.onNodeWithText("1 of 7").assertExists()
+        rule.onNodeWithContentDescription("Discard the picked cards").assertExists()
+    }
+
+    @Test fun theInfoWindowHasTheFullRulesCostsPointsAndSettings() {
+        val g = state("main")
+        shot("info") { com.hexlands.app.ui.InfoDialog(g, onClose = {}, onTutorial = {}) }
+        rule.onNodeWithText("▶ Watch the animated tutorial").assertExists()
+        rule.onNodeWithText("Goal").assertExists()
+        rule.onNodeWithText("Costs").performClick(); rule.waitForIdle()
+        rule.onNodeWithText("Heist card").assertExists()
+        rule.onNodeWithText("Points").performClick(); rule.waitForIdle()
+        rule.onNodeWithText("Longest Road").assertExists()
+        rule.onNodeWithText("This game").performClick(); rule.waitForIdle()
+        rule.onNodeWithText("Points to win: ${g.vpTarget}").assertExists()
+    }
+
+    @Test fun theRulesTextShowsTheResourcesAsPictures() {
+        shot("rules") { androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.padding(12.dp)) { com.hexlands.app.ui.RulesText() } }
+        rule.onNodeWithText("Rolling a 7").assertExists()
+        rule.onNodeWithText("Desert makes nothing.").assertExists()
     }
 }

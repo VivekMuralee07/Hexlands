@@ -131,7 +131,8 @@ fun ResourceCard(
     onClick: (() -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(12.dp)
-    Box(modifier.aspectRatio(0.76f).let { if (onClick != null) it.clickable(onClick = onClick) else it }) {
+    val name = (RESOURCE_LABEL[resource] ?: resource) + (count?.let { ", $it" } ?: "")
+    Box(modifier.aspectRatio(0.76f).semantics { contentDescription = name }.let { if (onClick != null) it.clickable(onClick = onClick) else it }) {
         Box(
             Modifier.fillMaxSize().clip(shape)
                 .background(Brush.verticalGradient(listOf((CARD_TOP[resource] ?: Color.Gray).copy(alpha = if (dim) 0.4f else 1f), (CARD_BOTTOM[resource] ?: Color.DarkGray).copy(alpha = if (dim) 0.4f else 1f))))
