@@ -104,6 +104,29 @@ fun BoardCanvas(
     val bounds = remember(board) { boundsOf(board) }
     // The glow on the spots you may tap pulses. [animate] = false holds it steady (the screenshot tests need a screen that is ever idle).
     val pulse = if (animate) rememberInfiniteTransition(label = "pulse").animateFloat(0.35f, 0.95f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "pulse").value else 0.8f
+    val anim = animate && LocalAnimate.current
+    val clock by rememberClock()
+    // Pieces pop in when they appear: the first time a road or building is seen after the board has been shown, its birth time is noted.
+    val births = remember { HashMap<String, Float>() }
+    var shown by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(Unit) { shown = true }
+    fun pop(key: String): Float {
+        if (!anim) return 1f
+        val born = births.getOrPut(key) { if (shown) clock else -10f }
+        val p = ((clock - born) / 0.45f).coerceIn(0f, 1f)
+        val q = p - 1f
+        return if (p >= 1f) 1f else (1f + 2.70158f * q * q * q + 1.70158f * q * q).coerceAtLeast(0f)   // ease-out-back: overshoots, then settles
+    }
+    // The robber hops from tile to tile along an arc.
+    var robFrom by remember { mutableStateOf(game.robber) }
+    var robTo by remember { mutableStateOf(game.robber) }
+    val hop = remember { androidx.compose.animation.core.Animatable(1f) }
+    androidx.compose.runtime.LaunchedEffect(game.robber) {
+        if (game.robber != robTo) {
+            robFrom = robTo; robTo = game.robber
+            if (anim) { hop.snapTo(0f); hop.animateTo(1f, tween(550)) } else hop.snapTo(1f)
+        }
+    }
     val density = LocalDensity.current
     val slop = with(density) { 30.dp.toPx() }
 
@@ -164,17 +187,21 @@ fun BoardCanvas(
             val e = board.edges.getOrNull(eid.toIntOrNull() ?: continue) ?: continue
             val a = board.vertices[e.v[0]]; val b = board.vertices[e.v[1]]
             val pa = screen(a.x, a.y); val pb = screen(b.x, b.y)
-            drawLine(Color.Black.copy(alpha = 0.7f), pa, pb, strokeWidth = k * 0.17f, cap = StrokeCap.Round)
-            drawLine(Color(parseColor(game.players.getOrNull(seat)?.color)), pa, pb, strokeWidth = k * 0.11f, cap = StrokeCap.Round)
+            val g = pop("r$eid")
+            drawLine(Color.Black.copy(alpha = 0.7f), pa, pb, strokeWidth = k * 0.17f * g, cap = StrokeCap.Round)
+            drawLine(Color(parseColor(game.players.getOrNull(seat)?.color)), pa, pb, strokeWidth = k * 0.11f * g, cap = StrokeCap.Round)
         }
         // buildings
         for ((vid, b) in game.buildings) {
             val v = board.vertices.getOrNull(vid.toIntOrNull() ?: continue) ?: continue
-            house(screen(v.x, v.y), k * 0.2f, Color(parseColor(game.players.getOrNull(b.p)?.color)), b.type == "city")
+            house(screen(v.x, v.y), k * 0.2f * pop("b$vid${b.type}"), Color(parseColor(game.players.getOrNull(b.p)?.color)), b.type == "city")
         }
         // the robber
-        board.tiles.getOrNull(game.robber)?.let { t ->
-            val c = screen(t.x, t.y) + Offset(0f, -k * 0.05f)
+        board.tiles.getOrNull(robTo)?.let { t ->
+            val to = screen(t.x, t.y)
+            val from = board.tiles.getOrNull(robFrom)?.let { screen(it.x, it.y) } ?: to
+            val h = hop.value
+            val c = from + (to - from) * h + Offset(0f, -k * 0.05f - kotlin.math.sin(Math.PI.toFloat() * h) * k * 0.6f)
             drawCircle(Color(0xFF222222), k * 0.16f, c + Offset(0f, k * 0.14f))
             drawCircle(Color(0xFF222222), k * 0.1f, c - Offset(0f, k * 0.08f))
             drawCircle(Color.White.copy(alpha = 0.5f), k * 0.16f, c + Offset(0f, k * 0.14f), style = Stroke(max(1f, k * 0.015f)))

@@ -30,6 +30,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.runtime.Composable
+import kotlin.math.sin
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.Animatable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -156,12 +159,15 @@ fun GameScreen(ui: UiState, game: GameState, vm: GameViewModel, animate: Boolean
             if (board == null) Text("Loading the board…", Modifier.align(Alignment.Center))
             else BoardCanvas(board, game, cornerSpots, roadSpots, hexSpots, pickedNow, ::onTap, animate = animate)
             game.dice?.let { d ->
-                if (d.size == 2) Text(
-                    "Dice  ${d[0]} + ${d[1]} = ${d[0] + d[1]}",
-                    Modifier.align(Alignment.BottomStart).padding(8.dp).background(NavyDark.copy(alpha = 0.85f), RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 6.dp),
-                    fontWeight = FontWeight.Bold,
-                )
+                if (d.size == 2) Row(
+                    Modifier.align(Alignment.BottomStart).padding(8.dp).background(NavyDark.copy(alpha = 0.85f), RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    DiceView(d, roll = game.turnNumber to d)
+                    Text("${d[0] + d[1]}", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, color = Gold)
+                }
             }
+            if (game.phase == "ended" && game.winner != null && animate) Confetti()
         }
 
         // Another player's trade offer to you.
@@ -291,13 +297,30 @@ private fun HandRow(game: GameState, onTapResource: (String) -> Unit) {
     Row(Modifier.fillMaxWidth().background(NavyDark).padding(horizontal = 6.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         RESOURCES.forEach { k ->
             val n = game.hand(k)
-            Column(
-                Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).background((RESOURCE_COLOR[k] ?: Color.Gray).copy(alpha = if (n > 0) 1f else 0.35f))
-                    .clickable { onTapResource(k) }.padding(vertical = 6.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text("$n", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = Color.Black.copy(alpha = 0.85f))
-                Text(RESOURCE_LABEL[k] ?: k, fontSize = 11.sp, color = Color.Black.copy(alpha = 0.8f))
+            // When a hand count goes up the card bumps and a "+n" floats away from it.
+            val gain = remember { Animatable(1f) }
+            var shownGain by remember { mutableStateOf(0) }
+            var prev by remember { mutableStateOf(n) }
+            val animate = LocalAnimate.current
+            LaunchedEffect(n) {
+                if (n > prev && animate) { shownGain = n - prev; gain.snapTo(0f); gain.animateTo(1f, tween(1000)) }
+                prev = n
+            }
+            val bump = 1f + 0.18f * sin(Math.PI.toFloat() * gain.value)
+            Box(Modifier.weight(1f)) {
+                Column(
+                    Modifier.fillMaxWidth().graphicsLayer { scaleX = bump; scaleY = bump }.clip(RoundedCornerShape(10.dp))
+                        .background((RESOURCE_COLOR[k] ?: Color.Gray).copy(alpha = if (n > 0) 1f else 0.35f))
+                        .clickable { onTapResource(k) }.padding(vertical = 6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text("$n", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = Color.Black.copy(alpha = 0.85f))
+                    Text(RESOURCE_LABEL[k] ?: k, fontSize = 11.sp, color = Color.Black.copy(alpha = 0.8f))
+                }
+                if (gain.value < 1f) Text(
+                    "+$shownGain", Modifier.align(Alignment.TopCenter).graphicsLayer { translationY = -gain.value * 56.dp.toPx() - 8.dp.toPx(); alpha = 1f - gain.value * gain.value },
+                    color = Good, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp,
+                )
             }
         }
     }
