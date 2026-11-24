@@ -33,6 +33,12 @@ class UpdaterTest {
         assertTrue(info.notes.startsWith("Undo and counter-offers"))
     }
 
+    @Test fun githubSpellsTheRepositoryNameInItsOwnCapitals() {
+        // The app is configured with the lower-case name; GitHub's download links use the real one (VivekMuralee07).
+        val real = release(host = "https://github.com/VivekMuralee07/Hexlands/releases/download/app-1049/", tag = "app-1049")
+        assertEquals(1049, Updater.parseRelease(real, repo)!!.versionCode)
+    }
+
     @Test fun ignoresReleasesThatAreNotOursOrNotFinished() {
         assertNull("a draft", Updater.parseRelease(release(draft = true), repo))
         assertNull("a pre-release", Updater.parseRelease(release(pre = true), repo))

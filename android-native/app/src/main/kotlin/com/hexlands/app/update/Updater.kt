@@ -56,7 +56,7 @@ object Updater {
         val code = Regex("^app-(\\d{1,9})$").find(tag)?.groupValues?.get(1)?.toIntOrNull() ?: return null
         val asset = (o["assets"] as? JsonArray)?.map { it.jsonObject }?.firstOrNull { it["name"]?.jsonPrimitive?.contentOrNull == APK_NAME } ?: return null
         val url = asset["browser_download_url"]?.jsonPrimitive?.contentOrNull ?: return null
-        if (!url.startsWith("https://github.com/$repo/releases/download/")) return null   // only this repository's own releases
+        if (!url.startsWith("https://github.com/$repo/releases/download/", ignoreCase = true)) return null   // only this repository's own releases
         val size = runCatching { asset["size"]!!.jsonPrimitive.long }.getOrDefault(0L)
         return UpdateInfo(code, o["body"]?.jsonPrimitive?.contentOrNull.orEmpty().trim(), url, size)
     }
