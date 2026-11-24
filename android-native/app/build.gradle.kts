@@ -27,6 +27,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            // The test build gets its own ID, so it installs next to the Play Store app instead of fighting it (the two are signed with different keys).
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
         release {
             isMinifyEnabled = false
         }
